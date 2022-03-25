@@ -8,8 +8,12 @@ import sys
 import json
 import csv
 import re
+import argparse
 import subprocess
+#from this import d
 
+
+bin_openshift_tests="tmp/origin/openshift-tests"
 base_output_file="openshift-e2e-suites"
 default_empty=("-"*3)
 
@@ -18,7 +22,7 @@ default_empty=("-"*3)
 #
 def gather_suite_tests(suite):
     try:
-        resp = subprocess.check_output(f"tmp/origin/openshift-tests run --dry-run {suite}", shell=True)
+        resp = subprocess.check_output(f"{bin_openshift_tests} run --dry-run {suite}", shell=True)
         return resp.decode("utf-8").split('\n')
     except subprocess.CalledProcessError as e:
         if e.returncode == 127:
@@ -149,8 +153,8 @@ def build_field_filters(suites, filter_field_prefix):
 #
 # Exporters
 #
-def export_to_csv(payload):
-    with open(f'{base_output_file}.csv', 'w', newline='') as csvfile:
+def export_to_csv(payload, odir):
+    with open(f'{odir}/{base_output_file}.csv', 'w', newline='') as csvfile:
 
         fieldnames = ['suite', 'name_alias', 'tags', 'name']
 
@@ -173,14 +177,42 @@ def export_to_csv(payload):
                     row[f] = (test['filters'].get(f.strip(ffield_prefix), default_empty))
                 writer.writerow(row)
 
-    print(f"Json file saved in {base_output_file}.csv")
+    print(f"Json file saved in {odir}/{base_output_file}.csv")
 
 
-def export_to_json(payload):
-    with open(f'{base_output_file}.json', 'w') as outfile:
+def export_to_json(payload, odir):
+    with open(f'{odir}/{base_output_file}.json', 'w') as outfile:
         json.dump(payload, outfile)
-    print(f"Json file saved in {base_output_file}.json")
+    print(f"Json file saved in {odir}/{base_output_file}.json")
 
+#
+# Exporter entity
+#
+class TestsExporter(object):
+    suites = []
+    payload = {
+        "suites": []
+    }
+    def __init__(self, suites=[]):
+        self.suites = suites
+
+    def gather_tests(self):
+        for suite_name in self.suites:
+            tests = gather_suite_tests(suite_name)
+            parsed_tests = parser_suite_tests(suite_name, tests)
+            self.payload["suites"].append({
+                "name": suite_name,
+                "tests": parsed_tests
+            })
+
+    def build_filter_intersection(self):
+        # improve filters
+        build_filters_intersection(self.payload['suites'], self.suites[0], self.suites[1])
+        build_filters_intersection(self.payload['suites'], self.suites[1], self.suites[0])
+
+    def export_default(self, out_dir):
+        export_to_csv(self.payload, out_dir)
+        export_to_json(self.payload, out_dir)
 
 #
 # main
@@ -190,24 +222,41 @@ def main():
         "suites": []
     }
 
-    # discovery tests for suite
-    suites = ["openshift/conformance", "kubernetes/conformance"]
+    parser = argparse.ArgumentParser(description='OpenShift Partner Certification Tool - Tests parser.')
+    # parser.add_argument('integers', metavar='N', type=int, nargs='+',
+    #                     help='an integer for the accumulator')
+    # parser.add_argument('--output', dest='output', action='store_const',
+    #                     const=sum, default=max,
+    #                     help='sum the integers (default: find the max)')
+
+    parser.add_argument('--filter-suites', dest='filter_suites',
+                        default="openshift/conformance,kubernetes/conformance",
+                        help='openshift-tests suite to run the filter, sepparated by comma.')
+    parser.add_argument('--filter-key', dest='filter_k',
+                        help='filter by key')
+    parser.add_argument('--filter-value', dest='filter_v',
+                        help='filter value of key')
+    parser.add_argument('--output', dest='output',
+                        help='output file path to save the results')
+    parser.add_argument('--output-dir', dest='output_dir',
+                        default="./tmp",
+                        help='output file path to save the results')
     
-    for suite_name in suites:
-        tests = gather_suite_tests(suite_name)
-        parsed_tests = parser_suite_tests(suite_name, tests)
-        payload["suites"].append({
-            "name": suite_name,
-            "tests": parsed_tests
-        })
+    args = parser.parse_args()
+    texporter = TestsExporter()
 
-    # improve filters
-    build_filters_intersection(payload['suites'], suites[0], suites[1])
-    build_filters_intersection(payload['suites'], suites[1], suites[0])
+    if not(args.filter_suites):
+        # discovery suites by default:
+        texporter.suites = ["openshift/conformance", "kubernetes/conformance"]
+    else:
+        texporter.suites = args.filter_suites.split(',')
 
-    # exporters
-    export_to_csv(payload)
-    export_to_json(payload)
+    # Collect tests
+    texporter.gather_tests()
+
+    if not(args.filter_k):
+        texporter.export_default(args.output_dir)
+        sys.exit(0)
 
 
 if __name__ == "__main__":
