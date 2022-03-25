@@ -1,0 +1,45 @@
+podSpec:
+  restartPolicy: Never
+  serviceAccountName: sonobuoy-serviceaccount
+  tolerations:
+  - effect: NoSchedule
+    key: node-role.kubernetes.io/master
+    operator: Exists
+  - key: CriticalAddonsOnly
+    operator: Exists
+  containers:
+    # ToDo: move to native report:
+    # env:E2E_EXTRA_ARGS=--progress-report-url=http://localhost:8099/progress
+    - name: report-progress
+      image: quay.io/mrbraga/openshift-partner-cert:latest1
+      command:
+      - /bin/sh
+      - /ocp-conformance/report-progress.sh
+      volumeMounts:
+      - mountPath: /tmp/sonobuoy/results
+        name: results
+sonobuoy-config:
+  driver: Job
+  plugin-name: openshift-e2e-cert
+  result-format: junit
+spec:
+  name: plugin
+  image: quay.io/mrbraga/openshift-partner-cert:latest1
+  env:
+  # native report is not working, using custom container
+  #- name: E2E_EXTRA_ARGS
+  #  value: --progress-report-url=http://localhost:8099/progress
+  - name: E2E_FOCUS
+    value: \[Conformance\]
+  - name: E2E_SUITE
+    value: kubernetes/conformance
+  - name: CUSTOM_TEST_FILE
+    value: sample.txt
+  command:
+  - /bin/sh
+  - /ocp-conformance/run.sh
+  resources: {}
+  volumeMounts:
+  - mountPath: /tmp/sonobuoy/results
+    name: results
+
