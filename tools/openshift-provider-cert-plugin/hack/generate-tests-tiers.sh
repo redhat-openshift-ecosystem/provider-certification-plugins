@@ -34,7 +34,7 @@ run_openshift_tests() {
 # SIG=sig-storage
 level1_sig_storage() {
     run_openshift_tests "all" |grep '\[sig-storage\]' \
-        | tee -a "${tests_level1}"
+         |tail -n 50 | tee -a "${tests_level1}"
 }
 
 level2_sig_storage() {

@@ -11,9 +11,7 @@ podSpec:
     - name: report-progress
       image: quay.io/mrbraga/openshift-tests-provider-cert:latest
       imagePullPolicy: Always
-      command:
-      - /bin/sh
-      - /ocp-conformance/report-progress.sh
+      command: ["./report-progress.sh"]
       volumeMounts:
       - mountPath: /tmp/sonobuoy/results
         name: results
@@ -28,11 +26,7 @@ spec:
   env:
     - name: CUSTOM_TEST_FILE
       value: ./tests/level3.txt
-  command:
-    - /bin/sh
-    - /ocp-conformance/run.sh
   resources: {}
   volumeMounts:
   - mountPath: /tmp/sonobuoy/results
     name: results
-
