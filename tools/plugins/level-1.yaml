@@ -1,0 +1,38 @@
+podSpec:
+  restartPolicy: Never
+  serviceAccountName: sonobuoy-serviceaccount
+  tolerations:
+  - effect: NoSchedule
+    key: node-role.kubernetes.io/master
+    operator: Exists
+  - key: CriticalAddonsOnly
+    operator: Exists
+  containers:
+    - name: report-progress
+      image: quay.io/mrbraga/openshift-tests-provider-cert:latest
+      imagePullPolicy: Always
+      command:
+      - /bin/sh
+      - /ocp-conformance/report-progress.sh
+      volumeMounts:
+      - mountPath: /tmp/sonobuoy/results
+        name: results
+sonobuoy-config:
+  driver: Job
+  plugin-name: openshift-provider-cert-level1
+  result-format: junit
+spec:
+  name: plugin
+  image: quay.io/mrbraga/openshift-tests-provider-cert:latest
+  imagePullPolicy: Always
+  env:
+    - name: CUSTOM_TEST_FILE
+      value: ./tests/level1.txt
+  command:
+    - /bin/sh
+    - /ocp-conformance/run.sh
+  resources: {}
+  volumeMounts:
+  - mountPath: /tmp/sonobuoy/results
+    name: results
+

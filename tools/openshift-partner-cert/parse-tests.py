@@ -13,8 +13,8 @@ import subprocess
 #from this import d
 
 
-bin_openshift_tests="tmp/origin/openshift-tests"
-base_output_file="openshift-e2e-suites"
+bin_openshift_tests="openshift-tests"
+base_output_file="openshift-tests-suites"
 default_empty=("-"*3)
 
 #
@@ -149,11 +149,28 @@ def build_field_filters(suites, filter_field_prefix):
                 filter_k[f"{filter_field_prefix}{f}"] = ''
     return list(filter_k.keys())
 
+def filter_kv(payload, kv):
+    new_suite = {
+        "name": "filtered",
+        "tests": []
+    }
+    k, v = kv
+    for s in payload['suites']:
+        for t in s['tests']:
+            if k in t['filters']:
+                if t['filters'][k] == v:
+                    new_suite['tests'].append(t)
+
+    return {
+        "suites": [new_suite]
+    }
 
 #
 # Exporters
 #
 def export_to_csv(payload, odir):
+    """Export tests to CSV table with properly filters discovered by metadata
+    """
     with open(f'{odir}/{base_output_file}.csv', 'w', newline='') as csvfile:
 
         fieldnames = ['suite', 'name_alias', 'tags', 'name']
@@ -177,13 +194,25 @@ def export_to_csv(payload, odir):
                     row[f] = (test['filters'].get(f.strip(ffield_prefix), default_empty))
                 writer.writerow(row)
 
-    print(f"Json file saved in {odir}/{base_output_file}.csv")
+    print(f"CSV file saved in {odir}/{base_output_file}.csv")
 
 
 def export_to_json(payload, odir):
+    """Export tests as json with it's metadata
+    """
     with open(f'{odir}/{base_output_file}.json', 'w') as outfile:
         json.dump(payload, outfile)
     print(f"Json file saved in {odir}/{base_output_file}.json")
+
+
+def export_to_txt(payload, odir):
+    """Export tests name to text file to be able to reproduce on 'openshift-tests run -f'.
+    """
+    with open(f'{odir}/{base_output_file}.txt', 'w') as outfile:
+        for s in payload['suites']:
+            for t in s['tests']:
+                outfile.write(f"{t['name']}\n")
+    print(f"Text file saved in {odir}/{base_output_file}.txt")
 
 #
 # Exporter entity
@@ -192,6 +221,15 @@ class TestsExporter(object):
     suites = []
     payload = {
         "suites": []
+    }
+    output = {
+        "file": "",
+        "dir": "",
+        "types": {
+            "json": False,
+            "csv": False,
+            "txt": False
+        }
     }
     def __init__(self, suites=[]):
         self.suites = suites
@@ -214,20 +252,28 @@ class TestsExporter(object):
         export_to_csv(self.payload, out_dir)
         export_to_json(self.payload, out_dir)
 
+    def export_filter(self, kv, out_dir):
+        filtered_payload = filter_kv(self.payload, kv)
+        export_to_csv(filtered_payload, out_dir)
+        export_to_json(filtered_payload, out_dir)
+        export_to_txt(filtered_payload, out_dir)
+
+    def set_outputs(self, args):
+        if args.output:
+            self.output_file = args.output
+
+        if args.output_dir:
+            self.output_dir = args.output_dir
+
+        if args.output_types:
+            self.output_types = args.output_types
+
+
 #
 # main
 #
 def main():
-    payload = {
-        "suites": []
-    }
-
     parser = argparse.ArgumentParser(description='OpenShift Partner Certification Tool - Tests parser.')
-    # parser.add_argument('integers', metavar='N', type=int, nargs='+',
-    #                     help='an integer for the accumulator')
-    # parser.add_argument('--output', dest='output', action='store_const',
-    #                     const=sum, default=max,
-    #                     help='sum the integers (default: find the max)')
 
     parser.add_argument('--filter-suites', dest='filter_suites',
                         default="openshift/conformance,kubernetes/conformance",
@@ -241,9 +287,13 @@ def main():
     parser.add_argument('--output-dir', dest='output_dir',
                         default="./tmp",
                         help='output file path to save the results')
-    
+    parser.add_argument('--output-types', dest='output_types',
+                        default="json,csv,txt",
+                        help='output types to export')
+
     args = parser.parse_args()
     texporter = TestsExporter()
+    texporter.set_outputs(args)
 
     if not(args.filter_suites):
         # discovery suites by default:
@@ -254,10 +304,12 @@ def main():
     # Collect tests
     texporter.gather_tests()
 
-    if not(args.filter_k):
-        texporter.export_default(args.output_dir)
+    if args.filter_k:
+        texporter.export_filter((args.filter_k, args.filter_v), args.output_dir)
         sys.exit(0)
 
+    texporter.export_default(args.output_dir)
+    sys.exit(0)
 
 if __name__ == "__main__":
     main()
