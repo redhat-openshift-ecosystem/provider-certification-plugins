@@ -14,6 +14,11 @@ oc adm policy add-scc-to-group anyuid system:authenticated system:serviceaccount
 oc adm policy add-scc-to-group privileged system:authenticated system:serviceaccounts
 ~~~
 
+Once conformance testing is completed, if you do not have the cluster cleaned up, be sure to restore the default security rules:
+
+oc adm policy remove-scc-from-group anyuid system:authenticated system:serviceaccounts
+oc adm policy remove-scc-from-group privileged system:authenticated system:serviceaccounts
+
 ### Create product metadata
 
 ```bash

@@ -4,31 +4,36 @@
 # openshift-tests-partner-cert runner
 #
 
+set -o pipefail
+set -o nounset
+set -o errexit
+
+source $(dirname $0)/shared.sh
+
 export KUBECONFIG=/tmp/kubeconfig
 
 suite="${E2E_SUITE:-kubernetes/conformance}"
-results_dir="${RESULTS_DIR:-/tmp/sonobuoy/results}"
-results_pipe="${results_dir}/status_pipe"
-
 ca_path="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 sa_token="/var/run/secrets/kubernetes.io/serviceaccount/token"
 
 mkfifo ${results_pipe}
 
+echo "#executor> Starting plugin runner..."
 #
 # feedback worker
 #
-saveResults() {
-
-     cat << EOF >${results_dir}/runner.txt
+save_results() {
+    echo "#executor> Saving results."
+     cat << EOF >>${results_script_dir}/executor.log
+#executor> Saving results.
 ##> openshift-tests version:
 
-##> junit files in ${results_dir}:
-$(ls ${results_dir}/junit*.xml)
+##> show files in ${results_dir}:
+$(ls ${results_dir}/)
 EOF
-    echo "${results_dir}/runner.txt" > ${results_dir}/done
+    #echo "${results_dir}/runner.txt" > ${results_dir}/done
 }
-trap saveResults EXIT
+trap save_results EXIT
 
 #
 # login
@@ -49,24 +54,28 @@ oc login ${PUBLIC_API_URL} \
 # To run custom tests, set the environment CUSTOM_TEST_FILE on plugin definition.
 # To generate the test file, use the parse-test.py.
 if [[ ! -z ${CUSTOM_TEST_FILE:-} ]]; then
-    echo "Running openshift-tests for custom tests [${CUSTOM_TEST_FILE}]..."
-    openshift-tests run \
-        --junit-dir ${results_dir} \
-        -f ./tests/${CUSTOM_TEST_FILE} \
-        | tee ${results_pipe}
-
+    echo "#executor> Running openshift-tests for custom tests [${CUSTOM_TEST_FILE}]..."
+    if [[ -s ${CUSTOM_TEST_FILE} ]]; then
+        openshift-tests run \
+            --junit-dir ${results_dir} \
+            -f ${CUSTOM_TEST_FILE} \
+            | tee ${results_pipe}
+    else
+        echo "#executor> the file provided has no tests. Sending progress and finish executor...";
+        echo "(0/0/0)" > ${results_pipe}
+    fi
 # reusing script to parser jobs.
 # ToDo: keep more simple in basic filters. Example:
 # $ openshift-tests run --dry-run all |grep '\[sig-storage\]' |openshift-tests run -f -
 elif [[ ! -z ${CUSTOM_TEST_FILTER_SIG:-} ]]; then
-    echo "Generating tests for SIG [${CUSTOM_TEST_FILTER_SIG}]..."
+    echo "#executor>Generating tests for SIG [${CUSTOM_TEST_FILTER_SIG}]..."
     mkdir tmp/
     ./parse-tests.py \
         --filter-suites all \
         --filter-key sig \
         --filter-value "${CUSTOM_TEST_FILTER_SIG}"
 
-    echo "Running"
+    echo "#executor>Running"
     openshift-tests run \
         --junit-dir ${results_dir} \
         -f ./tmp/openshift-e2e-suites.txt \
@@ -74,7 +83,7 @@ elif [[ ! -z ${CUSTOM_TEST_FILTER_SIG:-} ]]; then
 
 # Filter by string pattern from 'all' tests
 elif [[ ! -z ${CUSTOM_TEST_FILTER_STR:-} ]]; then
-    echo "Generating a filter [${CUSTOM_TEST_FILE}]..."
+    echo "#executor>Generating a filter [${CUSTOM_TEST_FILTER_STR}]..."
     openshift-tests run --dry-run all \
         | grep "${CUSTOM_TEST_FILTER_STR}" \
         | openshift-tests run -f - \
@@ -82,11 +91,12 @@ elif [[ ! -z ${CUSTOM_TEST_FILTER_STR:-} ]]; then
 
 # Default execution - running default suite
 else
-    echo "Running openshift-tests for suite [${suite}]..."
+    echo "#executor>Running openshift-tests for suite [${suite}]..."
     openshift-tests run \
         --junit-dir ${results_dir} \
         ${suite} \
         | tee ${results_pipe}
 fi
 
-echo "Execution finished. Result[$?]";
+sleep 5
+echo "#executor>#> Plugin runner finished. Result[$?]";
