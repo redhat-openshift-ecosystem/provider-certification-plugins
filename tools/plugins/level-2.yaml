@@ -8,10 +8,9 @@ podSpec:
   - key: CriticalAddonsOnly
     operator: Exists
   containers:
-    # ToDo: move to native report:
-    # env:E2E_EXTRA_ARGS=--progress-report-url=http://localhost:8099/progress
     - name: report-progress
-      image: quay.io/mrbraga/openshift-partner-cert:latest1
+      image: quay.io/mrbraga/openshift-tests-provider-cert:latest
+      imagePullPolicy: Always
       command:
       - /bin/sh
       - /ocp-conformance/report-progress.sh
@@ -20,24 +19,18 @@ podSpec:
         name: results
 sonobuoy-config:
   driver: Job
-  plugin-name: openshift-e2e-cert
+  plugin-name: openshift-provider-cert-level1
   result-format: junit
 spec:
   name: plugin
-  image: quay.io/mrbraga/openshift-partner-cert:latest1
+  image: quay.io/mrbraga/openshift-tests-provider-cert:latest
+  imagePullPolicy: Always
   env:
-  # native report is not working, using custom container
-  #- name: E2E_EXTRA_ARGS
-  #  value: --progress-report-url=http://localhost:8099/progress
-  - name: E2E_FOCUS
-    value: \[Conformance\]
-  - name: E2E_SUITE
-    value: kubernetes/conformance
-  - name: CUSTOM_TEST_FILE
-    value: sample.txt
+    - name: CUSTOM_TEST_FILE
+      value: ./tests/level2.txt
   command:
-  - /bin/sh
-  - /ocp-conformance/run.sh
+    - /bin/sh
+    - /ocp-conformance/run.sh
   resources: {}
   volumeMounts:
   - mountPath: /tmp/sonobuoy/results
