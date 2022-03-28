@@ -19,7 +19,7 @@ HAS_UPDATE=0;
 while read line;
 do
     #TODO(bug): JOB_PROGRESS is not detecting the last test count. Example: 'started: (0/10/10)''
-    JOB_PROGRESS=$(echo $line | grep -Po "\([0-9]{1,}\/[0-9]{1,}\/[0-9]{1,}\)" |true);
+    JOB_PROGRESS=$(echo $line | grep -Po "\([0-9]{1,}\/[0-9]{1,}\/[0-9]{1,}\)" || true);
     if [ ! -z "${JOB_PROGRESS}" ]; then
         HAS_UPDATE=1;
         TOTAL=$(echo ${JOB_PROGRESS:1:-1} | cut -d'/' -f 3);
