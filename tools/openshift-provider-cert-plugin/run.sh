@@ -22,16 +22,17 @@ os_log_info "Starting plugin runner..."
 #
 # feedback worker
 #
+
+# TODO: Do we still need this EXIT trap?
 save_results_execution() {
     os_log_info "Saving results."
-     cat << EOF >>${results_script_dir}/executor.log
+     cat << EOF >> ${results_script_dir}/executor.log
 #executor> Saving results.
 ##> openshift-tests version:
 
 ##> show files in ${results_dir}:
 $(ls ${results_dir}/)
 EOF
-    #echo "${results_dir}/runner.txt" > ${results_dir}/done
 }
 trap save_results_execution EXIT
 

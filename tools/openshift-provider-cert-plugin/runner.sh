@@ -26,8 +26,8 @@ EOF
     pushd ${results_dir};
     #1 Temp result report
     JUNIT_OUTPUT=$(ls junit*.xml || true);
-    chmod 644 ${JUNIT_OUTPUT};
-    echo '/tmp/sonobuoy/results/'${JUNIT_OUTPUT} > /tmp/sonobuoy/results/done
+    test -z "${JUNIT_OUTPUT}" || chmod 644 ${JUNIT_OUTPUT};
+    echo '/tmp/sonobuoy/results/'${JUNIT_OUTPUT} > ${results_dir}/done
 
     #2 prepares the results for handoff to the Sonobuoy worker.
     # https://github.com/vmware-tanzu/sonobuoy-plugins/blob/main/examples/cmd-runner/run.sh#L13
@@ -35,6 +35,7 @@ EOF
     #printf ${results_dir}/results.tar.gz > ${results_dir}/done
 
     popd;
+    os_log_info "Results saved at ${results_dir}/done=[/tmp/sonobuoy/results/${JUNIT_OUTPUT}]";
 }
 trap save_results EXIT
 
