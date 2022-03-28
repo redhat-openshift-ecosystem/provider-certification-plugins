@@ -19,7 +19,12 @@ save_results() {
 $(ls ${results_script_dir})
 EOF
     tar cfz ${results_script_dir}.tgz ${results_script_dir}
-    echo "${results_script_dir}.tgz" |tee ${results_dir}/done
+    #echo "${results_script_dir}.tgz" |tee ${results_dir}/done
+    pushd ${results_dir};
+    JUNIT_OUTPUT=$(ls junit*.xml);
+    chmod 644 ${JUNIT_OUTPUT};
+    echo '/tmp/sonobuoy/results/'${JUNIT_OUTPUT} > /tmp/sonobuoy/results/done
+    popd;
 }
 trap save_results EXIT
 
