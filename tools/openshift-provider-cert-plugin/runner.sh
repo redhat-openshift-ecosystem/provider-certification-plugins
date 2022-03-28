@@ -19,11 +19,21 @@ save_results() {
 $(ls ${results_script_dir})
 EOF
     tar cfz ${results_script_dir}.tgz ${results_script_dir}
-    #echo "${results_script_dir}.tgz" |tee ${results_dir}/done
+
+    # Sonobuoy Worker result:
+    # https://github.com/vmware-tanzu/sonobuoy/blob/main/site/content/docs/main/plugins.md#plugin-result-types
+
     pushd ${results_dir};
-    JUNIT_OUTPUT=$(ls junit*.xml);
+    #1 Temp result report
+    JUNIT_OUTPUT=$(ls junit*.xml || true);
     chmod 644 ${JUNIT_OUTPUT};
     echo '/tmp/sonobuoy/results/'${JUNIT_OUTPUT} > /tmp/sonobuoy/results/done
+
+    #2 prepares the results for handoff to the Sonobuoy worker.
+    # https://github.com/vmware-tanzu/sonobuoy-plugins/blob/main/examples/cmd-runner/run.sh#L13
+    #tar czf results.tar.gz *
+    #printf ${results_dir}/results.tar.gz > ${results_dir}/done
+
     popd;
 }
 trap save_results EXIT
