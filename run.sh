@@ -4,7 +4,7 @@ set -o pipefail
 set -o nounset
 set -o errexit
 
-$(which time) sonobuoy run \
+sonobuoy run \
     --dns-namespace openshift-dns \
     --dns-pod-labels=dns.operator.openshift.io/daemonset-dns=default \
     --plugin tools/plugins/level-1.yaml \
@@ -47,6 +47,7 @@ if [[ -f ${result_file} ]]; then
     # Used by report.sh
     # TODO(pre-release): improve the result inspection.
     # TODO: remove dependency of report.sh
+    test -f .tmp/ && mv .tmp/ .tmp/old-$(date +%Y%m%d%H%M%S)
     test -f .tmp/ || mkdir -p .tmp/
     echo "${result_file}" > .tmp/latest-result.txt
     cp ${result_file} ./tmp/
