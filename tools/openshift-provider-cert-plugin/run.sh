@@ -8,7 +8,7 @@ set -o pipefail
 set -o nounset
 set -o errexit
 
-source $(dirname $0)/shared.sh
+#source $(dirname $0)/shared.sh
 
 export KUBECONFIG=/tmp/kubeconfig
 
@@ -18,12 +18,12 @@ sa_token="/var/run/secrets/kubernetes.io/serviceaccount/token"
 
 mkfifo ${results_pipe}
 
-echo "#executor> Starting plugin runner..."
+os_log_info "Starting plugin runner..."
 #
 # feedback worker
 #
-save_results() {
-    echo "#executor> Saving results."
+save_results_execution() {
+    os_log_info "Saving results."
      cat << EOF >>${results_script_dir}/executor.log
 #executor> Saving results.
 ##> openshift-tests version:
@@ -33,7 +33,7 @@ $(ls ${results_dir}/)
 EOF
     #echo "${results_dir}/runner.txt" > ${results_dir}/done
 }
-trap save_results EXIT
+trap save_results_execution EXIT
 
 #
 # login
@@ -54,21 +54,21 @@ oc login ${PUBLIC_API_URL} \
 # To run custom tests, set the environment CUSTOM_TEST_FILE on plugin definition.
 # To generate the test file, use the parse-test.py.
 if [[ ! -z ${CUSTOM_TEST_FILE:-} ]]; then
-    echo "#executor> Running openshift-tests for custom tests [${CUSTOM_TEST_FILE}]..."
+    os_log_info "Running openshift-tests for custom tests [${CUSTOM_TEST_FILE}]..."
     if [[ -s ${CUSTOM_TEST_FILE} ]]; then
         openshift-tests run \
             --junit-dir ${results_dir} \
             -f ${CUSTOM_TEST_FILE} \
             | tee ${results_pipe}
     else
-        echo "#executor> the file provided has no tests. Sending progress and finish executor...";
+        os_log_info "the file provided has no tests. Sending progress and finish executor...";
         echo "(0/0/0)" > ${results_pipe}
     fi
 # reusing script to parser jobs.
 # ToDo: keep more simple in basic filters. Example:
 # $ openshift-tests run --dry-run all |grep '\[sig-storage\]' |openshift-tests run -f -
 elif [[ ! -z ${CUSTOM_TEST_FILTER_SIG:-} ]]; then
-    echo "#executor>Generating tests for SIG [${CUSTOM_TEST_FILTER_SIG}]..."
+    os_log_info "Generating tests for SIG [${CUSTOM_TEST_FILTER_SIG}]..."
     mkdir tmp/
     ./parse-tests.py \
         --filter-suites all \
@@ -99,4 +99,4 @@ else
 fi
 
 sleep 5
-echo "#executor>#> Plugin runner finished. Result[$?]";
+os_log_info "Plugin executor have finished. Result[$?]";

@@ -11,17 +11,19 @@
 
 source $(dirname $0)/shared.sh
 
-sleep 10;        
+sleep 10;
+
 PASSED=0;
-FAILURES="";        
+FAILURES="";
 HAS_UPDATE=0;
-while read line; 
+while read line;
 do
     #TODO(bug): JOB_PROGRESS is not detecting the last test count. Example: 'started: (0/10/10)''
-    JOB_PROGRESS=$(echo $line | grep -Po "\([0-9]{1,}\/[0-9]{1,}\/[0-9]{1,}\)");            
-    if [ ! -z "${JOB_PROGRESS}" ]; then              
+    JOB_PROGRESS=$(echo $line | grep -Po "\([0-9]{1,}\/[0-9]{1,}\/[0-9]{1,}\)" |true);
+    if [ ! -z "${JOB_PROGRESS}" ]; then
         HAS_UPDATE=1;
         TOTAL=$(echo ${JOB_PROGRESS:1:-1} | cut -d'/' -f 3);
+
         #TODO(fix): woraround for last test which is not reporting passed/skipped
         PASSED=$(echo ${JOB_PROGRESS:1:-1} | cut -d'/' -f 2);
 
@@ -29,11 +31,11 @@ do
     #    PASSED=$((PASSED + 1));
     #    HAS_UPDATE=1;
 
-    elif [[ $line == failed:* ]]; then              
+    elif [[ $line == failed:* ]]; then
         if [ -z "${FAILURES}" ]; then
-        FAILURES=\"$(echo $line | cut -d"\"" -f2)\"
+            FAILURES=\"$(echo $line | cut -d"\"" -f2)\"
         else
-        FAILURES=,\"$(echo $line | cut -d"\"" -f2)\"
+            FAILURES=,\"$(echo $line | cut -d"\"" -f2)\"
         fi
         HAS_UPDATE=1;
     fi
