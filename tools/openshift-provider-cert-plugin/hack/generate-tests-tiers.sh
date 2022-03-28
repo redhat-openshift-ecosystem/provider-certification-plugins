@@ -33,8 +33,11 @@ run_openshift_tests() {
 
 # SIG=sig-storage
 level1_sig_storage() {
+    #TODO(tests-by-level): temp truncate to 100 tests when the
+    # tool development is in progress.
+    # The original results (without 'tail') will retrieve 6k tests.
     run_openshift_tests "all" |grep '\[sig-storage\]' \
-         |tail -n 50 | tee -a "${tests_level1}"
+        |tail -n 100 | tee -a "${tests_level1}"
 }
 
 level2_sig_storage() {
@@ -51,6 +54,29 @@ sig_storage() {
     level3_sig_storage
 }
 
+# SIG=sig-cli
+level1_sig_cli() {
+    :
+}
+
+level2_sig_cli() {
+    #TODO(tests-by-level): Aligned real filter w/ SIG.
+    # The filter below has being used on development process.
+    run_openshift_tests "all" \
+        | grep '\[sig-cli\]' |grep '\[Conformance\]' \
+        | tee -a "${tests_level2}"
+}
+
+level3_sig_cli() {
+    :
+}
+
+sig_cli() {
+    level1_sig_cli
+    level2_sig_cli
+    level3_sig_cli
+}
+
 #
 # Finalizer
 #
@@ -58,6 +84,7 @@ sig_storage() {
 # collect
 collector() {
     sig_storage >/dev/null
+    sig_cli >/dev/null
 }
 collector
 
