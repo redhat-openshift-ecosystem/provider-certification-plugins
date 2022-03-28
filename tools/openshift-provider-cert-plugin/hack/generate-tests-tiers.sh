@@ -37,7 +37,7 @@ level1_sig_storage() {
     # tool development is in progress.
     # The original results (without 'tail') will retrieve 6k tests.
     run_openshift_tests "all" |grep '\[sig-storage\]' \
-        |tail -n 100 | tee -a "${tests_level1}"
+        |tail -n 80 | tee -a "${tests_level1}"
 }
 
 level2_sig_storage() {

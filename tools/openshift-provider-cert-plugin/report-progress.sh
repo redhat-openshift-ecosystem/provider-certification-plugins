@@ -16,6 +16,11 @@ sleep 10;
 PASSED=0;
 FAILURES="";
 HAS_UPDATE=0;
+#TODO(): check while done file is created by executor [${results_dir}/done]
+# The pipe could be closed depending of executor strategy. For example
+# If executor runs openshift-tests twice for some customization, it could broke
+# the report-progress. At the same time, the report-progress should finish after
+# executor has finished.
 while read line;
 do
     #TODO(bug): JOB_PROGRESS is not detecting the last test count. Example: 'started: (0/10/10)''
