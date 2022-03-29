@@ -4,9 +4,13 @@ set -o pipefail
 set -o nounset
 set -o errexit
 
+# Do not use timeout=0:
+# https://github.com/mtulio/openshift-provider-certification/issues/17
+PLUGIN_TIMEOUT=43200
 sonobuoy run \
     --dns-namespace openshift-dns \
     --dns-pod-labels=dns.operator.openshift.io/daemonset-dns=default \
+    --timeout ${PLUGIN_TIMEOUT} \
     --plugin tools/plugins/openshift-provider-cert-level-1.yaml \
     --plugin tools/plugins/openshift-provider-cert-level-2.yaml \
     --plugin tools/plugins/openshift-provider-cert-level-3.yaml
@@ -50,11 +54,19 @@ done
 
 echo -e "\nCollecting results..."
 sleep 10
+
 result_file=$(sonobuoy retrieve)
-if [[ $? -ne 0 ]]; then
+RC=$?
+# TODO[1](release): need to collect artifacts if
+#  'sonobuoy retrieve' returned 'EOF' (download error).
+# https://github.com/mtulio/openshift-provider-certification/issues/4
+# TODO[2](asap): The filename could be set for 'retrieve' option,
+# so it can be an work arround while [1] is not fixed.
+if [[ ${RC} -ne 0 ]]; then
     echo "One or more errors found to retrieve results"
-    # Not exiting, sometimes sonobuoy returns error and retrive file
-    #exit 1
+    #   Exit as we don't know the filename when sonobuoy
+    #   returns error on retrieve.
+    exit ${RC}
 fi
 
 if [[ -f ${result_file} ]]; then
@@ -63,7 +75,8 @@ if [[ -f ${result_file} ]]; then
 
     # Used by report.sh
     # TODO(pre-release): improve the result inspection.
-    # TODO: remove dependency of report.sh
+    # TODO(asap): remove dependency of report.sh
+    # https://github.com/mtulio/openshift-provider-certification/issues/16
     test -f .tmp/ && mv .tmp/ .tmp/old-$(date +%Y%m%d%H%M%S)
     test -f .tmp/ || mkdir -p .tmp/
     echo "${result_file}" > .tmp/latest-result.txt
