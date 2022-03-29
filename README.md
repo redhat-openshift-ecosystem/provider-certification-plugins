@@ -2,9 +2,12 @@
 
 Plugins used to evaluate the OpenShift installation.
 
+> TODO: improve the description
+
 ## Usage
 
 ### Running
+
 Disable container security [see container security restrictions are removed][scc-add]:
 ~~~
 oc adm policy add-scc-to-group anyuid system:authenticated system:serviceaccounts
@@ -21,6 +24,15 @@ Check results:
 
 ### Check results
 
+Get the certification tests status:
+```bash
+sonobuouy status
+```
+
+Get general guidance to troubleshoot results:
+```bash
+./report.sh
+```
 
 ### Destroy
 
