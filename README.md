@@ -4,6 +4,14 @@ Plugins used to evaluate the OpenShift installation.
 
 > TODO: improve the description
 
+## Install
+
+```sh
+curl -s https://github.com/mtulio/openshift-provider-certification/blob/draft/openshift-provider-cert
+chmod u+x openshift-provider-cert
+```
+
+
 ## Usage
 
 ### Running
