@@ -91,24 +91,3 @@ git push --set-upstream origin cert-4.10-myProvider
 sonobuoy delete --wait
 ```
 
-## Troubleshooting
-
-### Failed executions
-
-1. Identify which tier the test is failing
-
-1. extract the results of the tier from the artifacts
-
-```sh
-tar xf ${result_file} plugins/opc-level1/sonobuoy_results.yaml
-```
-
-1. discovery what jobs is failing
-
-```sh
-yq -r '.items[].items[].items[] | select (.status=="failed").name' plugins/e2e/sonobuoy_results.yaml  |less
-```
-
-1. Check the [documentation](TODO:path/to/tests/doc) to troubleshoot the failing tests
-
-> The documentation referencing the test definition should be delivered on the main repo as part of the tool. For reference, the k8s-conformance auto generates that doc for each release. https://github.com/cncf/k8s-conformance/tree/master/docs

@@ -12,20 +12,23 @@ source $(dirname $0)/shared.sh
 
 os_log_info "Starting plugin..." |tee -a ${results_script_dir}/runner.log
 
+# Notify sonobuoy worker with e2e results (junit)
+# https://github.com/vmware-tanzu/sonobuoy/blob/main/site/content/docs/main/plugins.md#plugin-result-types
 save_results() {
     os_log_info "Saving results."
-     cat << EOF >> ${results_script_dir}/runner.log
-##> Result files:
-$(ls ${results_script_dir})
-EOF
-    tar cfz ${results_script_dir}.tgz ${results_script_dir}
 
-    # Sonobuoy Worker result:
-    # https://github.com/vmware-tanzu/sonobuoy/blob/main/site/content/docs/main/plugins.md#plugin-result-types
+    # TODO: check how to collect plugin's stdout to artifacts.
+    # Sonobuoy does not save any file outside of a valid result schema.
+    # The worker will fail if invalid files will be send to 'done' file.
+    #cat << EOF >> ${results_script_dir}/runner.log
+##> Result files:
+#$(ls ${results_script_dir})
+#EOF
+    #tar cfz ${results_script_dir}.tgz ${results_script_dir}
 
     pushd ${results_dir};
 
-    #1 Temp result report
+    # JUnit
     JUNIT_OUTPUT=$(ls junit*.xml || true);
 
     # Create empty junit result file to avoid failures on report.
@@ -40,7 +43,7 @@ EOF
     chmod 644 ${JUNIT_OUTPUT};
     echo '/tmp/sonobuoy/results/'${JUNIT_OUTPUT} > ${results_dir}/done
 
-    #2 prepares the results for handoff to the Sonobuoy worker.
+    # tarball
     # https://github.com/vmware-tanzu/sonobuoy-plugins/blob/main/examples/cmd-runner/run.sh#L13
     #tar czf results.tar.gz *
     #printf ${results_dir}/results.tar.gz > ${results_dir}/done
@@ -50,6 +53,12 @@ EOF
 }
 trap save_results EXIT
 
-$(dirname $0)/run.sh | tee -a ${results_script_dir}/executor.log
+# TODO(waiter): add a wait flow to lock execution and avoid cert suites running in parallel.
+# https://github.com/mtulio/openshift-provider-certification/issues/2
+
+$(dirname $0)/executor.sh | tee -a ${results_script_dir}/executor.log
+
+# TODO(waiter): add a post processor of JUnit to identify flakes
+# https://github.com/mtulio/openshift-provider-certification/issues/14
 
 os_log_info "Plugin runner have finished. Result[$?]";

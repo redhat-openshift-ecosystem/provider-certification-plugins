@@ -7,9 +7,9 @@ set -o errexit
 sonobuoy run \
     --dns-namespace openshift-dns \
     --dns-pod-labels=dns.operator.openshift.io/daemonset-dns=default \
-    --plugin tools/plugins/level-1.yaml \
-    --plugin tools/plugins/level-2.yaml \
-    --plugin tools/plugins/level-3.yaml
+    --plugin tools/plugins/openshift-provider-cert-level-1.yaml \
+    --plugin tools/plugins/openshift-provider-cert-level-2.yaml \
+    --plugin tools/plugins/openshift-provider-cert-level-3.yaml
 
 sleep 5 # waiting to leave from 'Pending' state
 echo "$(date)> The certification tool is running, statuses will be reported every minute..."
