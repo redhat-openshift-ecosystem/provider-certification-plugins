@@ -1,0 +1,67 @@
+#!/usr/bin/env sh
+
+#
+# OCP cluster orchestrator and benchmark job runner.
+# See helper function (show_help|-h) for more information.
+#
+
+set -o pipefail
+set -o nounset
+set -o errexit
+
+
+function show_help {
+
+    cat <<-EOF
+Usage: ${0} command [options]
+Available commands:
+    install         Install dependencies on local directory.
+    run             Run the suite of tests for provider certification.
+    check|status    Check the status of certification tests.
+    inspect         Inspect results provided by certification tests.
+    setup           Setup local environment to send results to Red Hat.
+    upload          Upload certification artifacts to Red Hat.
+    destroy         Destroy current certification environment.
+
+Global options:
+    -h | --help                 Show this help.
+
+(...)
+
+Available options for 'run':
+    --plugins {name}[,{name}]   Optional. Comma sepparated 
+                                plugin names to limit the execution.
+    --timeout {number}          Optional. Timeout in minutes to
+                                wait the execution. Default: 300
+
+(...)
+
+Available options for 'inspect':
+    --path {name}          Optional. Path to artifacts. Default: ./tmp/latest-result.txt
+
+Available options for 'setup':
+    --provider-name {name}          Name of provider.
+    --openshift-version {version}   OpenShift version on the format X.Y
+
+Available options for 'upload':
+    --config {path}      Path to provider certification config.
+                         Example: {openshift-config}/{provider-name}/provider.json
+    --user-pass {base64} Username and Password provider by Certification program.
+
+(...)
+
+Examples:
+    # Run the Certification tool
+    ${0} run
+    
+    # Alternatively if the runner timed out, you can trigger the status again:
+    ${0} status
+
+    # Upload the results
+    ${0} setup --provider-name myCloud --openshift-version v4.10
+    ${0} upload \
+        --provider-config v4.10/myCloud/provider.json
+
+EOF
+
+}
