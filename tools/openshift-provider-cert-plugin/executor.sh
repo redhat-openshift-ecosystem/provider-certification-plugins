@@ -4,11 +4,12 @@
 # openshift-tests-partner-cert runner
 #
 
+#set -x
 set -o pipefail
 set -o nounset
-set -o errexit
+# set -o errexit
 
-#source $(dirname $0)/shared.sh
+os_log_info "[executor] Starting..."
 
 export KUBECONFIG=/tmp/kubeconfig
 
@@ -16,41 +17,26 @@ suite="${E2E_SUITE:-kubernetes/conformance}"
 ca_path="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 sa_token="/var/run/secrets/kubernetes.io/serviceaccount/token"
 
+os_log_info "[executor] Creating results pipe to progress updater..."
 mkfifo ${results_pipe}
 
-os_log_info "Starting plugin runner..."
-#
-# feedback worker
-#
-
-# TODO: Do we still need this EXIT trap?
-save_results_execution() {
-    os_log_info "Saving results."
-     cat << EOF >> ${results_script_dir}/executor.log
-#executor> Saving results.
-##> openshift-tests version:
-
-##> show files in ${results_dir}:
-$(ls ${results_dir}/)
-EOF
-}
-trap save_results_execution EXIT
+os_log_info "[executor] Checking credentials are present..."
+test ! -f "${ca_path}" || os_log_info "[executor] file not found=${ca_path}"
+test ! -f "${sa_token}" || os_log_info "[executor] file not found=${sa_token}"
 
 #
-# login
+# openshift login
 #
+
+os_log_info "[executor] Login to OpenShift cluster locally..."
 oc login https://172.30.0.1:443 \
     --token=$(cat ${sa_token}) \
-    --certificate-authority=${ca_path};
-
-PUBLIC_API_URL=$(oc get infrastructure cluster -o=jsonpath='{.status.apiServerURL}');
-oc login ${PUBLIC_API_URL} \
-    --token=$(cat ${sa_token}) \
-    --certificate-authority=${ca_path};
+    --certificate-authority=${ca_path} || true;
 
 #
-# runner
+# Executor options
 #
+os_log_info "[executor] Executor started. Choosing execution type based on environment sets."
 
 # To run custom tests, set the environment CUSTOM_TEST_FILE on plugin definition.
 # To generate the test file, use the parse-test.py.
@@ -60,11 +46,13 @@ if [[ ! -z ${CUSTOM_TEST_FILE:-} ]]; then
         openshift-tests run \
             --junit-dir ${results_dir} \
             -f ${CUSTOM_TEST_FILE} \
-            | tee ${results_pipe}
+            | tee ${results_pipe} || true
+        os_log_info "openshift-tests finished"
     else
         os_log_info "the file provided has no tests. Sending progress and finish executor...";
         echo "(0/0/0)" > ${results_pipe}
     fi
+
 # reusing script to parser jobs.
 # ToDo: keep more simple in basic filters. Example:
 # $ openshift-tests run --dry-run all |grep '\[sig-storage\]' |openshift-tests run -f -
@@ -99,5 +87,4 @@ else
         | tee ${results_pipe}
 fi
 
-sleep 5
-os_log_info "Plugin executor have finished. Result[$?]";
+os_log_info "Plugin executor finished. Result[$?]";

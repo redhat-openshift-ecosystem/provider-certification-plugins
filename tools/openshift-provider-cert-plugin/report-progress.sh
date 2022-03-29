@@ -5,9 +5,9 @@
 # Send progress of openshift-tests to sonobuoy worker.
 #
 
-#set -o pipefail
-#set -o nounset
-#set -o errexit
+set -o pipefail
+set -o nounset
+set -o errexit
 
 source $(dirname $0)/shared.sh
 
@@ -49,7 +49,7 @@ do
         echo "JOB_PROGRESS=[${JOB_PROGRESS}]"
         echo "DATA=[{\"completed\":$PASSED,\"total\":$TOTAL,\"failures\":[$FAILURES]}]"
         echo "Sending update..."
-        curl -s http://127.0.0.1:8099/progress -d "{\"completed\":$PASSED,\"total\":$TOTAL,\"failures\":[$FAILURES]}";
+        curl -v http://127.0.0.1:8099/progress -d "{\"completed\":$PASSED,\"total\":$TOTAL,\"failures\":[$FAILURES]}" || true;
         HAS_UPDATE=0;
     fi
     JOB_PROGESS="";
