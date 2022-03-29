@@ -28,8 +28,25 @@ while true; do
     sleep 10
 done
 
-echo -e "\n$(date)> Sonobuoy has finished."
+echo -e "\n$(date)> Test suite has finished."
 sonobuoy status
+
+echo -e "\nWaiting the results to be processed..."
+cnt=0
+while true; do
+    # or check for '==complete'
+    if [[ "$(sonobuoy status --json |jq -r .status)" != "post-processing" ]]; then
+        break
+    fi
+    cnt=$(( cnt + 1 ))
+    if [[ $cnt -eq 20 ]]; then
+        echo -e "\n\n$(date)> Timeout waiting the result post-processor..."
+        echo -e "\n\n$(date)> Run again with option 'check'"
+        #sonobuoy status
+        exit 1
+    fi
+    sleep 30
+done
 
 echo -e "\nCollecting results..."
 sleep 10
@@ -50,7 +67,7 @@ if [[ -f ${result_file} ]]; then
     test -f .tmp/ && mv .tmp/ .tmp/old-$(date +%Y%m%d%H%M%S)
     test -f .tmp/ || mkdir -p .tmp/
     echo "${result_file}" > .tmp/latest-result.txt
-    cp ${result_file} ./tmp/
+    cp ${result_file} ./.tmp/
     exit 0
 fi
 
