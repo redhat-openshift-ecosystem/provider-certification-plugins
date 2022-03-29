@@ -33,11 +33,12 @@ run_openshift_tests() {
 
 # SIG=sig-storage
 level1_sig_storage() {
-    #TODO(tests-by-level): temp truncate to 100 tests when the
-    # tool development is in progress.
-    # The original results (without 'tail') will retrieve 6k tests.
-    run_openshift_tests "all" |grep '\[sig-storage\]' \
-        |tail -n 80 | tee -a "${tests_level1}"
+    #TODO(tests-by-level): temp filter to run only [Conformance] and
+    # avoid endless execution. Original partner should be:
+    # '^(?=.*\[sig-storage\])'
+    run_openshift_tests "all" \
+        | grep -P '^(?=.*\[sig-storage\])(?=.*\[Conformance\])' \
+        | tee -a "${tests_level1}"
 }
 
 level2_sig_storage() {
@@ -63,7 +64,7 @@ level2_sig_cli() {
     #TODO(tests-by-level): Aligned real filter w/ SIG.
     # The filter below has being used on development process.
     run_openshift_tests "all" \
-        | grep '\[sig-cli\]' |grep '\[Conformance\]' \
+        | grep -P '^(?=.*\[sig-cli\])(?=.*\[Conformance\])' \
         | tee -a "${tests_level2}"
 }
 
@@ -88,7 +89,7 @@ collector() {
 }
 collector
 
-# parser
+# Creating unique test names by Tier
 cp ${tests_level1} ${tests_level1}.tmp
 cat "${tests_level1}.tmp" |sort -u > ${tests_level1}
 
@@ -100,6 +101,9 @@ cat "${tests_level3}.tmp" |sort -u > ${tests_level3}
 
 rm -rvf ${tests_path}/*.tmp
 
+# TODO(pre-release): Removing duplicate tests by Tier.
+
+# Review tests count by Tier
 wc -l ${tests_path}/*.txt
 
 echo "> Tests Generator Done."
