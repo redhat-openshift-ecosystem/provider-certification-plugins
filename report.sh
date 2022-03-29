@@ -7,6 +7,8 @@ set -o errexit
 tmp_dir="$(dirname $0)/.tmp"
 result_file=$(cat ${tmp_dir}/latest-result.txt)
 result_dir=${tmp_dir}/results
+
+test -d ${result_dir} && rm -rf $result_dir/*
 test -d ${result_dir} || mkdir -p $result_dir
 
 plugin_names=()

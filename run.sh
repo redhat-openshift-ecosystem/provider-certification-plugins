@@ -4,6 +4,26 @@ set -o pipefail
 set -o nounset
 set -o errexit
 
+echo "Starting OpenShift Provider Certification Tool..."
+
+# Check if there's sonobuoy environment: should fail
+NS_SONOBUOY="$(oc get projects |grep ^sonobuoy || true)"
+if [[ ! -z "${NS_SONOBUOY}" ]]; then
+    echo "sonobuoy project is present on cluster. Run the destroy flow: ./destroy.sh"
+    exit 1
+fi
+
+# Check if there's 'e2e-' namespaces (it should be deleted when starting new tests)
+# TODO: Is there any other reuqirement to simulate a clean installation to start
+#  running the suite of tests instead of providing a new cluster installation?
+for project in $(oc get projects |awk '{print$1}' |grep ^e2e |sort -u || true); do
+    echo "Stake namespace was found: [${project}], removing..."
+    oc delete project ${project}
+done
+
+echo "Running OpenShift Provider Certification Tool..."
+sleep 5
+
 # Do not use timeout=0:
 # https://github.com/mtulio/openshift-provider-certification/issues/17
 PLUGIN_TIMEOUT=43200

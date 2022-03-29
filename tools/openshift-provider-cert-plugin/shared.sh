@@ -5,10 +5,15 @@ os_log_info() {
 }
 export -f os_log_info
 
-sys_trap_error(){
-    os_log_info "ERROR on line $(caller)" >&2
+sys_sig_error_handler(){
+    os_log_info "[signal handler] ERROR on line $(caller)" >&2
 }
-trap sys_trap_error ERR
+trap sys_sig_error_handler ERR
+
+sys_sig_term_handler() {
+    os_log_info "[signal handler] TERM signal received. Caller: $(caller)"
+}
+trap sys_sig_term_handler TERM
 
 export results_dir="${RESULTS_DIR:-/tmp/sonobuoy/results}"
 export results_pipe="${results_dir}/status_pipe"
