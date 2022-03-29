@@ -40,7 +40,7 @@ spec:
 
     # Example:Run custom test file (should be included on image)
     #- name: CUSTOM_TEST_FILE
-    #  value: level1.txt
+    #  value: ./tests/level3.txt
 
     # Example:Use internal parser/filter to run jobs
     #- name: CUSTOM_TEST_FILTER_SIG
