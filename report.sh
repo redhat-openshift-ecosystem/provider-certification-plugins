@@ -26,7 +26,7 @@ echo "Inspecting latest result file: ${result_file}"
 echo "Extracting sonobuoy results..."
 
 for plugin_name in ${plugin_names[@]}; do
-  tar -C results -xvf ./$result_file plugins/${plugin_name}/sonobuoy_results.yaml
+  tar -C results -xvf ./$result_file plugins/${plugin_name}
 done
 
 echo "Getting result feedback..."
@@ -53,6 +53,15 @@ for st in $statusess; do
     done;
 done
 
-popd >/dev/null
+echo -e "\nLooking for plugins global error's files [errors/global/error.json]:"
 
+for plugin_name in ${plugin_names[@]}; do
+    test -f results/plugins/${plugin_name}/errors/global/error.json || continue
+    echo -e "\n#> ${plugin_name}'s pod phase state: " $(jq -r '.pod.status.phase' results/plugins/${plugin_name}/errors/global/error.json 2>/dev/null || true);
+    echo -e "\n#> ${plugin_name} pod's containers exit code: "
+    jq -r '.pod.status.containerStatuses[] |(.name, .state.terminated.exitCode)' results/plugins/${plugin_name}/errors/global/error.json 2>/dev/null || true;
+done;
+
+
+popd >/dev/null
 echo -e "\n\nReport finished."
