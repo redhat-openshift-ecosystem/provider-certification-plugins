@@ -24,9 +24,20 @@ EOF
     # https://github.com/vmware-tanzu/sonobuoy/blob/main/site/content/docs/main/plugins.md#plugin-result-types
 
     pushd ${results_dir};
+
     #1 Temp result report
     JUNIT_OUTPUT=$(ls junit*.xml || true);
-    test -z "${JUNIT_OUTPUT}" || chmod 644 ${JUNIT_OUTPUT};
+
+    # Create empty junit result file to avoid failures on report.
+    # It happens when tests file is empty. (when? development!)
+    # TODO(pre-release): review that strategy
+    if [[ -z "${JUNIT_OUTPUT}" ]]; then
+        cat << EOF > junit_e2e_$(date +%Y%m%d-%H%M%S).xml
+<testsuite name="openshift-tests" tests="0" skipped="0" failures="0" time="1"><property name="TestVersion" value="v4.1.0-4964-g555da83"></property></testsuite>
+EOF
+        JUNIT_OUTPUT=$(ls junit*.xml);
+    fi
+    chmod 644 ${JUNIT_OUTPUT};
     echo '/tmp/sonobuoy/results/'${JUNIT_OUTPUT} > ${results_dir}/done
 
     #2 prepares the results for handoff to the Sonobuoy worker.
