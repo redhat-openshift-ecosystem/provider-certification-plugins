@@ -1,49 +1,93 @@
-# OpenShift Tests Provider Certification PLugin
+# OpenShift Tests Provider Certification Plugin
+
 
 [`sonobuoy`][sonobuoy] plugin to run OpenShift tests on Provider Certification program.
 
 This plugin uses [`openshift-tests` tool][openshift-tests], OpenShift implementation for [e2e-test-framework][e2e-test-framework],
 to generate and run the tests used to run the provider certification.
 
-## Dependencies:
+## Dependencies
 
 - podman
+- CI registry credentials to build [`openshift-tests` container][openshift-tests-dockerfile].
 
 ## Usage
 
-Build container image:
+### Build
+
+The build process does:
+- clone origin repository
+- build the openshift-tests container image
+- run the tests generator script
+- build a container image for plugin (based on openshift-tests)
+
+To run the process:
+
 ```bash
-make build
+make
 ```
 
-Generate tests for each Certification Level:
+### Run the tests generator/parser
+
+Manually generate tests for each Certification Level:
+
+> That step is already triggered by build image.
+
 ```bash
 mak generate-openshift-tests
 ```
 
-Run the sonobuoy plugin:
-1. disable security
+### Run the plugin
+
+To run the Provider Certification plugins you need to run the tool.
+
+To run the plugin directly in development environment, you can trigger it
+by following those steps:
+
+1. Add privileged SCC policy for serviceAccounts
+
 ```
 oc adm policy add-scc-to-group anyuid system:authenticated system:serviceaccounts
 oc adm policy add-scc-to-group privileged system:authenticated system:serviceaccounts
 ```
-2. run
-> Make sure the image ref was updated on `plugin.yaml`
+
+2. Edit the plugin manifest (`plugin.yaml`) with your image and test file
+
+3. run the sonobuoy plugin
+> Adjust the test file name on plugin's env var `CUSTOM_TEST_FILE`
 ```bash
-sonobuoy run --wait \
+sonobuoy run \
     --dns-namespace openshift-dns \
     --dns-pod-labels=dns.operator.openshift.io/daemonset-dns=default \
     --plugin plugin.yaml
+    --plugin-env openshift-tests-provider-cert.CUSTOM_TEST_FILE="./tests/level1.txt"
 ```
 
-## Developer
+4. Check the execution:
+```bash
+sonobuoy status
+```
 
-To include tests on Certification Level, a collector function
-should be create to iteract with `openshift-tests` and save it
-on a level-based text files which **are included on the plugin container
-image on the build time**.
+5. Retrieve the results
+```bash
+result_file=$(sonobuoy retrieve)
+mkdir -p results
+tar -xfz ${result_file} -C results
+```
 
-Steps to create the filter for Certification Level for each SIG:
+6. Destroy the environment
+```bash
+sonobuoy delete --wait
+```
+
+## Development: create the test filter by SIG
+
+To include tests for Certification Level, a collector function
+should be created. The generation process creates a container image based on the `openshift-tests` image, including the plugin scripts and an level-based text files with **the tests by Level**. To update the tests you need to build a new image.
+
+> TODO(release): define the frequency to build this image
+
+Steps to create the filter by SIG and Certification Level:
 
 1. Create the functions to extract the test names for the SIG. Example for `sig-cli` collecting only for Certification `Level1`, considering that there's
 no tests for upper levels:
@@ -64,7 +108,8 @@ level3_sig_cli() {
     :
 }
 ```
-1. Create the collector function
+
+2. Create the collector function
 ```bash
 sig_cli() {
     level1_sig_cli
@@ -72,7 +117,8 @@ sig_cli() {
     level3_sig_cli
 }
 ```
-1. Add the new collector function to `collector`:
+
+3. Add the new collector function to `collector`:
 ```diff
 collector() {
     sig_storage >/dev/null
@@ -80,9 +126,10 @@ collector() {
 }
 collector
 ```
-1. Generate the tests
-1. Build a new image
-1. Run the plugin
+
+4. Generate the tests
+5. Build a new image
+6. Run the plugin
 
 ### Debug | Creating metadata for tests
 
@@ -92,3 +139,4 @@ collector
 [sonobuoy]:https://github.com/vmware-tanzu/sonobuoy
 [openshift-tests]:https://github.com/openshift/origin#end-to-end-e2e-and-extended-tests
 [e2e-test-framework]:https://github.com/kubernetes-sigs/e2e-framework
+[openshift-tests-dockerfile]:https://github.com/openshift/origin/blob/master/images/tests/Dockerfile.rhel
