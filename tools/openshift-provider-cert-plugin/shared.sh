@@ -20,3 +20,33 @@ export results_pipe="${results_dir}/status_pipe"
 
 export results_script_dir="${results_dir}/plugin-scripts"
 test -d ${results_script_dir} || mkdir -p ${results_script_dir}
+
+declare -g PLUGIN_BLOCKED_BY
+declare -g CERT_TEST_FILE
+export CERT_TEST_FILE=""
+export PLUGIN_BLOCKED_BY=()
+
+if [[ -z "${CERT_LEVEL:-}" ]]
+then
+    os_log_info "Empty CERT_LEVEL. It should be defined. Exiting..."
+    exit 1
+# Level1 blocks Level2 (...)
+elif [[ "${CERT_LEVEL:-}" == "1" ]]
+then
+    os_log_info "Setting config for CERT_LEVEL=[${CERT_LEVEL:-}]"
+    CERT_TEST_FILE="./tests/level1.txt"
+
+elif [[ "${CERT_LEVEL:-}" == "2" ]]
+then
+    os_log_info "Setting config for CERT_LEVEL=[${CERT_LEVEL:-}]"
+    CERT_TEST_FILE="./tests/level2.txt"
+
+elif [[ "${CERT_LEVEL:-}" == "3" ]]
+then
+    os_log_info "Setting config for CERT_LEVEL=[${CERT_LEVEL:-}]"
+    CERT_TEST_FILE="./tests/level3.txt"
+
+else
+    os_log_info "Unknow value for CERT_LEVEL=[${CERT_LEVEL:-}]"
+    exit 1
+fi
