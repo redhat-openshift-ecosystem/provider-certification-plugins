@@ -11,7 +11,18 @@ set -o errexit
 
 source $(dirname $0)/shared.sh
 
-sleep 10;
+#TODO(): need to wait the service is up. One more sleep?! :(
+#os_log_info "[report] sending initial report..."
+#curl -vv http://127.0.0.1:8099/progress -d "{\"completed\":\"--\",\"total\":\"--\",\"failures\":[\"--\"]}" || true;
+
+os_log_info "[report] waiting for pipe creation..."
+pip_exists=false
+while true
+do
+    test -p ${results_pipe} && break
+    sleep 1
+done
+os_log_info "[report]  pipe[${results_pipe}] created. Starting progress report"
 
 PASSED=0;
 FAILURES="";
@@ -49,7 +60,7 @@ do
         echo "JOB_PROGRESS=[${JOB_PROGRESS}]"
         echo "DATA=[{\"completed\":$PASSED,\"total\":$TOTAL,\"failures\":[$FAILURES]}]"
         echo "Sending update..."
-        curl -v http://127.0.0.1:8099/progress -d "{\"completed\":$PASSED,\"total\":$TOTAL,\"failures\":[$FAILURES]}" || true;
+        curl -s http://127.0.0.1:8099/progress -d "{\"completed\":$PASSED,\"total\":$TOTAL,\"failures\":[$FAILURES]}" || true;
         HAS_UPDATE=0;
     fi
     JOB_PROGESS="";
