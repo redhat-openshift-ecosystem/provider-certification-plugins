@@ -17,8 +17,8 @@ fi
 # TODO: Is there any other reuqirement to simulate a clean installation to start
 #  running the suite of tests instead of providing a new cluster installation?
 for project in $(oc get projects |awk '{print$1}' |grep ^e2e |sort -u || true); do
-    echo "Stake namespace was found: [${project}], removing..."
-    oc delete project ${project}
+    echo "Stale namespace was found: [${project}], deleting..."
+    oc delete project ${project} || true
 done
 
 echo "Running OpenShift Provider Certification Tool..."
@@ -45,7 +45,7 @@ while true; do
         break
     fi
     cnt=$(( cnt + 1 ))
-    if [[ $(( cnt % 6 )) -eq 0 ]]; then
+    if [[ $(( cnt % 3 )) -eq 0 ]]; then
         echo -e "\n\n$(date)> Sonobuoy is still running..."
         sonobuoy status
     fi
@@ -58,7 +58,6 @@ sonobuoy status
 echo -e "\nWaiting the results to be processed..."
 cnt=0
 while true; do
-    # or check for '==complete'
     if [[ "$(sonobuoy status --json |jq -r .status)" != "post-processing" ]]; then
         break
     fi
@@ -66,7 +65,6 @@ while true; do
     if [[ $cnt -eq 20 ]]; then
         echo -e "\n\n$(date)> Timeout waiting the result post-processor..."
         echo -e "\n\n$(date)> Run again with option 'check'"
-        #sonobuoy status
         exit 1
     fi
     sleep 30
@@ -84,8 +82,6 @@ RC=$?
 # so it can be an work arround while [1] is not fixed.
 if [[ ${RC} -ne 0 ]]; then
     echo "One or more errors found to retrieve results"
-    #   Exit as we don't know the filename when sonobuoy
-    #   returns error on retrieve.
     exit ${RC}
 fi
 
