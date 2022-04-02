@@ -3,6 +3,26 @@
 """OpenShift tests discovery
     Discovery e2e tests for each suite, parse, classify
     and export to json.
+
+TODO: add examples.
+
+Using it on executor.sh, add:
+
+# Simple filter to use like those on openshif-tests
+# $ openshift-tests run --dry-run all |grep '\[sig-storage\]' |openshift-tests run -f -
+elif [[ ! -z ${CUSTOM_TEST_FILTER_SIG:-} ]]; then
+    os_log_info "Generating tests for SIG [${CUSTOM_TEST_FILTER_SIG}]..."
+    mkdir tmp/
+    ./parse-tests.py \
+        --filter-suites all \
+        --filter-key sig \
+        --filter-value "${CUSTOM_TEST_FILTER_SIG}"
+
+    os_log_info "#executor>Running"
+    openshift-tests run \
+        --junit-dir ${RESULTS_DIR} \
+        -f ./tmp/openshift-e2e-suites.txt \
+        | tee -a "${RESULTS_PIPE}" || true
     """
 import sys
 import json

@@ -50,7 +50,6 @@ watch_dependency_done() {
         do
             if [[ -f "${RESULTS_DONE_NOTIFY}" ]]
             then
-
                 echo "Sonobuoy done detected [waiter watch]" |tee -a "${RESULTS_PIPE}"
                 exit 0
             fi
@@ -73,6 +72,7 @@ watch_dependency_done() {
                 \"failures\":[\"0\"],
                 \"msg\":\"${waiting_for_msg}\"
             }"
+            os_log_info_local "Sending report payload: $(echo ${body} |tr '\n' '')"
             curl -s "${PROGRESS_URL}" -d "${body}"
 
             timeout_checks=$(( timeout_checks + 1 ))
@@ -108,23 +108,13 @@ report_sonobuoy_progress() {
             job_progress=$(echo $line | grep -Po "\([0-9]{1,}\/[0-9]{1,}\/[0-9]{1,}\)" || true);
             if [ ! -z "${job_progress}" ]; then
                 has_update=1;
-                #jobs_total=$(echo ${job_progress:1:-1} | cut -d'/' -f 3)
-                PROGRESS["total"]=$(echo ${job_progress:1:-1} | cut -d'/' -f 3)
-
-                #TODO(fix): woraround for last test which is not reporting passed/skipped
-                #jobs_passed=$(echo ${job_progress:1:-1} | cut -d'/' -f 2)
                 PROGRESS["completed"]=$(echo ${job_progress:1:-1} | cut -d'/' -f 2)
-
-            #elif [[ $line == passed:* ]] || [[ $line == skipped:* ]]; then
-            #    PASSED=$((PASSED + 1));
-            #    has_update=1;
+                PROGRESS["total"]=$(echo ${job_progress:1:-1} | cut -d'/' -f 3)
 
             elif [[ $line == failed:* ]]; then
                 if [ -z "${jobs_faulures}" ]; then
-                    #jobs_faulures=\"$(echo $line | cut -d"\"" -f2)\"
                     PROGRESS["failures"]=\"$(echo $line | cut -d"\"" -f2)\"
                 else
-                    #jobs_faulures=,\"$(echo $line | cut -d"\"" -f2)\"
                     PROGRESS["failures"]+=,\"$(echo $line | cut -d"\"" -f2)\"
                 fi
                 has_update=1;
@@ -137,9 +127,8 @@ report_sonobuoy_progress() {
                     \"failures\":[${PROGRESS["failures"]}],
                     \"msg\":\"status=running\"
                 }"
-                set -x
+                os_log_info_local "Sending report payload: $(echo ${body} |tr '\n' '')"
                 curl -s -d "${body}" "${PROGRESS_URL}"
-                set +x
                 has_update=0;
             fi
             job_progress="";
@@ -165,6 +154,7 @@ body="{
     \"failures\":[${PROGRESS["failures"]}],
     \"msg\":\"status=report-progress-finished\"
 }"
+os_log_info_local "Sending report payload: $(echo ${body} |tr '\n' '')"
 curl -s -d "${body}" "${PROGRESS_URL}"
 
 os_log_info_local "all done"
