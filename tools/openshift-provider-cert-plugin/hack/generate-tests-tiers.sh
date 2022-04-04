@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 
 #
 # Provider certification tests generator.
@@ -12,18 +12,18 @@ echo "> Running Tests Generator..."
 
 openshift_tests_img="${OPENSHIFT_TESTS:-'openshift-tests:latest'}"
 
-tests_path="$(dirname $0)/../tests"
+tests_path="$(dirname "$0")/../tests"
 tests_level1="${tests_path}/level1.txt"
 tests_level2="${tests_path}/level2.txt"
 tests_level3="${tests_path}/level3.txt"
 
->${tests_level1}
->${tests_level2}
->${tests_level3}
+truncat -s0 "${tests_level1}"
+truncat -s0 "${tests_level2}"
+truncat -s0 "${tests_level3}"
 
 run_openshift_tests() {
     podman run --rm --name openshift-tests \
-        -it openshift-tests:latest openshift-tests run --dry-run $@
+        -it "${openshift_tests_img}" openshift-tests run --dry-run "$@"
 }
 
 #
@@ -90,20 +90,20 @@ collector() {
 collector
 
 # Creating unique test names by Tier
-cp ${tests_level1} ${tests_level1}.tmp
-cat "${tests_level1}.tmp" |sort -u > ${tests_level1}
+cp "${tests_level1}" "${tests_level1}.tmp"
+sort -u "${tests_level1}.tmp" > "${tests_level1}"
 
-cp ${tests_level2} ${tests_level2}.tmp
-cat "${tests_level2}.tmp" |sort -u > ${tests_level2}
+cp "${tests_level2}" "${tests_level2}.tmp"
+sort -u "${tests_level2}.tmp" > "${tests_level2}"
 
-cp ${tests_level3} ${tests_level3}.tmp
-cat "${tests_level3}.tmp" |sort -u > ${tests_level3}
+cp "${tests_level3}" "${tests_level3}.tmp"
+sort -u "${tests_level3}.tmp" > "${tests_level3}"
 
-rm -rvf ${tests_path}/*.tmp
+rm -rvf "${tests_path}"/*.tmp
 
 # TODO(pre-release): Removing duplicate tests by Tier.
 
 # Review tests count by Tier
-wc -l ${tests_path}/*.txt
+wc -l "${tests_path}"/*.txt
 
 echo "> Tests Generator Done."

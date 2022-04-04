@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 
 set -o pipefail
 set -o nounset
@@ -12,5 +12,5 @@ sleep 5
 #  running the suite of tests instead of providing a new cluster installation?
 for project in $(oc get projects |awk '{print$1}' |grep ^e2e |sort -u || true); do
     echo "Stale namespace was found: [${project}], removing..."
-    oc delete project ${project}
+    oc delete project "${project}"
 done

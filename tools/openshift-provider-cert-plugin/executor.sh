@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 
 #
 # openshift-tests-partner-cert runner
@@ -20,7 +20,7 @@ test ! -f "${SA_TOKEN_PATH}" || os_log_info "[executor] secret not found=${SA_TO
 
 os_log_info "[executor] Login to OpenShift cluster locally..."
 oc login https://172.30.0.1:443 \
-    --token="$(cat ${SA_TOKEN_PATH})" \
+    --token="$(cat "${SA_TOKEN_PATH}")" \
     --certificate-authority="${SA_CA_PATH}" || true;
 
 #
@@ -30,21 +30,21 @@ os_log_info "[executor] Executor started. Choosing execution type based on envir
 
 # To run custom tests, set the environment CERT_LEVEL on plugin definition.
 # To generate the test file, use the script hack/generate-tests-tiers.sh
-if [[ ! -z ${CERT_TEST_FILE:-} ]]; then
+if [[ -n "${CERT_TEST_FILE:-}" ]]; then
     os_log_info "Running openshift-tests for custom tests [${CERT_TEST_FILE}]..."
     if [[ -s ${CERT_TEST_FILE} ]]; then
         openshift-tests run \
-            --junit-dir ${RESULTS_DIR} \
-            -f ${CERT_TEST_FILE} \
+            --junit-dir "${RESULTS_DIR}" \
+            -f "${CERT_TEST_FILE}" \
             | tee -a "${RESULTS_PIPE}" || true
         os_log_info "openshift-tests finished"
     else
         os_log_info "the file provided has no tests. Sending progress and finish executor...";
-        echo "(0/0/0)" > ${RESULTS_PIPE}
+        echo "(0/0/0)" > "${RESULTS_PIPE}"
     fi
 
 # Filter by string pattern from 'all' tests
-elif [[ ! -z ${CUSTOM_TEST_FILTER_STR:-} ]]; then
+elif [[ -n "${CUSTOM_TEST_FILTER_STR:-}" ]]; then
     os_log_info "#executor>Generating a filter [${CUSTOM_TEST_FILTER_STR}]..."
     openshift-tests run --dry-run all \
         | grep "${CUSTOM_TEST_FILTER_STR}" \
@@ -57,8 +57,8 @@ else
     suite="${E2E_SUITE:-kubernetes/conformance}"
     os_log_info "#executor>Running default execution for openshift-tests suite [${suite}]..."
     openshift-tests run \
-        --junit-dir ${RESULTS_DIR} \
-        ${suite} \
+        --junit-dir "${RESULTS_DIR}" \
+        "${suite}" \
         | tee -a "${RESULTS_PIPE}" || true
 fi
 

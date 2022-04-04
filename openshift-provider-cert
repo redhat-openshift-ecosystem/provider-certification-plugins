@@ -5,12 +5,11 @@
 # See helper function (show_help|-h) for more information.
 #
 
-set -o pipefail
 set -o nounset
 set -o errexit
 
 
-function show_help {
+show_help() {
 
     cat <<-EOF
 Usage: ${0} command [options]

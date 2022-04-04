@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 
 declare -x PLUGIN_BLOCKED_BY
 PLUGIN_BLOCKED_BY=()
