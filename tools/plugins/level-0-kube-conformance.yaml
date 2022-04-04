@@ -14,7 +14,7 @@ podSpec:
     operator: Exists
 sonobuoy-config:
   driver: Job
-  plugin-name: k8s-conformance
+  plugin-name: kube-conformance
   result-format: junit
 spec:
   command:
