@@ -10,16 +10,21 @@ set -o errexit
 
 echo "> Running Tests Generator..."
 
-openshift_tests_img="${OPENSHIFT_TESTS:-'openshift-tests:latest'}"
+openshift_tests_img="${OPENSHIFT_TESTS:-"openshift-tests:latest"}"
 
-tests_path="$(dirname "$0")/../tests"
+#TODO: Need to find a strategy to collect and save tests by
+# OCP release. Example: Make sure all tests ran on 4.y.z should store
+# and be the same.
+openshift_version="${1:-"v4.10"}"
+tests_path="$(dirname "$0")/../tests/${openshift_version}"
 tests_level1="${tests_path}/level1.txt"
 tests_level2="${tests_path}/level2.txt"
 tests_level3="${tests_path}/level3.txt"
 
-truncat -s0 "${tests_level1}"
-truncat -s0 "${tests_level2}"
-truncat -s0 "${tests_level3}"
+mkdir -p "${tests_path}"
+truncate -s0 "${tests_level1}"
+truncate -s0 "${tests_level2}"
+truncate -s0 "${tests_level3}"
 
 run_openshift_tests() {
     podman run --rm --name openshift-tests \
