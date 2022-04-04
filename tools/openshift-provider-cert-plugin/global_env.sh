@@ -3,6 +3,8 @@
 declare -x PLUGIN_BLOCKED_BY
 PLUGIN_BLOCKED_BY=()
 
+declare -rx CERT_TESTS_DIR="./tests/${OPENSHIFT_VERSION:-"v4.10"}"
+
 declare -x CERT_TEST_FILE
 CERT_TEST_FILE=""
 

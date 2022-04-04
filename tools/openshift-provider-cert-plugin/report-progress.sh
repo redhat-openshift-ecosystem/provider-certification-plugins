@@ -68,12 +68,12 @@ watch_dependency_done() {
 
             waiting_for_msg="status=waiting-for-plugin=${plugin_name}=(0/${remaining}/0)=[${timeout_checks}/${timeout_count}]"
             body="{
-                \"completed\":${remaining},
+                \"completed\":0,
                 \"total\":0,
-                \"failures\":[\"0\"],
+                \"failures\":[],
                 \"msg\":\"${waiting_for_msg}\"
             }"
-            os_log_info_local "Sending report payload: $(echo "${body}" |tr '\n' '')"
+            os_log_info_local "Sending report payload: ${body}"
             curl -s "${PROGRESS_URL}" -d "${body}"
 
             timeout_checks=$(( timeout_checks + 1 ))
@@ -128,7 +128,7 @@ report_sonobuoy_progress() {
                     \"failures\":[${PROGRESS["failures"]}],
                     \"msg\":\"status=running\"
                 }"
-                os_log_info_local "Sending report payload: $(echo "${body}" |tr '\n' '')"
+                os_log_info_local "Sending report payload: ${body}"
                 curl -s -d "${body}" "${PROGRESS_URL}"
                 has_update=0;
             fi
@@ -147,15 +147,12 @@ watch_dependency_done &
 report_sonobuoy_progress
 
 body="{
-    \"msg\":\"status=report-progress-finished\"
-}"
-body="{
     \"completed\":${PROGRESS["completed"]},
     \"total\":${PROGRESS["total"]},
     \"failures\":[${PROGRESS["failures"]}],
     \"msg\":\"status=report-progress-finished\"
 }"
-os_log_info_local "Sending report payload: $(echo "${body}" |tr '\n' '')"
-curl -s -d "${body}" "${PROGRESS_URL}"
+os_log_info_local "Sending report payload: ${body}"
+curl -s -d "${body}" "${PROGRESS_URL}" || true
 
 os_log_info_local "all done"
