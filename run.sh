@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 
 set -o pipefail
 set -o nounset
@@ -8,7 +8,7 @@ echo "Starting OpenShift Provider Certification Tool..."
 
 # Check if there's sonobuoy environment: should fail
 NS_SONOBUOY="$(oc get projects |grep ^sonobuoy || true)"
-if [[ ! -z "${NS_SONOBUOY}" ]]; then
+if [[ -n "${NS_SONOBUOY}" ]]; then
     echo "sonobuoy project is present on cluster. Run the destroy flow: ./destroy.sh"
     exit 1
 fi
@@ -18,7 +18,7 @@ fi
 #  running the suite of tests instead of providing a new cluster installation?
 for project in $(oc get projects |awk '{print$1}' |grep ^e2e |sort -u || true); do
     echo "Stale namespace was found: [${project}], deleting..."
-    oc delete project ${project} || true
+    oc delete project "${project}" || true
 done
 
 echo "Running OpenShift Provider Certification Tool..."
@@ -93,10 +93,10 @@ if [[ -f ${result_file} ]]; then
     # TODO(pre-release): improve the result inspection.
     # TODO(asap): remove dependency of report.sh
     # https://github.com/mtulio/openshift-provider-certification/issues/16
-    test -f .tmp/ && mv .tmp/ .tmp/old-$(date +%Y%m%d%H%M%S)
+    test -f .tmp/ && mv .tmp/ .tmp/old-"$(date +%Y%m%d%H%M%S)"
     test -f .tmp/ || mkdir -p .tmp/
     echo "${result_file}" > .tmp/latest-result.txt
-    cp ${result_file} ./.tmp/
+    cp "${result_file}" ./.tmp/
     exit 0
 fi
 

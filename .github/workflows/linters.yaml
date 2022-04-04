@@ -1,0 +1,35 @@
+name: linters
+on: [push]
+jobs:
+
+  # https://github.com/marketplace/actions/shell-linter
+  linter-ShellCheck:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v1
+      - name: Run Shellcheck main
+        uses: azohra/shell-linter@latest
+        with:
+          path: "ocp-cluster-orchestrator"
+
+      - name: Check openshift-provider-cert-plugin
+        uses: azohra/shell-linter@latest
+        with:
+          scandir: './tools/openshift-provider-cert-plugin/*.sh'
+
+  # https://github.com/marketplace/actions/yaml-lint
+  # linter-yaml:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v2
+  #     - name: yaml-lint-config
+  #       uses: ibiqlik/action-yamllint@v3
+  #       with:
+  #         file_or_dir: config.yaml
+  #         config_file: .github/workflows/yaml-linter-config.yml
+  #     - name: yaml-lint-ci
+  #       uses: ibiqlik/action-yamllint@v3
+  #       with:
+  #         file_or_dir: .github/workflows/*.yaml
+  #         config_file: .github/workflows/yaml-linter-config.yml
