@@ -1,22 +1,26 @@
 #!/usr/bin/env bash
 
-declare -x PLUGIN_BLOCKED_BY
+declare -gx PLUGIN_BLOCKED_BY
 PLUGIN_BLOCKED_BY=()
 
-declare -rx CERT_TESTS_DIR="./tests/${OPENSHIFT_VERSION:-"v4.10"}"
+declare -grx CERT_TESTS_DIR="./tests/${OPENSHIFT_VERSION:-"v4.10"}"
 
-declare -x CERT_TEST_FILE
-CERT_TEST_FILE=""
+declare -gx CERT_LEVEL
+declare -gx CERT_TEST_FILE
+declare -gx CERT_TEST_FILE_COUNT
 
-declare -Ax PROGRESS
-declare -rx PROGRESS_URL="http://127.0.0.1:8099/progress"
+declare -gAx PROGRESS
+declare -grx PROGRESS_URL="http://127.0.0.1:8099/progress"
+declare -grx SONOBUOY_BIN="./sonobuoy"
+declare -grx STATUS_FILE="/tmp/sonobuoy-status.json"
+declare -grx STATUS_UPDATE_INTERVAL_SEC="5"
 
-declare -rx RESULTS_DIR="${RESULTS_DIR:-/tmp/sonobuoy/results}"
-declare -rx RESULTS_DONE_NOTIFY="${RESULTS_DIR}/done"
-declare -rx RESULTS_PIPE="${RESULTS_DIR}/status_pipe"
-declare -rx RESULTS_SCRIPTS="${RESULTS_DIR}/plugin-scripts"
+declare -grx RESULTS_DIR="${RESULTS_DIR:-/tmp/sonobuoy/results}"
+declare -grx RESULTS_DONE_NOTIFY="${RESULTS_DIR}/done"
+declare -grx RESULTS_PIPE="${RESULTS_DIR}/status_pipe"
+declare -grx RESULTS_SCRIPTS="${RESULTS_DIR}/plugin-scripts"
 
-declare -rx KUBECONFIG="${RESULTS_DIR}/kubeconfig"
-declare -rx SA_CA_PATH="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
-declare -rx SA_TOKEN_PATH="/var/run/secrets/kubernetes.io/serviceaccount/token"
+declare -grx KUBECONFIG="${RESULTS_DIR}/kubeconfig"
+declare -grx SA_CA_PATH="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+declare -grx SA_TOKEN_PATH="/var/run/secrets/kubernetes.io/serviceaccount/token"
 

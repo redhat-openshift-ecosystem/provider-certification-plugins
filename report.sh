@@ -4,6 +4,9 @@ set -o pipefail
 set -o nounset
 set -o errexit
 
+echo "##> "
+echo "#> Starting Report flow..."
+
 tmp_dir="$(dirname "$0")/.tmp"
 result_file=$(cat "${tmp_dir}"/latest-result.txt)
 result_dir=${tmp_dir}/results
@@ -11,7 +14,7 @@ result_dir=${tmp_dir}/results
 test -d "${result_dir}" && rm -rf "${result_dir:-./}"/*
 test -d "${result_dir}" || mkdir -p "$result_dir"
 
-plugin_names=()
+plugin_names=("openshift-kube-conformance")
 for i in $(seq 1 3); do
   plugin_names+=("openshift-provider-cert-level$i")
 done
@@ -23,7 +26,7 @@ if [[ ! -f "$result_file" ]]; then
   exit 1
 fi
 
-echo "Inspecting latest result file: ${result_file}"
+echo -e "\n#>\t Inspecting latest result file: ${result_file}"
 
 echo "Extracting sonobuoy results..."
 
@@ -34,9 +37,9 @@ for plugin_name in "${plugin_names[@]}"; do
   tar -C results -xvf ./"${result_file}" plugins/"${plugin_name}" || true
 done
 
-echo "Getting result feedback..."
+echo -e "\n#> Getting result feedback..."
 
-echo "Getting tests count by status for each Level:"
+echo -e "\n#>> Getting tests count by status for each Level:"
 
 statusess="passed skipped failed";
 for plugin_name in "${plugin_names[@]}"; do
@@ -47,7 +50,7 @@ for plugin_name in "${plugin_names[@]}"; do
     done;
 done
 
-echo -e "\nGetting 'failed' test names by Level:"
+echo -e "\n#>> Getting 'failed' test names by Level:"
 
 statusess="failed";
 for st in $statusess; do
@@ -58,7 +61,7 @@ for st in $statusess; do
     done;
 done
 
-echo -e "\nLooking for plugins global error's files [errors/global/error.json]:"
+echo -e "\n#>> Looking for plugins global error's files [errors/global/error.json]:"
 
 for plugin_name in "${plugin_names[@]}"; do
     test -f results/plugins/"${plugin_name}"/errors/global/error.json || continue

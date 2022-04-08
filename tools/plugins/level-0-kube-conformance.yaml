@@ -25,7 +25,7 @@ spec:
   - name: E2E_FOCUS
     value: \[Conformance\]
   - name: E2E_PARALLEL
-    value: "false"
+    value: "true"
   - name: E2E_USE_GO_RUNNER
     value: "true"
   - name: RESULTS_DIR

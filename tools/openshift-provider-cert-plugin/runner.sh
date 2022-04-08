@@ -20,7 +20,7 @@ os_log_info_local() {
 os_log_info_local "Starting plugin..."
 
 create_dependencies_plugin
-set_config
+init_config
 
 # Notify sonobuoy worker with e2e results (junit)
 # https://github.com/vmware-tanzu/sonobuoy/blob/main/site/content/docs/main/plugins.md#plugin-result-types
@@ -59,10 +59,10 @@ EOF
 }
 trap sig_handler_save_results EXIT
 
-# TODO(serial-execution): add a wait flow to lock execution while
-# lower 'level' did not finished (serial execution). Running suites in parallel
-# may impact on the results (mainly in monitoring).
-# https://github.com/mtulio/openshift-provider-certification/issues/2
+os_log_info_local "starting sonobuoy status scraper..."
+start_status_collector &
+wait_status_file
+
 os_log_info_local "starting waiter..."
 "$(dirname "$0")"/wait-plugin.sh
 
