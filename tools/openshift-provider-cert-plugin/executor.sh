@@ -37,7 +37,7 @@ if [[ -n "${CERT_TEST_FILE:-}" ]]; then
             --junit-dir "${RESULTS_DIR}" \
             -f "${CERT_TEST_FILE}" \
             | tee -a "${RESULTS_PIPE}" || true
-        os_log_info "openshift-tests finished"
+        os_log_info "openshift-tests finished[$?]"
     else
         os_log_info "the file provided has no tests. Sending progress and finish executor...";
         echo "(0/0/0)" > "${RESULTS_PIPE}"
@@ -45,7 +45,7 @@ if [[ -n "${CERT_TEST_FILE:-}" ]]; then
 
 # Filter by string pattern from 'all' tests
 elif [[ -n "${CUSTOM_TEST_FILTER_STR:-}" ]]; then
-    os_log_info "#executor>Generating a filter [${CUSTOM_TEST_FILTER_STR}]..."
+    os_log_info "Generating a filter [${CUSTOM_TEST_FILTER_STR}]..."
     openshift-tests run --dry-run all \
         | grep "${CUSTOM_TEST_FILTER_STR}" \
         | openshift-tests run -f - \
@@ -55,11 +55,16 @@ elif [[ -n "${CUSTOM_TEST_FILTER_STR:-}" ]]; then
 # Set E2E_SUITE on plugin manifest to change it (unset CERT_LEVEL).
 else
     suite="${E2E_SUITE:-kubernetes/conformance}"
-    os_log_info "#executor>Running default execution for openshift-tests suite [${suite}]..."
+    os_log_info "Running default execution for openshift-tests suite [${suite}]..."
+    #TODO: Improve the visibility when this execution fails.
+    # - Save the stdout to a custom file
+    # - Create a custom Junit file w/ failed test, and details about the
+    #   failures. Maybe the entire b64 of stdout as failure description field.
     openshift-tests run \
         --junit-dir "${RESULTS_DIR}" \
         "${suite}" \
         | tee -a "${RESULTS_PIPE}" || true
+    os_log_info "openshift-tests finished[$?]"
 fi
 
 os_log_info "Plugin executor finished. Result[$?]";
