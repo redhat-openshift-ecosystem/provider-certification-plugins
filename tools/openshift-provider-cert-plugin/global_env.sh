@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 
+declare -gx PLUGIN_NAME
 declare -gx PLUGIN_BLOCKED_BY
 PLUGIN_BLOCKED_BY=()
 
