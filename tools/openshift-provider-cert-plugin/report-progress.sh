@@ -122,7 +122,6 @@ watch_dependency_done() {
             }"
             os_log_info_local "Sending report payload [dep-checker]: ${body}"
             curl -s "${PROGRESS_URL}" -d "${body}"
-
             # Timeout checker
             ## 1. Dont block by long running plugins (only non-updated)
             ## Timeout checks will increase only when previous jobs got stuck,
@@ -135,6 +134,12 @@ watch_dependency_done() {
             fi
             # dont run timeouts for blockers plugins
             if [[ "${blocker_msg}" =~ "status=blocked-by" ]]; then
+                timeout_checks=0
+                sleep 10
+                continue
+            fi
+            # dont run timeouts for if blocker is waiting
+            if [[ "${blocker_msg}" =~ "status=waiting-for" ]] && [[ "${state_blocking}" =~ "blocked-by" ]]; then
                 timeout_checks=0
                 sleep 10
                 continue

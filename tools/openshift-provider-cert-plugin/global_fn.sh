@@ -32,22 +32,26 @@ init_config() {
     # openshift-kube-conformance (kube-conformance running w/ openshift-tests)
     elif [[ "${CERT_LEVEL:-}" == "0" ]]
     then
+        PLUGIN_NAME="openshift-kube-conformance"
         CERT_TEST_FILE=""
         PLUGIN_BLOCKED_BY=()
 
     elif [[ "${CERT_LEVEL:-}" == "1" ]]
     then
+        PLUGIN_NAME="openshift-provider-cert-level1"
         CERT_TEST_FILE="${CERT_TESTS_DIR}/level1.txt"
         PLUGIN_BLOCKED_BY+=("openshift-kube-conformance")
 
     elif [[ "${CERT_LEVEL:-}" == "2" ]]
     then
+        PLUGIN_NAME="openshift-provider-cert-level2"
         os_log_info_local "Setting config for CERT_LEVEL=[${CERT_LEVEL:-}]" 
         CERT_TEST_FILE="${CERT_TESTS_DIR}/level2.txt"
         PLUGIN_BLOCKED_BY+=("openshift-provider-cert-level1")
 
     elif [[ "${CERT_LEVEL:-}" == "3" ]]
     then
+        PLUGIN_NAME="openshift-provider-cert-level3"
         os_log_info_local "Setting config for CERT_LEVEL=[${CERT_LEVEL:-}]"
         CERT_TEST_FILE="${CERT_TESTS_DIR}/level3.txt"
         PLUGIN_BLOCKED_BY+=("openshift-provider-cert-level2")
