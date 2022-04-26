@@ -128,6 +128,7 @@ watch_dependency_done() {
             ## otherwise it will be reset. It can avoid the plugin run infinitely,
             ## also avoid to set low timeouts for 'unknown' exec time on dependencies.
             if [[ ${count} -gt ${last_count} ]]; then
+                last_count=${count}
                 timeout_checks=0
                 sleep 10
                 continue

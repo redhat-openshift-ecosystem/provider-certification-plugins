@@ -33,6 +33,12 @@ if [[ ${#PLUGIN_BLOCKED_BY[@]} -ge 1 ]]; then
         last_count=0
         while true;
         do
+            # TODO(bug:st-updater): avoid check status in empty file
+            if [[ ! -s "${STATUS_FILE}" ]]; then
+                os_log_info_local "Plugin[${bl_plugin_name}] status WARNING: empty status detected...waiting next check..."
+                sleep 10
+                continue
+            fi
             plugin_status=$(jq -r ".plugins[] | select (.plugin == \"${bl_plugin_name}\" ) |.status // \"\"" "${STATUS_FILE}")
 
             os_log_info_local "Plugin[${bl_plugin_name}] with status[${plugin_status}]..."
@@ -49,6 +55,7 @@ if [[ ${#PLUGIN_BLOCKED_BY[@]} -ge 1 ]]; then
             ## also avoid to set low timeouts for 'unknown' exec time on dependencies.
             count=$(jq -r ".plugins[] | select (.plugin == \"${bl_plugin_name}\" ) |.progress.completed // 0" "${STATUS_FILE}")
             if [[ ${count} -gt ${last_count} ]]; then
+                last_count=${count}
                 timeout_checks=0
                 sleep 10
                 continue
