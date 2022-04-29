@@ -29,7 +29,7 @@ init_config() {
         os_log_info_local "Empty CERT_LEVEL. It should be defined. Exiting..."
         exit 1
 
-    # openshift-kube-conformance (kube-conformance running w/ openshift-tests)
+    os_log_info_local "Setting config for CERT_LEVEL=[${CERT_LEVEL:-}]..."
     elif [[ "${CERT_LEVEL:-}" == "0" ]]
     then
         PLUGIN_NAME="openshift-kube-conformance"
@@ -45,14 +45,12 @@ init_config() {
     elif [[ "${CERT_LEVEL:-}" == "2" ]]
     then
         PLUGIN_NAME="openshift-provider-cert-level2"
-        os_log_info_local "Setting config for CERT_LEVEL=[${CERT_LEVEL:-}]" 
         CERT_TEST_FILE="${CERT_TESTS_DIR}/level2.txt"
         PLUGIN_BLOCKED_BY+=("openshift-provider-cert-level1")
 
     elif [[ "${CERT_LEVEL:-}" == "3" ]]
     then
         PLUGIN_NAME="openshift-provider-cert-level3"
-        os_log_info_local "Setting config for CERT_LEVEL=[${CERT_LEVEL:-}]"
         CERT_TEST_FILE="${CERT_TESTS_DIR}/level3.txt"
         PLUGIN_BLOCKED_BY+=("openshift-provider-cert-level2")
 
@@ -61,13 +59,14 @@ init_config() {
         exit 1
     fi
 
-    os_log_info_local "Level's specific finished. Setting discoverying total tests to run..."
+    os_log_info_local "Plugin Config: PLUGIN_NAME=[${PLUGIN_NAME:-}] PLUGIN_BLOCKED_BY=[${PLUGIN_BLOCKED_BY[*]}] CERT_TEST_FILE=[${CERT_TEST_FILE}]"
+
     export CERT_TEST_FILE_COUNT=0
     if [[ -n "${CERT_TEST_FILE:-}" ]]; then
         CERT_TEST_FILE_COUNT="$(wc -l "${CERT_TEST_FILE}" |cut -f 1 -d' ' |tr -d '\n')"
     fi
-
-    os_log_info_local "Setup config done"
+    os_log_info_local "Total tests was found: [${CERT_TEST_FILE_COUNT}]"
+    os_log_info_local "Setup config done."
 }
 export -f init_config
 
