@@ -449,14 +449,13 @@ collect_results() {
     # TODO: Check if file available on "tar-info".name is present to
     #  avoid donwload twice.
     set +o errexit
-    download_failed=true
     retries=0
     retry_limit=10
-    while ${download_failed}; do
+    while true; do
         result_file=$(sonobuoy retrieve)
         RC=$?
         if [[ ${RC} -eq 0 ]]; then
-            download_failed=false
+            break
         fi
         retries=$(( retries + 1 ))
         if [[ ${retries} -eq ${retry_limit} ]]; then
