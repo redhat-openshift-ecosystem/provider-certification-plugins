@@ -25,6 +25,7 @@ sonobuoy-config:
   result-format: junit
   description: The end-to-end tests maintained by OpenShift to certify the Provider running the OpenShift Container Platform.
   source-url: https://github.com/openshift/provider-certification-tool/blob/mvp/tools/plugins/openshift-provider-cert-level-3.yaml
+  skipCleanup: true
 spec:
   name: plugin
   image: quay.io/mrbraga/openshift-tests-provider-cert:latest
