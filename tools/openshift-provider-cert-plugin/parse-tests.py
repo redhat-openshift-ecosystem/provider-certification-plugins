@@ -30,6 +30,7 @@ import csv
 import re
 import argparse
 import subprocess
+import logging
 #from this import d
 
 
@@ -288,6 +289,49 @@ class TestsExporter(object):
         if args.output_types:
             self.output_types = args.output_types
 
+#
+# compare
+#
+def run_test_compare(args):
+    tests = args.compare.split(',')
+    if len(tests) != 2:
+        logging.info("It's allowed only to compare two lists")
+        sys.exit(1)
+
+    test1 = tests[0].split('=')
+    if len(test1) != 2:
+        logging.info("first test has incorrect format: test_name=test_file")
+        sys.exit(1)
+
+    test2 = tests[1].split('=')
+    if len(test2) != 2:
+        logging.info("second test has incorrect format: test_name=test_file")
+        sys.exit(1)
+
+    with open(test1[1], 'r') as f:
+        test1_list = f.read().split('\n')
+
+    with open(test2[1], 'r') as f:
+        test2_list = f.read().split('\n')
+
+    print(f"t1 name: {test1[0]}")
+    print(f"t2 name: {test2[0]}")
+    print(f"Total t1: {len(test1_list)}")
+    print(f"Total t2: {len(test2_list)}")
+    t1_not_t2 = list()
+    t2_not_t1 = list()
+
+    for t1 in test1_list:
+        if t1 not in test2_list:
+            t1_not_t2.append(t1)
+
+
+    for t2 in test2_list:
+        if t2 not in test1_list:
+            t2_not_t1.append(t2)
+
+    print(f"Total t1 not in t2: {len(t1_not_t2)}")
+    print(f"Total t2 not in t1: {len(t2_not_t1)}")
 
 #
 # main
@@ -311,7 +355,16 @@ def main():
                         default="json,csv,txt",
                         help='output types to export')
 
+    parser.add_argument('--compare-tests-files', dest='compare',
+                        default="",
+                        help='Compare test files: aws-parallel=aws-parallel.txt,none-parallel=none-parallel.txt')
+
+
     args = parser.parse_args()
+
+    if args.compare != "":
+        return run_test_compare(args)
+
     texporter = TestsExporter()
     texporter.set_outputs(args)
 
