@@ -11,6 +11,7 @@ podSpec:
     - name: report-progress
       image: quay.io/mrbraga/openshift-tests-provider-cert:latest
       imagePullPolicy: Always
+      priorityClassName: system-node-critical
       command: ["./report-progress.sh"]
       volumeMounts:
       - mountPath: /tmp/sonobuoy/results
@@ -30,6 +31,7 @@ spec:
   name: plugin
   image: quay.io/mrbraga/openshift-tests-provider-cert:latest
   imagePullPolicy: Always
+  priorityClassName: system-node-critical
   resources: {}
   volumeMounts:
   - mountPath: /tmp/sonobuoy/results
