@@ -45,7 +45,7 @@ if [[ -n "${CERT_TEST_FILE:-}" ]]; then
         res_file="${RESULTS_DIR}/junit_empty_e2e_$(date +%Y%m%d-%H%M%S).xml"
         os_log_info "Creating empty Junit result file [${res_file}]"
         cat << EOF > "${res_file}"
-<testsuite name="openshift-tests" tests="1" skipped="0" failures="0" time="1.0"><property name="TestVersion" value="v4.1.0-4964-g555da83"></property><testcase name="[conformance] empty test list: ${CERT_TEST_FILE} has no tests to run" time="1.0"><failure message="">NoErrors</failure><system-out>stdout</system-out></testcase></testsuite>
+<testsuite name="openshift-tests" tests="1" skipped="0" failures="0" time="1.0"><property name="TestVersion" value="v4.1.0-4964-g555da83"></property><testcase name="[conformance] empty test list: ${CERT_TEST_FILE} has no tests to run" time="1.0"></testcase></testsuite>
 EOF
     fi
 
