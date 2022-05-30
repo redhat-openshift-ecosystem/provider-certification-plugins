@@ -20,7 +20,6 @@ os_log_info_local() {
 os_log_info_local "Starting plugin..."
 
 create_dependencies_plugin
-init_config
 
 # Notify sonobuoy worker with e2e results (junit)
 # https://github.com/vmware-tanzu/sonobuoy/blob/main/site/content/docs/main/plugins.md#plugin-result-types
@@ -58,15 +57,29 @@ EOF
 }
 trap sig_handler_save_results EXIT
 
+os_log_info_local "logging to the cluster..."
+openshift_login
+
 os_log_info_local "starting sonobuoy status scraper..."
 start_status_collector &
+
+os_log_info_local "starting openshift-tests utility extractor..."
+start_utils_extractor &
+
+os_log_info_local "initializing plugin config..."
+init_config
+
+os_log_info_local "check and wait for dependencies..."
 wait_status_file
+wait_utils_extractor
+
+os_log_info_local "updating runtime configuration..."
+update_config
 
 os_log_info_local "starting waiter..."
 "$(dirname "$0")"/wait-plugin.sh
 
 os_log_info_local "starting executor..."
-
 "$(dirname "$0")"/executor.sh #| tee -a ${results_script_dir}/executor.log
 
 # TODO(report): add a post processor of JUnit to identify flakes

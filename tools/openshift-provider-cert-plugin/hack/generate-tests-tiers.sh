@@ -60,29 +60,6 @@ sig_storage() {
     level3_sig_storage
 }
 
-# SIG=sig-cli
-level1_sig_cli() {
-    :
-}
-
-level2_sig_cli() {
-    #TODO(tests-by-level): Aligned real filter w/ SIG.
-    # The filter below has being used on development process.
-    run_openshift_tests "all" \
-        | grep -P '^(?=.*\[sig-cli\])(?=.*\[Conformance\])' \
-        | tee -a "${tests_level2}"
-}
-
-level3_sig_cli() {
-    :
-}
-
-sig_cli() {
-    level1_sig_cli
-    level2_sig_cli
-    level3_sig_cli
-}
-
 #
 # Finalizer
 #
@@ -90,7 +67,6 @@ sig_cli() {
 # collect
 collector() {
     sig_storage >/dev/null
-    sig_cli >/dev/null
 }
 collector
 

@@ -1,0 +1,64 @@
+podSpec:
+  restartPolicy: Never
+  serviceAccountName: sonobuoy-serviceaccount
+  # See instructions on README.md#recommended-dedicated-node
+  tolerations:
+  - key: node-role.kubernetes.io/tests
+    operator: Exists
+    effect: NoSchedule
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: node-role.kubernetes.io/worker
+            operator: In
+            values:
+              - ""
+      preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 99
+        preference:
+          matchExpressions:
+          - key: node-role.kubernetes.io/tests
+            operator: In
+            values:
+            - ""
+      - weight: 1
+        preference:
+          matchExpressions:
+          - key: node-role.kubernetes.io/worker
+            operator: In
+            values:
+            - ""
+  containers:
+    - name: report-progress
+      image: quay.io/mrbraga/openshift-tests-provider-cert:devel
+      imagePullPolicy: Always
+      priorityClassName: system-node-critical
+      command: ["./report-progress.sh"]
+      volumeMounts:
+      - mountPath: /tmp/sonobuoy/results
+        name: results
+      env:
+        - name: CERT_LEVEL
+          value: "1"
+
+sonobuoy-config:
+  driver: Job
+  plugin-name: openshift-conformance-validated
+  result-format: junit
+  description: The end-to-end tests maintained by OpenShift to certify the Provider running the OpenShift Container Platform.
+  source-url: https://github.com/openshift/provider-certification-tool/blob/mvp/tools/plugins/openshift-conformance-validated.yaml
+  skipCleanup: true
+spec:
+  name: plugin
+  image: quay.io/mrbraga/openshift-tests-provider-cert:devel
+  imagePullPolicy: Always
+  priorityClassName: system-node-critical
+  volumeMounts:
+  - mountPath: /tmp/sonobuoy/results
+    name: results
+  env:
+    - name: CERT_LEVEL
+      value: "1"
+  resources: {}
