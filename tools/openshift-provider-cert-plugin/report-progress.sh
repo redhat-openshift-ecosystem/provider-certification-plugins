@@ -9,6 +9,9 @@ set -o pipefail
 set -o nounset
 set -o errexit
 
+declare -g PIDS_LOCAL
+declare -g PROGRESS
+
 # shellcheck disable=SC1091
 source "$(dirname "$0")"/global_env.sh
 # shellcheck disable=SC1091
@@ -18,13 +21,14 @@ os_log_info_local() {
     echo "$(date +%Y%m%d-%H%M%S)> [report] $*"
 }
 
+openshift_login
+start_utils_extractor &
 init_config
+wait_utils_extractor
+update_config
 
-declare -g PIDS_LOCAL
 PIDS_LOCAL=()
-
-declare -g PROGRESS
-PROGRESS=( ["completed"]=0 ["total"]=${CERT_TEST_FILE_COUNT} ["failures"]="" ["msg"]="" )
+PROGRESS=( ["completed"]=0 ["total"]=${CERT_TEST_COUNT} ["failures"]="" ["msg"]="" )
 
 
 wait_progress_api() {
@@ -116,7 +120,7 @@ watch_dependency_done() {
             # Reporting progress to sonobuoy progress API
             body="{
                 \"completed\":0,
-                \"total\":${CERT_TEST_FILE_COUNT},
+                \"total\":${CERT_TEST_COUNT},
                 \"failures\":[],
                 \"msg\":\"${msg}\"
             }"
@@ -182,7 +186,7 @@ report_sonobuoy_progress() {
                 PROGRESS["total"]=$(echo "${job_progress:1:-1}" | cut -d'/' -f 3)
 
             elif [[ $line == failed:* ]]; then
-                if [ -z "${jobs_faulures}" ]; then
+                if [ -z "${PROGRESS["failures"]}" ]; then
                     PROGRESS["failures"]=\"$(echo "$line" | cut -d"\"" -f2)\"
                 else
                     PROGRESS["failures"]+=,\"$(echo "$line" | cut -d"\"" -f2)\"

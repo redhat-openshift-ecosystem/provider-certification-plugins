@@ -5,8 +5,8 @@ LABEL io.k8s.display-name="OpenShift Tests for Partner Certification Tool" \
 
 WORKDIR /ocp-conformance
 
-COPY ./sonobuoy ./
-RUN strip $(which openshift-tests) \
+COPY ./tmp/sonobuoy ./
+RUN rm -rvf $(which openshift-tests) \
       && strip $(which oc) \
       && strip ./sonobuoy \
       && chmod u+x ./sonobuoy
