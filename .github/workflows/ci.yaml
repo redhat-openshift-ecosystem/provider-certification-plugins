@@ -29,6 +29,33 @@ jobs:
           echo "${{ steps.config.outputs.VERSION }}"
           echo "${PLUGIN_CERT_CHANGED}"
 
+  linters:
+    runs-on: ubuntu-latest
+    needs:
+      - check
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Shellcheck - hack
+        uses: azohra/shell-linter@latest
+        with:
+          path: "openshift-provider-cert"
+
+      - name: Shellcheck - CLI MVP
+        uses: azohra/shell-linter@latest
+        with:
+          path: "openshift-provider-cert"
+
+      - name: Shellcheck - Plugin - openshift-tests
+        uses: azohra/shell-linter@latest
+        with:
+          scandir: './tools/openshift-provider-cert-plugin/*.sh'
+
+      - name: Shellcheck - Plugin - openshift-tests - hack
+        uses: azohra/shell-linter@latest
+        with:
+          scandir: './tools/openshift-provider-cert-plugin/hack/*.sh'
+
 #
 # Plugin workflow check
 #
@@ -36,26 +63,11 @@ jobs:
 #
 # Tests related to plugin: openshift-tests
 #
-  plugin-openshift-tests-linter:
-    runs-on: ubuntu-latest
-    needs:
-      - check
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-
-      - name: Usage sample show in-step envs
-        env:
-          PLUGIN_CERT_CHANGED: "${{ needs.check.outputs.PLUGIN_CERT_CHANGED }}"
-        run: |
-          echo "${{ needs.check.outputs.VERSION }}"
-          echo "$PLUGIN_CERT_CHANGED"
-
   plugin-openshift-tests-e2e:
     runs-on: ubuntu-latest
     needs:
       - check
-      - plugin-openshift-tests-linter
+      - linters
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -73,8 +85,8 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - check
+      - linters
       - plugin-openshift-tests-e2e
-      - plugin-openshift-tests-linter
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -91,10 +103,11 @@ jobs:
 # mvp:CLI
 #
   cli-mvp:
-    if: ${{ env.release_mvp_cli }} == true
+    #if: env.release_mvp_cli == true
     runs-on: ubuntu-latest
     needs:
       - check
+      - linters
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -105,6 +118,7 @@ jobs:
         run: |
           echo "${{ needs.check.outputs.VERSION }}"
           echo "$PLUGIN_CERT_CHANGED"
+          echo "$release_mvp_cli"
 
 #
 # Artifacts / outputs
@@ -134,7 +148,7 @@ jobs:
 
       - name: Save MVP CLI
         uses: actions/upload-artifact@v2
-        if: ${{ env.release_mvp_cli }} == true
+        #if: env.release_mvp_cli == true
         with:
           name: openshift-provider-cert
           path: ./openshift-provider-cert
