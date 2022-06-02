@@ -311,7 +311,7 @@ cmd_results() {
         exit 1
     fi
     log_info "#> Reading results from file ${file_path}"
-    ${CMD_SONOBUOY} results -n "${NAMESPACE:-${DEFAULT_NAMESPACE}}" "${file_path}"
+    ${CMD_SONOBUOY} results "${file_path}"
 }
 
 
