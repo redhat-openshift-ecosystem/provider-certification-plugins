@@ -23,6 +23,7 @@ declare -gxr WORKDIR="./.openshift-cert"
 declare -gxr STAT_FILE="${WORKDIR}/sonobuoy-status.json"
 declare -gxr RESULTS_LATEST="${WORKDIR}/results-latest.txt"
 declare -gxr STATUS_INTERVAL_SEC=10
+declare -gx DEFAULT_NAMESPACE="openshift-provider-certification"
 
 util_path_sonobuoy="$(command -v sonobuoy || true)"
 util_path_oc="$(command -v oc || true)"
@@ -134,14 +135,14 @@ check_dependencies() {
 wait_for_required_resources() {
     local aggregator_labels
     aggregator_labels="component=sonobuoy,sonobuoy-component=aggregator"
-    if [[ -n "$(${CMD_OC} get pod -n sonobuoy \
+    if [[ -n "$(${CMD_OC} get pod -n "${NAMESPACE:-${DEFAULT_NAMESPACE}}" \
                 -l ${aggregator_labels} \
                 -o jsonpath='{.items[*].metadata.name}' \
                 2>/dev/null || true)" ]]; then
         return
     fi
     log_info "The aggregator is not running ['pod/sonobuoy']. Waiting for resource be created..."
-    ${CMD_OC} wait -n sonobuoy \
+    ${CMD_OC} wait -n "${NAMESPACE:-${DEFAULT_NAMESPACE}}" \
         --timeout=10m \
         --for=condition=ready \
         pod -l ${aggregator_labels} >/dev/null
@@ -172,7 +173,7 @@ wait_for_required_state() {
 # cmd: status
 #
 check_sonobuoy_ns_exists() {
-    if [[ -z "$(${CMD_OC} get projects |grep ^sonobuoy || true)" ]]; then
+    if [[ -z "$(${CMD_OC} get projects |grep ^"${NAMESPACE:-${DEFAULT_NAMESPACE}}" || true)" ]]; then
         echo -ne 1
     fi
     echo -ne 0
@@ -180,7 +181,9 @@ check_sonobuoy_ns_exists() {
 
 run_status_updater() {
     while true; do
-        ${CMD_SONOBUOY} status --json > "${STAT_FILE}" 2>/dev/null || true
+        ${CMD_SONOBUOY} status --json \
+            -n "${NAMESPACE:-${DEFAULT_NAMESPACE}}" \
+            > "${STAT_FILE}" 2>/dev/null || true
         test -s "${STAT_FILE}" && return
         sleep "${STATUS_INTERVAL_SEC}"
     done
@@ -321,14 +324,14 @@ cmd_retrieve() {
 #
 check_sonobuoy_not_present() {
     # Check if there's sonobuoy environment: should fail
-    if [[ -z "$(${CMD_OC} get projects |grep ^sonobuoy || true)" ]]; then
-        echo "The namespace [sonobuoy] is not present on cluster. Exiting."
+    if [[ -z "$(${CMD_OC} get projects |grep ^"${NAMESPACE:-${DEFAULT_NAMESPACE}}" || true)" ]]; then
+        echo "The namespace [${NAMESPACE:-${DEFAULT_NAMESPACE}}] is not present on cluster. Exiting."
         exit 1
     fi
 }
 
 delete_sonobuoy_env() {
-    ${CMD_SONOBUOY} delete --wait
+    ${CMD_SONOBUOY} delete -n "${NAMESPACE:-${DEFAULT_NAMESPACE}}" --wait
 }
 
 delete_tests_namespaces() {
@@ -357,7 +360,7 @@ delete_sonobuoy_status() {
 cmd_destroy() {
     log_info "Starting the destroy flow..."
 
-    if [[ -n "$(oc get projects |grep ^sonobuoy || true)" ]]
+    if [[ -n "$(oc get projects |grep ^"${NAMESPACE:-${DEFAULT_NAMESPACE}}" || true)" ]]
     then
         delete_sonobuoy_env
         delete_sonobuoy_status
@@ -391,6 +394,7 @@ set_scc() {
 run_env_default() {
     local cmd
     cmd="${CMD_SONOBUOY} run \
+        --namespace ${NAMESPACE:-${DEFAULT_NAMESPACE}} \
         --dns-namespace=openshift-dns \
         --dns-pod-labels=dns.operator.openshift.io/daemonset-dns=default \
         --timeout=${PLUGIN_TIMEOUT} \
@@ -405,16 +409,27 @@ run_env_default() {
 #
 # TODO(fix) Issue: Sonobuoy does not allow to set the tolerations.
 # TODO(fix) Issue: Sonobuoy node-selector does not allow empty label/value,
-# like node-role/tests=''. So need to create a custom label `openshift-tests=true`
-# to filter the node.
+# like node-role.kubernetes.io/tests=''. Maybe need to create a custom
+# label `openshift-tests=true` on affinity rules used by plugin manifests.
 run_env_dedicated() {
     local cmd
 
     # Mandatory NS annotations to NS to spin all the pods on dedicated node
-    ${CMD_OC} create -f tools/plugins/namespace.yaml
+    cat <<EOF | envsubst | oc create -f -
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    kubernetes.io/metadata.name: ${NAMESPACE:-${DEFAULT_NAMESPACE}}
+  annotations:
+    scheduler.alpha.kubernetes.io/defaultTolerations: '[{"operator": "Exists", "effect":
+      "NoSchedule", "key": "node-role.kubernetes.io/tests", "value": ""}]'
+  name: ${NAMESPACE:-${DEFAULT_NAMESPACE}}
+EOF
 
     # Mandatory to skip preflight to avoid NS checking
     cmd="${CMD_SONOBUOY} run \
+        --namespace ${NAMESPACE:-${DEFAULT_NAMESPACE}} \
         --dns-namespace=openshift-dns \
         --dns-pod-labels=dns.operator.openshift.io/daemonset-dns=default \
         --timeout=${PLUGIN_TIMEOUT} \
@@ -495,7 +510,7 @@ collect_results() {
     retries=0
     retry_limit=10
     while true; do
-        result_file=$(sonobuoy retrieve)
+        result_file=$(${CMD_SONOBUOY} retrieve -n "${NAMESPACE:-${DEFAULT_NAMESPACE}}")
         RC=$?
         if [[ ${RC} -eq 0 ]]; then
             break
