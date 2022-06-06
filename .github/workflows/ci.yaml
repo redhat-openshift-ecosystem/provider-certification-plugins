@@ -1,0 +1,27 @@
+---
+name: CI Plugin workflow
+on: 
+  - pull_request
+
+jobs:
+  linters:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Shellcheck - hack
+        uses: azohra/shell-linter@latest
+        with:
+          path: "hack/*.sh"
+
+      - name: Shellcheck - Plugin - openshift-tests
+        uses: azohra/shell-linter@latest
+        with:
+          scandir: './tools/openshift-provider-cert-plugin/*.sh'
+
+      - name: Shellcheck - Plugin - openshift-tests - hack
+        uses: azohra/shell-linter@latest
+        with:
+          scandir: './tools/openshift-provider-cert-plugin/hack/*.sh'
+
+
