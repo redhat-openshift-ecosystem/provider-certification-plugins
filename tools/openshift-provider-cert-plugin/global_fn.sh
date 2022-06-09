@@ -28,34 +28,29 @@ init_config() {
     then
         os_log_info_local "Empty CERT_LEVEL. It should be defined. Exiting..."
         exit 1
+    fi
 
     os_log_info_local "Setting config for CERT_LEVEL=[${CERT_LEVEL:-}]..."
-    elif [[ "${CERT_LEVEL:-}" == "0" ]]
+    if [[ "${CERT_LEVEL:-}" == "0" ]]
     then
         PLUGIN_NAME="openshift-kube-conformance"
-        CERT_TEST_FILE=""
         CERT_TEST_SUITE="kubernetes/conformance"
         PLUGIN_BLOCKED_BY=()
 
     elif [[ "${CERT_LEVEL:-}" == "1" ]]
     then
         PLUGIN_NAME="openshift-conformance-validated"
-        CERT_TEST_FILE=""
         CERT_TEST_SUITE="openshift/conformance"
         PLUGIN_BLOCKED_BY+=("openshift-kube-conformance")
 
     elif [[ "${CERT_LEVEL:-}" == "2" ]]
     then
         PLUGIN_NAME="openshift-provider-cert-level2"
-        CERT_TEST_FILE=""
-        CERT_TEST_SUITE=""
         PLUGIN_BLOCKED_BY+=("openshift-conformance-validated")
 
     elif [[ "${CERT_LEVEL:-}" == "3" ]]
     then
         PLUGIN_NAME="openshift-provider-cert-level3"
-        CERT_TEST_FILE=""
-        CERT_TEST_SUITE=""
         PLUGIN_BLOCKED_BY+=("openshift-provider-cert-level2")
 
     else
@@ -70,8 +65,21 @@ init_config() {
 }
 export -f init_config
 
+show_config() {
+    cat <<-EOF
+#> Config Dump [start] <#
+PLUGIN_NAME=${PLUGIN_NAME}
+PLUGIN_BLOCKED_BY=${PLUGIN_BLOCKED_BY[*]}
+CERT_LEVEL=${CERT_LEVEL}
+CERT_TEST_SUITE=${CERT_TEST_SUITE}
+CERT_TEST_COUNT=${CERT_TEST_COUNT}
+CERT_TEST_PARALLEL=${CERT_TEST_PARALLEL}
+RESULTS_DIR=${RESULTS_DIR}
+#> Config Dump [end] <#
+EOF
+}
+
 update_config() {
-    export CERT_TEST_COUNT=0
     if [[ -n "${CERT_TEST_FILE:-}" ]]; then
         CERT_TEST_COUNT="$(wc -l "${CERT_TEST_FILE}" |cut -f 1 -d' ' |tr -d '\n')"
     fi

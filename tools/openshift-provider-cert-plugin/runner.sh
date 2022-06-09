@@ -63,6 +63,7 @@ start_utils_extractor &
 
 os_log_info_local "initializing plugin config..."
 init_config
+show_config
 
 os_log_info_local "check and wait for dependencies..."
 wait_status_file
