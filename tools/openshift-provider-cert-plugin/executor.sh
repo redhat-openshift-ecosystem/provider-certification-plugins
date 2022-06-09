@@ -24,12 +24,15 @@ os_log_info "[executor] Executor started. Choosing execution type based on envir
 
 if [[ -n "${CERT_TEST_SUITE}" ]]; then
     os_log_info "Running openshift-tests suite [${CERT_TEST_SUITE}] Provider Conformance..."
+    set +x
     openshift-tests run \
+        --max-parallel-tests "${CERT_TEST_PARALLEL}" \
         --junit-dir "${RESULTS_DIR}" \
         "${CERT_TEST_SUITE}" \
         | tee -a "${RESULTS_PIPE}" || true
 
     os_log_info "openshift-tests finished[$?]"
+    set -x
 
 # To run custom tests, set the environment CERT_LEVEL on plugin definition.
 # To generate the test file, use the script hack/generate-tests-tiers.sh
