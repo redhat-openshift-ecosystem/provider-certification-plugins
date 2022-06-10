@@ -1,0 +1,38 @@
+# Sonobuoy
+FROM quay.io/ocp-cert/sonobuoy:v0.56.6 as sonobuoy
+
+# Base image
+FROM registry.access.redhat.com/ubi8/ubi-minimal:latest as ubi-base
+RUN microdnf install yum \
+  && yum -y update-minimal --security --sec-severity=Important --sec-severity=Critical
+
+# Tool builder clients
+FROM ubi-base as ocp-clients
+WORKDIR /clients
+ENV OC_VERSION=4.10.18
+ENV FILE=openshift-client-linux.tar.gz
+
+ADD https://mirror.openshift.com/pub/openshift-v4/amd64/clients/ocp/${OC_VERSION}/${FILE} ./
+ADD https://stedolan.github.io/jq/download/linux64/jq ./
+
+RUN microdnf install yum \
+  && yum -y install tar binutils \
+  && tar xvfz openshift-client-linux.tar.gz \
+  && rm -f openshift-client-linux.tar.gz kubectl README.md \
+  && chmod +x jq oc \
+  && strip oc
+
+# TODO(mtulio): build nc as static binary
+#ADD https://ufpr.dl.sourceforge.net/project/netcat/netcat/0.7.1/netcat-0.7.1.tar.gz ./
+#RUN yum -y install make gcc glibc kernel-devel
+
+
+# Tool image
+FROM ubi-base
+LABEL io.k8s.display-name="OpenShift Tests for Provider Certification Tools" \
+      io.k8s.description="OpenShift is a platform for developing, building, and deploying containerized applications." \
+      io.openshift.tags="openshift,tests,e2e,partner,certification,tools"
+WORKDIR /tools
+COPY --from=sonobuoy /sonobuoy /tools/
+COPY --from=ocp-clients /clients/oc /tools/
+COPY --from=ocp-clients /clients/jq /tools/

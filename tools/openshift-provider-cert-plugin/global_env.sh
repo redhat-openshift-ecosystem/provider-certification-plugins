@@ -13,7 +13,7 @@ declare -gx CERT_TEST_PARALLEL
 
 declare -gAx PROGRESS
 declare -grx PROGRESS_URL="http://127.0.0.1:8099/progress"
-declare -grx SONOBUOY_BIN="./sonobuoy"
+declare -grx SONOBUOY_BIN="/usr/bin/sonobuoy"
 declare -grx STATUS_FILE="/tmp/sonobuoy-status.json"
 declare -grx STATUS_UPDATE_INTERVAL_SEC="5"
 declare -grx E2E_PARALLEL_DEFAULT=0
