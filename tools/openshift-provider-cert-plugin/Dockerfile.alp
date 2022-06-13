@@ -1,0 +1,24 @@
+# Layering Tools image
+FROM quay.io/ocp-cert/tools:latest as tools
+
+# Plugin container image
+FROM alpine:3.14
+LABEL io.k8s.display-name="OpenShift Tests for Provider Certification Plugin" \
+      io.k8s.description="OpenShift is a platform for developing, building, and deploying containerized applications." \
+      io.openshift.tags="openshift,tests,e2e,partner,certification,plugin"
+COPY --from=tools /tools/sonobuoy /usr/bin/
+COPY --from=tools /tools/oc /usr/bin/
+COPY --from=tools /tools/jq /usr/bin/
+RUN ln -svf /usr/bin/oc /usr/bin/kubectl
+
+# gcompat: allow to run glibc programs (oc and jq)
+# sononbuoy is already built with musl
+RUN apk add --no-cache --update bash gcompat curl grep \
+  && rm -rf /var/cache/apk/*
+
+WORKDIR /plugin
+
+COPY ./tests ./tests
+COPY ./*.sh ./
+
+CMD ["./runner.sh"]

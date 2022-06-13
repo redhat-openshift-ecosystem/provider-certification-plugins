@@ -62,17 +62,28 @@ podman build \
     --build-arg CONTAINER_BASE="${CONTAINER_BASE}" \
     --build-arg CONTAINER_TOOLS="${CONTAINER_TOOLS}" \
     -t "${CONTAINER_PLUGIN}" \
-    -f Dockerfile .
+    -f Dockerfile.ubi .
+
+podman build \
+    --build-arg CONTAINER_BASE="${CONTAINER_BASE}" \
+    --build-arg CONTAINER_TOOLS="${CONTAINER_TOOLS}" \
+    -t "${IMAGE_PLUGIN}:${VERSION_PLUGIN_DEVEL}-alp" \
+    -f Dockerfile.alp .
 
 echo "#> Applying tags"
 echo "##> Tag devel ${IMAGE_PLUGIN}:${VERSION_PLUGIN_DEVEL}"
 podman tag \
     "${CONTAINER_PLUGIN}" \
     "${IMAGE_PLUGIN}":"${VERSION_PLUGIN_DEVEL}"
+podman tag \
+    "${CONTAINER_PLUGIN}" \
+    "${IMAGE_PLUGIN}":"${VERSION_PLUGIN_DEVEL}-ubi"
 
 echo "#> Upload images"
 echo "##> Upload image ${CONTAINER_PLUGIN}"
 podman push "${CONTAINER_PLUGIN}"
 
-echo "##> Upload image ${IMAGE_PLUGIN}:${VERSION_PLUGIN_DEVEL}"
+echo "##> Upload image ${IMAGE_PLUGIN}:${VERSION_PLUGIN_DEVEL}*"
 podman push "${IMAGE_PLUGIN}":"${VERSION_PLUGIN_DEVEL}"
+podman push "${IMAGE_PLUGIN}":"${VERSION_PLUGIN_DEVEL}-ubi"
+podman push "${IMAGE_PLUGIN}":"${VERSION_PLUGIN_DEVEL}-alp"
