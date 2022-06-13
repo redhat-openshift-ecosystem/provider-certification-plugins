@@ -17,7 +17,7 @@ VERSION_PLUGIN=$(date +%Y%m%d%H%M%S)
 VERSION_PLUGIN_DEVEL="${1:-devel}"
 FORCE="${2:-false}"
 
-VERSION_TOOLS="latest"
+VERSION_TOOLS="v0.0.0-oc41018-s0565"
 VERSION_SONOBUOY="v0.56.5"
 VERSION_OC="4.10.18"
 
@@ -33,57 +33,83 @@ CONTAINER_TOOLS="${IMAGE_TOOLS}:${VERSION_TOOLS}"
 CONTAINER_PLUGIN="${IMAGE_PLUGIN}:${VERSION_PLUGIN}"
 
 # Sonobuoy
-echo "#> Checking sonobuoy container image"
-if [[ $(skopeo list-tags docker://"${REGISTRY}"/sonobuoy |jq -r ".Tags | index (\"${VERSION_SONOBUOY}\") // false") == false ]]; then
-    echo "#>> Sonobuoy container version is missing, starting the mirror"
+mirror_sonobuoy() {
+    echo "#>> Creating Sonobuoy mirror from ${CONTAINER_SONOBUOY} to ${CONTAINER_SONOBUOY_MIRROR}"
     podman pull ${CONTAINER_SONOBUOY} &&
         podman tag "${CONTAINER_SONOBUOY}" "${CONTAINER_SONOBUOY_MIRROR}" &&
         podman push "${CONTAINER_SONOBUOY_MIRROR}"
-fi
+}
 
-echo "#> Checking Tools container image"
-TOOLS_EXISTS=$(skopeo list-tags docker://"${IMAGE_TOOLS}" |jq -r ".Tags | index (\"${VERSION_TOOLS}\") // false")
-if [[ ${TOOLS_EXISTS} == 1 || ${FORCE} == true ]]; then
-    echo "#>> Sonobuoy container version is missing, starting the mirror"
+build_tools() {
     echo "#> Building Tools image"
     podman build \
-        --build-arg CONTAINER_BASE="${CONTAINER_BASE}" \
-        --build-arg CONTAINER_SONOBUOY="${CONTAINER_SONOBUOY_MIRROR}" \
-        --build-arg VERSION_OC=${VERSION_OC} \
-        -t "${CONTAINER_TOOLS}" \
-        -f Dockerfile.tools .
+        -t "${CONTAINER_TOOLS}-ubi" \
+        -f Dockerfile.tools-ubi .
 
-    echo "##> Upload image ${CONTAINER_TOOLS}"
-    podman push "${CONTAINER_TOOLS}"
-fi
+    podman build \
+        -t "${CONTAINER_TOOLS}-alp" \
+        -f Dockerfile.tools-alp .
 
-echo "#> Building Plugin Image"
-podman build \
-    --build-arg CONTAINER_BASE="${CONTAINER_BASE}" \
-    --build-arg CONTAINER_TOOLS="${CONTAINER_TOOLS}" \
-    -t "${CONTAINER_PLUGIN}" \
-    -f Dockerfile.ubi .
+    podman tag "${CONTAINER_TOOLS}-alp" "${IMAGE_TOOLS}:${VERSION_TOOLS}"
+    podman tag "${CONTAINER_TOOLS}-alp" "${IMAGE_TOOLS}:latest"
+}
 
-podman build \
-    --build-arg CONTAINER_BASE="${CONTAINER_BASE}" \
-    --build-arg CONTAINER_TOOLS="${CONTAINER_TOOLS}" \
-    -t "${IMAGE_PLUGIN}:${VERSION_PLUGIN_DEVEL}-alp" \
-    -f Dockerfile.alp .
+build_plugin() {
+    echo "#> Building Container images"
+    echo "#>> Building Plugin Image"
+    podman build \
+        -t "${IMAGE_PLUGIN}:${VERSION_PLUGIN}-ubi" \
+        -f Dockerfile.ubi .
 
-echo "#> Applying tags"
-echo "##> Tag devel ${IMAGE_PLUGIN}:${VERSION_PLUGIN_DEVEL}"
-podman tag \
-    "${CONTAINER_PLUGIN}" \
-    "${IMAGE_PLUGIN}":"${VERSION_PLUGIN_DEVEL}"
-podman tag \
-    "${CONTAINER_PLUGIN}" \
-    "${IMAGE_PLUGIN}":"${VERSION_PLUGIN_DEVEL}-ubi"
+    podman build \
+        -t "${IMAGE_PLUGIN}:${VERSION_PLUGIN}-alp" \
+        -f Dockerfile.alp .
 
-echo "#> Upload images"
-echo "##> Upload image ${CONTAINER_PLUGIN}"
-podman push "${CONTAINER_PLUGIN}"
+    echo "#> Applying tags"
+    echo "##> Tag devel ${IMAGE_PLUGIN}:${VERSION_PLUGIN_DEVEL}"
+    podman tag \
+        "${IMAGE_PLUGIN}:${VERSION_PLUGIN}-ubi" \
+        "${IMAGE_PLUGIN}:${VERSION_PLUGIN_DEVEL}-ubi"
+    podman tag \
+        "${IMAGE_PLUGIN}:${VERSION_PLUGIN}-alp" \
+        "${IMAGE_PLUGIN}:${VERSION_PLUGIN_DEVEL}"
+}
 
-echo "##> Upload image ${IMAGE_PLUGIN}:${VERSION_PLUGIN_DEVEL}*"
-podman push "${IMAGE_PLUGIN}":"${VERSION_PLUGIN_DEVEL}"
-podman push "${IMAGE_PLUGIN}":"${VERSION_PLUGIN_DEVEL}-ubi"
-podman push "${IMAGE_PLUGIN}":"${VERSION_PLUGIN_DEVEL}-alp"
+push_tools() {
+    echo "##> Upload images ${IMAGE_TOOLS}"
+    podman push "${IMAGE_TOOLS}:latest"
+    podman push "${IMAGE_TOOLS}:${VERSION_TOOLS}"
+    podman push "${CONTAINER_TOOLS}-ubi"
+    podman push "${CONTAINER_TOOLS}-alp"
+}
+
+push_plugin() {
+    echo "#> Upload images"
+    echo "##> Upload image ${CONTAINER_PLUGIN}"
+    podman push "${IMAGE_PLUGIN}:${VERSION_PLUGIN}-ubi"
+    podman push "${IMAGE_PLUGIN}:${VERSION_PLUGIN}-alp"
+    podman push "${IMAGE_PLUGIN}:${VERSION_PLUGIN_DEVEL}"
+    podman push "${IMAGE_PLUGIN}:${VERSION_PLUGIN_DEVEL}-ubi"
+}
+
+build() {
+    echo "#> Checking sonobuoy container image"
+    if [[ $(skopeo list-tags docker://"${REGISTRY}"/sonobuoy |jq -r ".Tags | index (\"${VERSION_SONOBUOY}\") // false") == false ]]; then
+        echo "#>> Sonobuoy container version is missing, starting the mirror"
+        mirror_sonobuoy
+    fi
+
+    echo "#> Checking Tools container image"
+    TOOLS_EXISTS=$(skopeo list-tags docker://"${IMAGE_TOOLS}" |jq -r ".Tags | index (\"${VERSION_TOOLS}\") // false")
+    if [[ ${TOOLS_EXISTS} == 1 || ${FORCE} == true ]]; then
+        echo "#>> Tools container version is missing, starting the mirror"
+        build_tools
+        push_tools
+    fi
+
+    # Plugin
+    build_plugin
+    push_plugin
+}
+
+build

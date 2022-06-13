@@ -4,7 +4,7 @@ RUN microdnf install yum \
   && yum -y update-minimal --security --sec-severity=Important --sec-severity=Critical
 
 # Layering Tools image
-FROM quay.io/ocp-cert/tools:latest as tools
+FROM quay.io/ocp-cert/tools:v0.0.0-oc41018-s0565-ubi as tools
 
 # Plugin container image
 FROM ubi-base
