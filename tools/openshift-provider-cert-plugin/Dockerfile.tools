@@ -22,10 +22,6 @@ RUN microdnf install yum \
   && chmod +x jq oc \
   && strip oc
 
-# TODO(mtulio): build nc as static binary
-#ADD https://ufpr.dl.sourceforge.net/project/netcat/netcat/0.7.1/netcat-0.7.1.tar.gz ./
-#RUN yum -y install make gcc glibc kernel-devel
-
 
 # Tool image
 FROM ubi-base

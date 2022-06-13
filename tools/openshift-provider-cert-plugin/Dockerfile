@@ -16,8 +16,7 @@ COPY --from=tools /tools/oc /usr/bin/
 COPY --from=tools /tools/jq /usr/bin/
 
 #TODO: embeed the nc on tools layer (build it statically)
-RUN yum install -y netcat \
-  && yum clean all \
+RUN yum clean all \
   && microdnf clean all
 
 RUN ln -svf /usr/bin/oc /usr/bin/kubectl
