@@ -32,8 +32,11 @@ PROGRESS=( ["completed"]=0 ["total"]=${CERT_TEST_COUNT} ["failures"]="" ["msg"]=
 
 
 wait_progress_api() {
-    local addr_ip=$(echo "${PROGRESS_URL}" |grep -Po '(\d+.\d+.\d+.\d+)')
-    local addr_port=$(echo "${PROGRESS_URL}" |grep -Po '\d{4}')
+    local addr_ip
+    local addr_port
+    addr_ip=$(echo "${PROGRESS_URL}" |grep -Po '(\d+.\d+.\d+.\d+)')
+    addr_port=$(echo "${PROGRESS_URL}" |grep -Po '\d{4}')
+
     os_log_info_local "waiting for sonobuoy-worker service is ready..."
     while true
     do

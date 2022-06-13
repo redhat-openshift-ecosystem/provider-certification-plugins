@@ -22,7 +22,6 @@ RUN microdnf install yum \
   && chmod +x jq oc \
   && strip oc
 
-
 # Tool image
 FROM ubi-base
 LABEL io.k8s.display-name="OpenShift Tests for Provider Certification Tools" \
