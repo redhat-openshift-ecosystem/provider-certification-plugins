@@ -6,6 +6,6 @@ LABEL io.k8s.display-name="OpenShift Tests for Provider Certification Plugin" \
 WORKDIR /plugin
 
 COPY ./tests ./tests
-COPY ./*.sh ./
+COPY ./plugin/*.sh ./
 
 CMD ["./runner.sh"]

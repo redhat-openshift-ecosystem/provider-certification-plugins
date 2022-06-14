@@ -24,6 +24,6 @@ RUN ln -svf /usr/bin/oc /usr/bin/kubectl
 WORKDIR /plugin
 
 COPY ./tests ./tests
-COPY ./*.sh ./
+COPY ./plugin/*.sh ./
 
 CMD ["./runner.sh"]
