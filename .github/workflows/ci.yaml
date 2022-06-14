@@ -20,12 +20,12 @@ jobs:
       - name: Shellcheck - Plugin - openshift-tests
         uses: azohra/shell-linter@latest
         with:
-          scandir: './tools/openshift-provider-cert-plugin/*.sh'
+          scandir: './openshift-tests-provider-cert/*.sh'
 
       - name: Shellcheck - Plugin - openshift-tests - hack
         uses: azohra/shell-linter@latest
         with:
-          scandir: './tools/openshift-provider-cert-plugin/hack/*.sh'
+          scandir: './openshift-tests-provider-cert/hack/*.sh'
 
 #
 # Plugin workflow check
@@ -57,7 +57,7 @@ jobs:
 
       - name: Build Container image
         run: |
-          cd tools/openshift-provider-cert-plugin;
+          cd openshift-tests-provider-cert/;
           make build-ci
 
 #
@@ -83,5 +83,5 @@ jobs:
           QUAY_PASS: ${{ secrets.QUAY_PASS }}
         run: |
           podman login -u="${QUAY_USER}" -p="${QUAY_PASS}" quay.io
-          cd tools/openshift-provider-cert-plugin;
+          cd openshift-tests-provider-cert/;
           make release VERSION=$RELEASE_VERSION

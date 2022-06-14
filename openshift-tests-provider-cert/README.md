@@ -186,7 +186,7 @@ environment (aggregator+plugins) to avoid disruptions that had frequently impact
 
 The build process does:
 - clone origin repository
-- enter on the plugin directory: tools/openshift-provider-cert-plugin
+- enter on the plugin directory: `openshift-tests-provider-cert/`
 - build a container image for plugin
 
 Options:
