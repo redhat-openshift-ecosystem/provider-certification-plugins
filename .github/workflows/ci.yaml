@@ -79,6 +79,9 @@ jobs:
       - name: Push Container image
         env:
           RELEASE_VERSION: ${{ steps.vars.outputs.tag }}
+          QUAY_USER: ${{ secrets.QUAY_USER }}
+          QUAY_PASS: ${{ secrets.QUAY_PASS }}
         run: |
+          podman login -u="${QUAY_USER}" -p="${QUAY_PASS}" quay.io
           cd tools/openshift-provider-cert-plugin;
           make release VERSION=$RELEASE_VERSION
