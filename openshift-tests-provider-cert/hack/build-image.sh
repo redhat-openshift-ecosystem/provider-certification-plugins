@@ -49,9 +49,9 @@ EOF
 }
 
 gen_containerfiles() {
-    envsubst < Containerfile.alp > Containerfile
+    envsubst < hack/Containerfile.alp > Containerfile
     test -f Containerfile && echo "Containerfile created"
-    envsubst < Containerfile.tools-alp > Containerfile.tools
+    envsubst < hack/Containerfile.tools-alp > Containerfile.tools
     test -f Containerfile && echo "Containerfile.tools created"
 }
 
