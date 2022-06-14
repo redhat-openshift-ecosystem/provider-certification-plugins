@@ -32,12 +32,15 @@ PROGRESS=( ["completed"]=0 ["total"]=${CERT_TEST_COUNT} ["failures"]="" ["msg"]=
 
 
 wait_progress_api() {
-    ADDR_IP="127.0.0.1"
-    ADDR_PORT="8099"
+    local addr_ip
+    local addr_port
+    addr_ip=$(echo "${PROGRESS_URL}" |grep -Po '(\d+.\d+.\d+.\d+)')
+    addr_port=$(echo "${PROGRESS_URL}" |grep -Po '\d{4}')
+
     os_log_info_local "waiting for sonobuoy-worker service is ready..."
     while true
     do
-        test "$(nc -z -v ${ADDR_IP} ${ADDR_PORT} >/dev/null 2>&1; echo $?)" -eq 0 && break
+        test "$(echo '' | curl telnet://"${addr_ip}":"${addr_port}" >/dev/null 2>&1; echo $?)" -eq 0 && break
         sleep 1
     done
     os_log_info_local "sonobuoy-worker progress api[${PROGRESS_URL}] is ready."

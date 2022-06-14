@@ -1,7 +1,10 @@
 ---
 name: CI Plugin workflow
 on: 
-  - pull_request
+  pull_request:
+  push:
+    tags:
+      - 'v*.*.*'
 
 jobs:
   linters:
@@ -24,4 +27,61 @@ jobs:
         with:
           scandir: './tools/openshift-provider-cert-plugin/hack/*.sh'
 
+#
+# Plugin workflow check
+#
 
+#
+# Tests related to plugin: openshift-tests
+#
+  plugin-openshift-tests-e2e:
+    runs-on: ubuntu-latest
+    needs:
+      - linters
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: e2e
+        run: |
+          echo "e2e Not implemented."
+
+  plugin-openshift-tests-build:
+    runs-on: ubuntu-latest
+    needs:
+      - linters
+      - plugin-openshift-tests-e2e
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Build Container image
+        run: |
+          cd tools/openshift-provider-cert-plugin;
+          make build-ci
+
+#
+# Releasing
+#
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    needs:
+      - plugin-openshift-tests-build
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Set vars
+        id: vars
+        run: echo ::set-output name=tag::${GITHUB_REF#refs/*/}
+
+      - name: Push Container image
+        env:
+          RELEASE_VERSION: ${{ steps.vars.outputs.tag }}
+          QUAY_USER: ${{ secrets.QUAY_USER }}
+          QUAY_PASS: ${{ secrets.QUAY_PASS }}
+        run: |
+          podman login -u="${QUAY_USER}" -p="${QUAY_PASS}" quay.io
+          cd tools/openshift-provider-cert-plugin;
+          make release VERSION=$RELEASE_VERSION

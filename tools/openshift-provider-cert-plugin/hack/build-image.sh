@@ -1,66 +1,205 @@
 #!/usr/bin/env bash
 
+#
+# Container image builder.
+# - Check if sonobuoy mirror exists, if not mirror it
+# - Check if tools image exists, if not mirror it
+# - Build the Plugin container image
+#
+
 set -o pipefail
 set -o nounset
 set -o errexit
 
-REGISTRY="${REGISTRY:-quay.io/mrbraga}"
-CONTAINER_IMAGE="${REGISTRY}/openshift-tests-provider-cert"
-VERSION_BUILD="${1:-devel}"
-VERSION=$(date +%Y%m%d%H%M%S)
+REGISTRY_PLUGIN="${REGISTRY_PLUGIN:-quay.io/ocp-cert}"
+REGISTRY_TOOLS="${REGISTRY_TOOLS:-quay.io/ocp-cert}"
+REGISTRY_MIRROR="${REGISTRY_TOOLS:-quay.io/ocp-cert}"
 
-TMP_DIR="./tmp"
-SB_VERSION="0.56.6"
-SB_FILENAME="sonobuoy_${SB_VERSION}_linux_amd64.tar.gz"
-SB_URL="https://github.com/vmware-tanzu/sonobuoy/releases/download/v${SB_VERSION}/${SB_FILENAME}"
-SB_CONTAINER_SRC="docker.io/sonobuoy/sonobuoy:v${SB_VERSION}"
-SB_CONTAINER_DST="${REGISTRY}/sonobuoy:v${SB_VERSION}"
+COMMAND="${1:-}";
 
-# build openshift-tests image (@openshift/origin)
-test "$(podman image exists openshift-tests:latest; echo $?)" -eq 0 || \
-    "$(dirname "$0")"/build-openshift-tests-image.sh
+TS=$(date +%Y%m%d%H%M%S)
+VERSION_PLUGIN="${VERSION:-dev${TS}}";
+VERSION_PLUGIN_DEVEL="${VERSION_DEVEL:-}";
+FORCE="${FORCE:-false}";
 
-# generate tests
-echo "#> Start generating the test tier"
-"$(dirname "$0")"/generate-tests-tiers.sh
-"$(dirname "$0")"/generate-tests-exception.sh
+# TOOLS version is created by suffix of oc and sonobuoy versions w/o dots
+export VERSION_TOOLS="v0.0.0-oc41018-s0565"
+export VERSION_SONOBUOY="v0.56.5"
+export VERSION_OC="4.10.18"
 
-# Sonobuoy
+IMAGE_PLUGIN="${REGISTRY_PLUGIN}/openshift-tests-provider-cert"
+IMAGE_TOOLS="${REGISTRY_TOOLS}/tools"
+IMAGE_SONOBUOY="docker.io/sonobuoy/sonobuoy"
 
-mkdir -p ${TMP_DIR}
+export CONTAINER_BASE="alpine:3.14"
+export CONTAINER_SONOBUOY="${IMAGE_SONOBUOY}:${VERSION_SONOBUOY}"
+export CONTAINER_SONOBUOY_MIRROR="${REGISTRY_MIRROR}/sonobuoy:${VERSION_SONOBUOY}"
+export CONTAINER_TOOLS="${IMAGE_TOOLS}:${VERSION_TOOLS}"
+export CONTAINER_PLUGIN="${IMAGE_PLUGIN}:${VERSION_PLUGIN}"
 
-## Download Sonobuoy
-echo "#> Check for Sonobuoy binary"
-if [[ ! -f ${TMP_DIR}/${SB_FILENAME} ]]; then
-    rm -rvf ${TMP_DIR}/*.tar.gz ${TMP_DIR}/sonobuoy
-    wget ${SB_URL} -P ${TMP_DIR}/
-fi
+build_info() {
+    cat << EOF > ./VERSION
+BUILD_VERSION=${VERSION_PLUGIN}
+BUILD_TIMESTAMP=${TS}
+BUILD_COMMIT=$(git rev-parse --short HEAD)
+VERSION_TOOLS_IMAGE=${VERSION_TOOLS}
+VERSION_TOOL_SONOBUOY=${VERSION_SONOBUOY}
+VERSION_TOOL_OC=${VERSION_OC}
+EOF
+}
 
-if [[ ! -f ${TMP_DIR}/sonobuoy ]]; then
-    tar xvfz ${TMP_DIR}/${SB_FILENAME} -C ${TMP_DIR}/ sonobuoy
-fi
+gen_containerfiles() {
+    envsubst < Containerfile.alp > Containerfile
+    test -f Containerfile && echo "Containerfile created"
+    envsubst < Containerfile.tools-alp > Containerfile.tools
+    test -f Containerfile && echo "Containerfile.tools created"
+}
 
-echo "#> Sonobuoy version (want): v${SB_VERSION}"
-${TMP_DIR}/sonobuoy version
+image_exists() {
+    img=$1; shift
+    ver=$1;
+    tools_exists=$(skopeo list-tags docker://"${img}" |jq -r ".Tags | index (\"${ver}\") // false")
+    if [[ ${tools_exists} == false ]]; then
+        false
+        return
+    fi
+    true
+}
 
-# create plugin image
-echo "#> Building container image ${CONTAINER_IMAGE}:${VERSION_BUILD}"
-podman build -t "${CONTAINER_IMAGE}":"${VERSION_BUILD}" .
+push_image() {
+    echo "##> Uploading image ${1}"
+    podman push "${1}"
+}
 
-echo "#> Pushing image to registry: ${CONTAINER_IMAGE}:${VERSION_BUILD}"
-podman push "${CONTAINER_IMAGE}":"${VERSION_BUILD}"
+tag_image() {
+    echo "##> Tagging images: ${1} => ${2}"
+    podman tag "${1}" "${2}"
+}
 
-echo "#> Tagging and pushing image to registry: ${CONTAINER_IMAGE}:${VERSION}"
-podman tag \
-    "${CONTAINER_IMAGE}":"${VERSION_BUILD}" \
-    "${CONTAINER_IMAGE}":"${VERSION}"
+#
+# Sonobuoy image
+#
+mirror_sonobuoy() {
+    echo "#> Checking sonobuoy container image"
+    SB_EXISTS=$(skopeo list-tags docker://"${REGISTRY_MIRROR}"/sonobuoy |jq -r ".Tags | index (\"${VERSION_SONOBUOY}\") // false")
+    if [[ ${SB_EXISTS} == false ]]; then
+        echo "#>> Sonobuoy container version is missing, starting the mirror"
+        echo "#>> Creating Sonobuoy mirror from ${CONTAINER_SONOBUOY} to ${CONTAINER_SONOBUOY_MIRROR}"
+        podman pull ${CONTAINER_SONOBUOY} &&
+            tag_image "${CONTAINER_SONOBUOY}" "${CONTAINER_SONOBUOY_MIRROR}" &&
+            push_image "${CONTAINER_SONOBUOY_MIRROR}"
+        return
+    fi
+    echo "#>> Sonobuoy container is present[${REGISTRY_MIRROR}/sonobuoy:${VERSION_SONOBUOY}], ignoring mirror."
+}
 
-podman push "${CONTAINER_IMAGE}":"${VERSION}"
+#
+# Tools image
+#
 
-echo "#> Mirroring sonobuoy container image"
-if [[ $(skopeo list-tags docker://"${REGISTRY}"/sonobuoy |jq -r ".Tags | index (\"v${SB_VERSION}\") // false") == false ]]; then
-    echo "#>> Sonobuoy container version is missing, starting the mirror"
-    podman pull ${SB_CONTAINER_SRC} &&
-        podman tag "${SB_CONTAINER_SRC}" "${SB_CONTAINER_DST}" &&
-        podman push "${SB_CONTAINER_DST}"
-fi
+builder_tools() {
+    echo "#> Building Tools image"
+    podman build \
+        -t "${CONTAINER_TOOLS}" \
+        -f Containerfile.tools .
+
+    echo "#> Applying tags"
+    tag_image "${CONTAINER_TOOLS}" "${IMAGE_TOOLS}:${VERSION_TOOLS}"
+    tag_image "${CONTAINER_TOOLS}" "${IMAGE_TOOLS}:latest"
+}
+
+pusher_tools() {
+    echo "#> Upload images ${IMAGE_TOOLS}"
+    push_image "${CONTAINER_TOOLS}"
+    push_image "${IMAGE_TOOLS}:latest"
+    push_image "${IMAGE_TOOLS}:${VERSION_TOOLS}"
+}
+
+build_tools() {
+    echo "#> Checking Tools container image: ${IMAGE_TOOLS}:${VERSION_TOOLS}"
+    cmd_succeeded=$( image_exists "${IMAGE_TOOLS}" "${VERSION_TOOLS}"; echo $? )
+    if [[ $cmd_succeeded -eq 0 ]] && [[ $FORCE == false ]]; then
+        echo "#>> Tools container version already exists. Ignoring build."
+        exit 1
+    fi
+    echo "#> Starting Tools container builder"
+    builder_tools
+}
+
+push_tools() {
+    echo "#> Checking Tools container image: ${IMAGE_TOOLS}:${VERSION_TOOLS}"
+    cmd_succeeded=$( image_exists "${IMAGE_TOOLS}" "${VERSION_TOOLS}"; echo $? )
+    if [[ $cmd_succeeded -eq 0 ]] && [[ $FORCE == false ]]; then
+        echo "#>> Tools container already exists. Ignoring push."
+        exit 1
+    fi
+    echo "#> Starting Tools container pusher"
+    pusher_tools
+}
+
+#
+# Plugin image
+#
+builder_plugin() {
+    echo "#> Building Container images"
+    echo "#>> Building Plugin Image"
+    podman build \
+        -t "${IMAGE_PLUGIN}:${VERSION_PLUGIN}" \
+        -f Containerfile .
+
+    echo "#> Applying tags"
+
+    if [[ -n ${VERSION_PLUGIN_DEVEL} ]]; then
+        echo "##> Tag devel ${IMAGE_PLUGIN}:${VERSION_PLUGIN_DEVEL}"
+        tag_image \
+            "${IMAGE_PLUGIN}:${VERSION_PLUGIN}" \
+            "${IMAGE_PLUGIN}:${VERSION_PLUGIN_DEVEL}"
+    else
+        # 'latest' will be created only when 'devel' is not set
+        tag_image \
+            "${IMAGE_PLUGIN}:${VERSION_PLUGIN}" \
+            "${IMAGE_PLUGIN}:latest"
+    fi
+    echo "You can now use push-tools to upload the image"
+}
+
+pusher_plugin() {
+    echo "#> Upload images"
+    push_image "${IMAGE_PLUGIN}:${VERSION_PLUGIN}"
+    if [[ -n ${VERSION_PLUGIN_DEVEL} ]]; then
+        push_image "${IMAGE_PLUGIN}:${VERSION_PLUGIN_DEVEL}"
+    else
+        push_image "${IMAGE_PLUGIN}:latest"
+    fi
+}
+
+build_plugin() {
+    echo "#> Checking Tools container image"
+    cmd_succeeded=$( image_exists "${IMAGE_TOOLS}" "${VERSION_TOOLS}"; echo $? )
+    if [[ $cmd_succeeded -eq 1 ]] && [[ $FORCE == false ]]; then
+        echo "#>> Tools container already exists. Ignoring push."
+        exit 1
+    fi
+    builder_plugin
+}
+
+release() {
+    FORCE=true
+    mirror_sonobuoy
+    build_tools
+    push_tools
+    build_plugin
+    pusher_plugin
+}
+
+build_info
+gen_containerfiles
+case $COMMAND in
+    "mirror-sonobuoy") mirror_sonobuoy;;
+    "build-plugin") build_plugin ;;
+    "build-tools") build_tools ;;
+    "push-tools") push_tools ;;
+    "build-dev") build_plugin ; pusher_plugin ;;
+    "release") release;;
+    *) echo "Option [$COMMAND] not found"; exit 1 ;;
+esac
