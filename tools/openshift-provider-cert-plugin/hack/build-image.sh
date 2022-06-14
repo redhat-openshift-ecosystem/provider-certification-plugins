@@ -66,6 +66,16 @@ image_exists() {
     true
 }
 
+push_image() {
+    echo "##> Uploading image ${1}"
+    podman push "${1}"
+}
+
+tag_image() {
+    echo "##> Tagging images: ${1} => ${2}"
+    podman tag "${1}" "${2}"
+}
+
 #
 # Sonobuoy image
 #
@@ -76,8 +86,8 @@ mirror_sonobuoy() {
         echo "#>> Sonobuoy container version is missing, starting the mirror"
         echo "#>> Creating Sonobuoy mirror from ${CONTAINER_SONOBUOY} to ${CONTAINER_SONOBUOY_MIRROR}"
         podman pull ${CONTAINER_SONOBUOY} &&
-            podman tag "${CONTAINER_SONOBUOY}" "${CONTAINER_SONOBUOY_MIRROR}" &&
-            podman push "${CONTAINER_SONOBUOY_MIRROR}"
+            tag_image "${CONTAINER_SONOBUOY}" "${CONTAINER_SONOBUOY_MIRROR}" &&
+            push_image "${CONTAINER_SONOBUOY_MIRROR}"
         return
     fi
     echo "#>> Sonobuoy container is present[${REGISTRY_MIRROR}/sonobuoy:${VERSION_SONOBUOY}], ignoring mirror."
@@ -94,24 +104,15 @@ builder_tools() {
         -f Containerfile.tools .
 
     echo "#> Applying tags"
-    echo "#>> ${CONTAINER_TOOLS} => ${IMAGE_TOOLS}:${VERSION_TOOLS}"
-    podman tag "${CONTAINER_TOOLS}" "${IMAGE_TOOLS}:${VERSION_TOOLS}"
-
-    echo "#>> ${CONTAINER_TOOLS} => ${IMAGE_TOOLS}:latest"
-    podman tag "${CONTAINER_TOOLS}" "${IMAGE_TOOLS}:latest"
+    tag_image "${CONTAINER_TOOLS}" "${IMAGE_TOOLS}:${VERSION_TOOLS}"
+    tag_image "${CONTAINER_TOOLS}" "${IMAGE_TOOLS}:latest"
 }
 
 pusher_tools() {
     echo "#> Upload images ${IMAGE_TOOLS}"
-
-    echo "#>> ${CONTAINER_TOOLS}"
-    podman push "${CONTAINER_TOOLS}"
-
-    echo "#>> ${IMAGE_TOOLS}:latest"
-    podman push "${IMAGE_TOOLS}:latest"
-
-    echo "#>> ${IMAGE_TOOLS}:${VERSION_TOOLS}"
-    podman push "${IMAGE_TOOLS}:${VERSION_TOOLS}"
+    push_image "${CONTAINER_TOOLS}"
+    push_image "${IMAGE_TOOLS}:latest"
+    push_image "${IMAGE_TOOLS}:${VERSION_TOOLS}"
 }
 
 build_tools() {
@@ -147,21 +148,28 @@ builder_plugin() {
         -f Containerfile .
 
     echo "#> Applying tags"
+
     if [[ -n ${VERSION_PLUGIN_DEVEL} ]]; then
         echo "##> Tag devel ${IMAGE_PLUGIN}:${VERSION_PLUGIN_DEVEL}"
-        podman tag \
+        tag_image \
             "${IMAGE_PLUGIN}:${VERSION_PLUGIN}" \
             "${IMAGE_PLUGIN}:${VERSION_PLUGIN_DEVEL}"
+    else
+        # 'latest' will be created only when 'devel' is not set
+        tag_image \
+            "${IMAGE_PLUGIN}:${VERSION_PLUGIN}" \
+            "${IMAGE_PLUGIN}:latest"
     fi
     echo "You can now use push-tools to upload the image"
 }
 
 pusher_plugin() {
     echo "#> Upload images"
-    echo "##> Upload image ${CONTAINER_PLUGIN}"
-    podman push "${IMAGE_PLUGIN}:${VERSION_PLUGIN}"
+    push_image "${IMAGE_PLUGIN}:${VERSION_PLUGIN}"
     if [[ -n ${VERSION_PLUGIN_DEVEL} ]]; then
-        podman push "${IMAGE_PLUGIN}:${VERSION_PLUGIN_DEVEL}"
+        push_image "${IMAGE_PLUGIN}:${VERSION_PLUGIN_DEVEL}"
+    else
+        push_image "${IMAGE_PLUGIN}:latest"
     fi
 }
 
