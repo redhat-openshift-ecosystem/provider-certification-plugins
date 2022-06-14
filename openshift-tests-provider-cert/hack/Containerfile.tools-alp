@@ -1,3 +1,7 @@
+#
+# ATTENTION: The Containerfile.tools was created automatically from hack/Containerfile.tools-alp
+#
+
 # Sonobuoy
 FROM ${CONTAINER_SONOBUOY_MIRROR} as sonobuoy
 
