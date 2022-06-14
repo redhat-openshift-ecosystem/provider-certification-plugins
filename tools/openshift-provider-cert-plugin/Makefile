@@ -2,7 +2,7 @@
 VERSION ?= $(shell date +%Y%m%d%H%M%S)
 DEV_REGISTRY ?= quay.io/ocp-cert
 
-all: build
+all: build-ci
 .PHONY: all
 
 build-ci:
