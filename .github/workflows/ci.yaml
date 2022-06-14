@@ -20,7 +20,7 @@ jobs:
       - name: Shellcheck - Plugin - openshift-tests
         uses: azohra/shell-linter@latest
         with:
-          scandir: './openshift-tests-provider-cert/*.sh'
+          scandir: './openshift-tests-provider-cert/plugin/*.sh'
 
       - name: Shellcheck - Plugin - openshift-tests - hack
         uses: azohra/shell-linter@latest

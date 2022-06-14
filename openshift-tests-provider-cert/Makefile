@@ -22,5 +22,5 @@ test:
 .PHONY: test
 
 test-shellcheck:
-	shellcheck *.sh hack/*.sh
+	shellcheck plugin/*.sh hack/*.sh
 .PHONY: test-shellcheck
