@@ -28,7 +28,7 @@ declare -grx KUBE_API_INT="https://172.30.0.1:443"
 declare -grx SA_CA_PATH="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 declare -grx SA_TOKEN_PATH="/var/run/secrets/kubernetes.io/serviceaccount/token"
 
-declare -grx UTIL_OTESTS_BIN="/usr/bin/openshift-tests"
+declare -grx UTIL_OTESTS_BIN="${RESULTS_DIR}/openshift-tests"
 declare -grx UTIL_OTESTS_READY="${RESULTS_DIR}/openshift-tests.ready"
 
 # Defaults
