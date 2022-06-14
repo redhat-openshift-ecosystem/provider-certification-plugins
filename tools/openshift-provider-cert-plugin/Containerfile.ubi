@@ -4,16 +4,16 @@ RUN microdnf install yum \
   && yum -y update-minimal --security --sec-severity=Important --sec-severity=Critical
 
 # Layering Tools image
-FROM quay.io/ocp-cert/tools:v0.0.0-oc41018-s0565-ubi as tools
+FROM quay.io/ocp-cert/tools:v0.0.0-oc41018-s0565 as tools
 
 # Plugin container image
 FROM ubi-base
 LABEL io.k8s.display-name="OpenShift Tests for Provider Certification Plugin" \
       io.k8s.description="OpenShift is a platform for developing, building, and deploying containerized applications." \
       io.openshift.tags="openshift,tests,e2e,partner,certification,plugin"
-COPY --from=tools /tools/sonobuoy /usr/bin/
-COPY --from=tools /tools/oc /usr/bin/
-COPY --from=tools /tools/jq /usr/bin/
+COPY --from=tools /usr/bin/sonobuoy /usr/bin/
+COPY --from=tools /usr/bin/oc /usr/bin/
+COPY --from=tools /usr/bin/jq /usr/bin/
 
 #TODO: embeed the nc on tools layer (build it statically)
 RUN yum clean all \
