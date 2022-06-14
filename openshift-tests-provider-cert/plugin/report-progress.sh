@@ -9,8 +9,8 @@ set -o pipefail
 set -o nounset
 set -o errexit
 
-declare -g PIDS_LOCAL
-declare -g PROGRESS
+declare -gx PIDS_LOCAL
+declare -gx PROGRESS
 
 # shellcheck disable=SC1091
 source "$(dirname "$0")"/global_env.sh
@@ -20,15 +20,6 @@ source "$(dirname "$0")"/global_fn.sh
 os_log_info_local() {
     echo "$(date +%Y%m%d-%H%M%S)> [report] $*"
 }
-
-openshift_login
-init_config
-wait_utils_extractor
-update_config
-
-PIDS_LOCAL=()
-PROGRESS=( ["completed"]=0 ["total"]=${CERT_TEST_COUNT} ["failures"]="" ["msg"]="" )
-
 
 wait_progress_api() {
     local addr_ip
@@ -217,7 +208,14 @@ report_sonobuoy_progress() {
 # Main
 #
 
-start_status_collector &
+openshift_login
+init_config
+wait_utils_extractor
+update_config
+
+PIDS_LOCAL=()
+PROGRESS=( ["completed"]=0 ["total"]=${CERT_TEST_COUNT} ["failures"]="" ["msg"]="" )
+
 wait_status_file
 
 wait_progress_api

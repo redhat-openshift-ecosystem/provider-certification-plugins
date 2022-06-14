@@ -16,6 +16,7 @@ sys_sig_handler_term() {
 trap sys_sig_handler_term TERM
 
 create_dependencies_plugin() {
+    test -d "${SHARED_DIR}" || mkdir -p "${SHARED_DIR}"
     test -d "${RESULTS_SCRIPTS}" || mkdir -p "${RESULTS_SCRIPTS}"
 
     os_log_info_local "Creating results pipe to progress updater..."
@@ -76,6 +77,9 @@ CERT_TEST_COUNT=${CERT_TEST_COUNT}
 CERT_TEST_PARALLEL=${CERT_TEST_PARALLEL}
 RESULTS_DIR=${RESULTS_DIR}
 #> Config Dump [end] <#
+#> Version INFO [start] <#
+$(cat VERSION || true)
+#> Version INFO [end]   <#
 EOF
 }
 
@@ -209,7 +213,9 @@ start_status_collector() {
     os_log_info_local "Starting sonobuoy status collector..."
     while true;
     do
-        ${SONOBUOY_BIN} status -n "${ENV_POD_NAMESPACE:-sonobuoy}" --json 2>/dev/null > "${STATUS_FILE}"
+        ${SONOBUOY_BIN} status \
+            -n "${ENV_POD_NAMESPACE:-sonobuoy}" --json \
+            2>/dev/null > "${STATUS_FILE}"
         sleep "${STATUS_UPDATE_INTERVAL_SEC}"
     done
 }
