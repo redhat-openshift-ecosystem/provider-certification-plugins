@@ -186,15 +186,37 @@ environment (aggregator+plugins) to avoid disruptions that had frequently impact
 
 The build process does:
 - clone origin repository
-- build the openshift-tests container image
-- run the tests generator script
-- build a container image for plugin (based on openshift-tests)
+- enter on the plugin directory: tools/openshift-provider-cert-plugin
+- build a container image for plugin
 
-To run the process:
+Options:
+
+- Build the plugin to your registry:
 
 ```bash
-make
+make build-dev DEV_REGISTRY="quay.io/mrbraga"
 ```
+
+### Release
+
+- Create a tag
+
+```
+git tag -a v0.0.0-demo1 -m 'Release v0.0.0-demo1'
+```
+
+- Push the tag
+
+```
+git push origin v0.0.0-demo1
+```
+
+- Follow the [CI jobs](https://github.com/redhat-openshift-ecosystem/provider-certification-plugins/actions)
+
+- If CI jobs passes, the new version will be available on the repo:
+
+1. [Tools image](https://quay.io/repository/ocp-cert/tools?tab=tags)
+2. [Plugin image](https://quay.io/repository/ocp-cert/openshift-tests-provider-cert?tab=tags)
 
 ### Run the tests generator/parser
 
