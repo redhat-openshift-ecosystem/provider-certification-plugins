@@ -1,5 +1,5 @@
 # Plugin container image
-FROM quay.io/ocp-cert/tools:v0.0.0-oc41018-s0565-alp
+FROM ${CONTAINER_TOOLS}
 LABEL io.k8s.display-name="OpenShift Tests for Provider Certification Plugin" \
       io.k8s.description="OpenShift is a platform for developing, building, and deploying containerized applications." \
       io.openshift.tags="openshift,tests,e2e,partner,certification,plugin"
