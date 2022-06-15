@@ -25,7 +25,7 @@ os_log_info "[executor] Executor started. Choosing execution type based on envir
 if [[ -n "${CERT_TEST_SUITE}" ]]; then
     os_log_info "Running openshift-tests suite [${CERT_TEST_SUITE}] Provider Conformance..."
     set -x
-    openshift-tests run \
+    ${UTIL_OTESTS_BIN} run \
         --max-parallel-tests "${CERT_TEST_PARALLEL}" \
         --junit-dir "${RESULTS_DIR}" \
         "${CERT_TEST_SUITE}" \
@@ -39,7 +39,7 @@ if [[ -n "${CERT_TEST_SUITE}" ]]; then
 elif [[ -n "${CERT_TEST_FILE:-}" ]]; then
     os_log_info "Running openshift-tests for custom tests [${CERT_TEST_FILE}]..."
     if [[ -s ${CERT_TEST_FILE} ]]; then
-        openshift-tests run \
+        ${UTIL_OTESTS_BIN} run \
             --junit-dir "${RESULTS_DIR}" \
             -f "${CERT_TEST_FILE}" \
             | tee -a "${RESULTS_PIPE}" || true
@@ -53,9 +53,9 @@ elif [[ -n "${CERT_TEST_FILE:-}" ]]; then
 # Filter by string pattern from 'all' tests
 elif [[ -n "${CUSTOM_TEST_FILTER_STR:-}" ]]; then
     os_log_info "Generating a filter [${CUSTOM_TEST_FILTER_STR}]..."
-    openshift-tests run --dry-run all \
+    ${UTIL_OTESTS_BIN} run --dry-run all \
         | grep "${CUSTOM_TEST_FILTER_STR}" \
-        | openshift-tests run -f - \
+        | ${UTIL_OTESTS_BIN} run -f - \
         | tee -a "${RESULTS_PIPE}" || true
 
 # Default execution - running default suite.
@@ -67,7 +67,7 @@ else
     # - Save the stdout to a custom file
     # - Create a custom Junit file w/ failed test, and details about the
     #   failures. Maybe the entire b64 of stdout as failure description field.
-    openshift-tests run \
+    ${UTIL_OTESTS_BIN} run \
         --junit-dir "${RESULTS_DIR}" \
         "${suite}" \
         | tee -a "${RESULTS_PIPE}" || true
