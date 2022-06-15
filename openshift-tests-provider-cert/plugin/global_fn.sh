@@ -1,20 +1,25 @@
 #!/usr/bin/env bash
 
+# os_log_info logger function, printing the current bash script
+# and line as prefix.
 os_log_info() {
     echo "#$(caller |awk '{print$2":"$1}')> " "$@"
 }
 export -f os_log_info
 
+# sys_sig_handler_error handles the ERR sigspec.
 sys_sig_handler_error(){
     os_log_info "[signal handler] ERROR on line $(caller)" >&2
 }
 trap sys_sig_handler_error ERR
 
+# sys_sig_handler_term handles the TERM(15) sigspec.
 sys_sig_handler_term() {
     os_log_info "[signal handler] TERM signal received. Caller: $(caller)"
 }
 trap sys_sig_handler_term TERM
 
+# create_dependencies_plugin creates any initial dependency to run the plugin.
 create_dependencies_plugin() {
     test -d "${SHARED_DIR}" || mkdir -p "${SHARED_DIR}"
     test -d "${RESULTS_SCRIPTS}" || mkdir -p "${RESULTS_SCRIPTS}"
@@ -23,6 +28,10 @@ create_dependencies_plugin() {
     test -p "${RESULTS_PIPE}" || mkfifo "${RESULTS_PIPE}"
 }
 
+# init_config initializes the configuration based on variables sent
+# to the pod. The plugin can assume different executions based on
+# the intiial values defined on the variables PLUGIN_NAME, CERT_TEST_SUITE,
+# and PLUGIN_BLOCKED_BY.
 init_config() {
     os_log_info_local "[init_config]"
     if [[ -z "${CERT_LEVEL:-}" ]]
@@ -66,6 +75,8 @@ init_config() {
 }
 export -f init_config
 
+# show_config dump current configuration to stdout/logs, which will be collected
+# on the tarball by aggregator.
 show_config() {
     cat <<-EOF
 #> Config Dump [start] <#
@@ -83,7 +94,10 @@ $(cat VERSION || true)
 EOF
 }
 
+# update_config perform updates on configuration/environment variables
+# not covered by init_config.
 update_config() {
+    os_log_info_local "[update_config] Getting the total tests to run"
     if [[ -n "${CERT_TEST_FILE:-}" ]]; then
         CERT_TEST_COUNT="$(wc -l "${CERT_TEST_FILE}" |cut -f 1 -d' ' |tr -d '\n')"
     fi
@@ -91,23 +105,25 @@ update_config() {
     then
         CERT_TEST_COUNT="$(${UTIL_OTESTS_BIN} run --dry-run "${CERT_TEST_SUITE}" | wc -l)"
     fi
-    os_log_info_local "Total tests was found: [${CERT_TEST_COUNT}]"
+    os_log_info_local "[update_config] Total tests found: [${CERT_TEST_COUNT}]"
 }
 
 #
 # openshift login
 #
 
+# openshift_login perform the login on internal kube-apiserver. The credentials
+# should be shared on the exported KUBECONFIG file.
 openshift_login() {
-    os_log_info_local "[global] Trying to login to OpenShift cluster locally..."
+    os_log_info_local "[login] Login to OpenShift cluster [${KUBE_API_INT}]"
     oc login "${KUBE_API_INT}" \
         --token="$(cat "${SA_TOKEN_PATH}")" \
         --certificate-authority="${SA_CA_PATH}" || true;
 
-    os_log_info_local "[global] Discovering apiServerInternalURI..."
+    os_log_info_local "[login] Discovering apiServerInternalURI"
     INT_URI="$(oc get infrastructures cluster -o json | jq -r .status.apiServerInternalURI)"
 
-    os_log_info_local "[global] Trying to login to OpenShift on internal URI [${INT_URI}]..."
+    os_log_info_local "[login] Login to OpenShift cluster with internal URI [${INT_URI}]"
     oc login "${INT_URI}" \
         --token="$(cat "${SA_TOKEN_PATH}")" \
         --certificate-authority="${SA_CA_PATH}" || true;
@@ -117,7 +133,8 @@ openshift_login() {
 # JUnit utils
 #
 
-# Create fake JUnit file with custom error
+# create_junit_with_msg creates a "fake" JUnit result file with a custom message
+# with reason, to help on the user feedback.
 create_junit_with_msg() {
     local msg_type
     local msg
@@ -151,66 +168,70 @@ export -f create_junit_with_msg
 # Utilities extractor
 #
 
-# Extract utilities from internal image-registry
+# start_utils_extractor extracts the openshift-tests utility
+# from local registry - the image-registry is required, the CLI
+# checks it before calling the plugin.
 start_utils_extractor() {
-    os_log_info_local "[utils_extractor] Starting"
+    os_log_info_local "[extractor_start] Starting"
     local util_otests="./openshift-tests"
 
-    os_log_info_local "[utils_extractor] Login to OpenShift Registry"
+    os_log_info_local "[extractor_start] Login to OpenShift Registry"
     oc registry login
 
-    os_log_info_local "[utils_extractor] Extracting openshift-tests utility"
+    os_log_info_local "[extractor_start] Extracting openshift-tests utility"
     oc image extract \
         image-registry.openshift-image-registry.svc:5000/openshift/tests:latest \
         --insecure=true \
         --file="/usr/bin/openshift-tests"
 
-    os_log_info_local "[utils_extractor] check if it was downloaded"
+    os_log_info_local "[extractor_start] check if it was downloaded"
     if [[ ! -f ${util_otests} ]]; then
         create_junit_with_msg "fail" "[fail][preflight] unable to extract openshift-tests utility. Check if image-registry is present."
         exit 1
     fi
     chmod u+x ${util_otests}
 
-    os_log_info_local "[utils_extractor] move to ${UTIL_OTESTS_BIN}"
+    os_log_info_local "[extractor_start] move to ${UTIL_OTESTS_BIN}"
     mv ${util_otests} "${UTIL_OTESTS_BIN}"
 
-    os_log_info_local "[utils_extractor] set exec permissions for ${UTIL_OTESTS_BIN}"
+    os_log_info_local "[extractor_start] set exec permissions for ${UTIL_OTESTS_BIN}"
     if [[ ! -x ${UTIL_OTESTS_BIN} ]]; then
         create_junit_with_msg "fail" "[fail][preflight] unable to make ${UTIL_OTESTS_BIN} executable."
         exit 1
     fi
 
-    os_log_info_local "[utils_extractor] testing openshift-tests"
+    os_log_info_local "[extractor_start] testing openshift-tests"
     tt_tests=$(${UTIL_OTESTS_BIN} run all --dry-run | wc -l)
     if [[ ${tt_tests} -le 0 ]]; then
         create_junit_with_msg "fail" "[fail][preflight] failed to get tests from ${UTIL_OTESTS_BIN} utility. Found [${tt_tests}] tests."
         exit 1
     fi
-    os_log_info_local "[utils_extractor] Success! openshift-tests has [${tt_tests}] tests available."
+    os_log_info_local "[extractor_start] Success! openshift-tests has [${tt_tests}] tests available."
 
-    os_log_info_local "[utils_extractor] unlocking extractor"
+    os_log_info_local "[extractor_start] unlocking extractor"
     touch "${UTIL_OTESTS_READY}"
 }
 
+# wait_utils_extractor waits the UTIL_OTESTS_READY control file to be created,
+# it will be ready when the openshift-tests is extracted from internal registry,
+# controller by start_utils_extractor().
 wait_utils_extractor() {
-    os_log_info_local "[wait_utils_extractor] waiting for utils_extractor()..."
+    os_log_info_local "[extractor_wait] waiting for utils_extractor()"
     while true;
     do
-        os_log_info_local "Check if status file exists=[${UTIL_OTESTS_READY}]"
+        os_log_info_local "[extractor_wait] Check file exists=[${UTIL_OTESTS_READY}]"
         test -f "${UTIL_OTESTS_READY}" && break
         sleep "${STATUS_UPDATE_INTERVAL_SEC}"
     done
-    os_log_info_local "[global][wait_utils_extractor] finished!"
+    os_log_info_local "[extractor_wait] finished!"
 }
 
-#
-# Status scraper collects the results of Sonobuoy plugins
+
+# start_status_collector collects the results of Sonobuoy plugins.
 # The scraper will keep the status file STATUS_FILE consumed
 # by different components on this container (waiter, progress reporter).
-#
 start_status_collector() {
-    os_log_info_local "Starting sonobuoy status collector..."
+    os_log_info_local "[status_collector] Starting"
     while true;
     do
         ${SONOBUOY_BIN} status \
@@ -221,13 +242,16 @@ start_status_collector() {
 }
 export -f start_status_collector
 
+# wait_status_file waits for STATUS_FILE be created by start_status_collector()
+# blocking the execution until this file is created.
 wait_status_file() {
+    os_log_info_local "[status_file] Starting"
     while true;
     do
-        os_log_info_local "Check if status file exists=[${STATUS_FILE}]"
+        os_log_info_local "[status_file] Check file exists=[${STATUS_FILE}]"
         test -f "${STATUS_FILE}" && break
         sleep "${STATUS_UPDATE_INTERVAL_SEC}"
     done
-    os_log_info_local "Status file exists!"
+    os_log_info_local "[status_file] Status file found!"
 }
 export -f wait_status_file

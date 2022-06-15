@@ -2,7 +2,7 @@
 
 #
 # openshift-tests-partner-cert plugin - progress reporter
-# Send progress of openshift-tests to sonobuoy worker.
+# Send progress from openshift-tests execution to sonobuoy worker.
 #
 
 set -o pipefail
@@ -21,6 +21,7 @@ os_log_info_local() {
     echo "$(date +%Y%m%d-%H%M%S)> [report] $*"
 }
 
+# wait_progress_api waits for sonobuoy worker is listening.
 wait_progress_api() {
     local addr_ip
     local addr_port
@@ -36,6 +37,7 @@ wait_progress_api() {
     os_log_info_local "sonobuoy-worker progress api[${PROGRESS_URL}] is ready."
 }
 
+# update_progress sends updates to the progress report API (worker).
 update_progress() {
     # Reporting progress to sonobuoy progress API
     component_caller="${1:-"update_progress"}"; shift
@@ -50,6 +52,7 @@ update_progress() {
     curl -s "${PROGRESS_URL}" -d "${body}" || true
 }
 
+# wait_pipe_exists wait until the pipe file is created by plugin.
 wait_pipe_exists() {
     os_log_info_local "waiting for pipe creation..."
     while true
@@ -60,6 +63,7 @@ wait_pipe_exists() {
     os_log_info "[report]  pipe[${RESULTS_PIPE}] created. Starting progress report"
 }
 
+# watch_plugin_done watches to block the plugin to be finished prematurely.
 watch_plugin_done() {
     os_log_info_local "waiting for plugin done file..."
     while true; do
@@ -73,8 +77,10 @@ watch_plugin_done() {
     os_log_info_local "plugin done file detected!"
 }
 
+# watch_dependency_done watches aggregator API (status) to
+# unblock the execution when dependencies was finished the execution. 
 watch_dependency_done() {
-    os_log_info_local "[plugin dependencies] Starting dependency check..."
+    os_log_info_local "[watch_dependency] Starting dependency check..."
     for plugin_name in "${PLUGIN_BLOCKED_BY[@]}"; do
         os_log_info_local "waiting for plugin [${plugin_name}]"
         timeout_checks=0
@@ -84,7 +90,7 @@ watch_dependency_done() {
         do
             if [[ -f "${RESULTS_DONE_NOTIFY}" ]]
             then
-                echo "Sonobuoy done detected [dependency wacther]" |tee -a "${RESULTS_PIPE}"
+                echo "[watch_dependency] Done file detected" |tee -a "${RESULTS_PIPE}"
                 return
             fi
 
@@ -155,8 +161,10 @@ watch_dependency_done() {
     os_log_info_local "[plugin dependencies] Finished!"
 }
 
-# Main function to report progress
-report_sonobuoy_progress() {
+# report_progress reads the pipe file, parses the progress counters and reports it
+# to worker progress endpoint until the piple file is closed and Done file is created
+# by plugin container.
+report_progress() {
     local has_update
     has_update=0
     while true
@@ -164,13 +172,12 @@ report_sonobuoy_progress() {
         # Watch sonobuoy done file
         if [[ -f "${RESULTS_DONE_NOTIFY}" ]]
         then
-            echo "Sonobuoy done detected [main]"
+            echo "[report_progress] Done file detected"
             break
         fi
 
         while read -r line;
         do
-            #TODO(bug): JOB_PROGRESS is not detecting the last test count. Example: 'started: (0/10/10)''
             local job_progress
             job_progress=$(echo "$line" | grep -Po "\([0-9]{1,}\/[0-9]{1,}\/[0-9]{1,}\)" || true);
             if [[ -n "${job_progress}" ]]; then
@@ -229,7 +236,7 @@ PIDS_LOCAL+=($!)
 watch_dependency_done &
 PIDS_LOCAL+=($!)
 
-report_sonobuoy_progress
+report_progress
 
 os_log_info_local "Waiting for PIDs [finalizer]: ${PIDS_LOCAL[*]}"
 wait "${PIDS_LOCAL[@]}"
