@@ -1,6 +1,7 @@
-#
-# ATTENTION: The Containerfile was created automatically from hack/Containerfile.alp
-#
+# Code generated for package assets by build-image.sh. DO NOT EDIT.
+# sources:
+# hack/Containerfile.alp
+# hack/Containerfile.tools-alp
 
 # Plugin container image
 FROM ${CONTAINER_TOOLS}

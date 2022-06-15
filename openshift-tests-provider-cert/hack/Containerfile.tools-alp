@@ -1,6 +1,7 @@
-#
-# ATTENTION: The Containerfile.tools was created automatically from hack/Containerfile.tools-alp
-#
+# Code generated for package assets by build-image.sh. DO NOT EDIT.
+# sources:
+# hack/Containerfile.alp
+# hack/Containerfile.tools-alp
 
 # Sonobuoy
 FROM ${CONTAINER_SONOBUOY_MIRROR} as sonobuoy
