@@ -85,7 +85,7 @@ update_config() {
     fi
     if [[ "${CERT_TEST_SUITE:-}" != "" ]]
     then
-        CERT_TEST_COUNT="$(openshift-tests run --dry-run "${CERT_TEST_SUITE}" | wc -l)"
+        CERT_TEST_COUNT="$(${UTIL_OTESTS_BIN} run --dry-run "${CERT_TEST_SUITE}" | wc -l)"
     fi
     os_log_info_local "Total tests was found: [${CERT_TEST_COUNT}]"
 }
@@ -139,6 +139,7 @@ create_junit_with_msg() {
 </testcase>
 </testsuite>
 EOF
+    chmod 644 "${junit_file}"
 }
 export -f create_junit_with_msg
 
@@ -158,7 +159,7 @@ start_utils_extractor() {
     oc image extract \
         image-registry.openshift-image-registry.svc:5000/openshift/tests:latest \
         --insecure=true \
-        --file="${UTIL_OTESTS_BIN}"
+        --file="/usr/bin/openshift-tests"
 
     os_log_info_local "[utils_extractor] check if it was downloaded"
     if [[ ! -f ${util_otests} ]]; then
