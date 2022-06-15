@@ -78,7 +78,7 @@ watch_plugin_done() {
 }
 
 # watch_dependency_done watches aggregator API (status) to
-# unblock the execution when dependencies was finished the execution. 
+# unblock the execution when dependencies was finished the execution.
 watch_dependency_done() {
     os_log_info_local "[watch_dependency] Starting dependency check..."
     for plugin_name in "${PLUGIN_BLOCKED_BY[@]}"; do
@@ -114,17 +114,11 @@ watch_dependency_done() {
             else
                 state_blocking="waiting-for"
             fi
-            msg="status=${state_blocking}=${plugin_name}=(0/${remaining}/0)=[${timeout_checks}/${timeout_count}]"
 
             # Reporting progress to sonobuoy progress API
-            body="{
-                \"completed\":0,
-                \"total\":${CERT_TEST_COUNT},
-                \"failures\":[],
-                \"msg\":\"${msg}\"
-            }"
-            os_log_info_local "Sending report payload [dep-checker]: ${body}"
-            curl -s "${PROGRESS_URL}" -d "${body}"
+            msg="status=${state_blocking}=${plugin_name}=(0/${remaining}/0)=[${timeout_checks}/${timeout_count}]"
+            update_progress "dep-checker" "${msg}";
+
             # Timeout checker
             ## 1. Dont block by long running plugins (only non-updated)
             ## Timeout checks will increase only when previous jobs got stuck,
@@ -195,14 +189,7 @@ report_progress() {
             fi
 
             if [ $has_update -eq 1 ]; then
-                body="{
-                    \"completed\":${PROGRESS["completed"]},
-                    \"total\":${PROGRESS["total"]},
-                    \"failures\":[${PROGRESS["failures"]}],
-                    \"msg\":\"status=running\"
-                }"
-                os_log_info_local "Sending report payload [updater]: ${body}"
-                curl -s -d "${body}" "${PROGRESS_URL}"
+                update_progress "updater" "status=running";
                 has_update=0;
             fi
             job_progress="";
@@ -241,13 +228,6 @@ report_progress
 os_log_info_local "Waiting for PIDs [finalizer]: ${PIDS_LOCAL[*]}"
 wait "${PIDS_LOCAL[@]}"
 
-body="{
-    \"completed\":${PROGRESS["completed"]},
-    \"total\":${PROGRESS["total"]},
-    \"failures\":[${PROGRESS["failures"]}],
-    \"msg\":\"status=report-progress-finished\"
-}"
-os_log_info_local "Sending report payload [finalizer]: ${body}"
-curl -s -d "${body}" "${PROGRESS_URL}" || true
+update_progress "finalizer" "status=report-progress-finished";
 
 os_log_info_local "all done"
