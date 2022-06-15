@@ -22,7 +22,6 @@ os_log_info_local() {
 }
 
 openshift_login
-start_utils_extractor &
 init_config
 wait_utils_extractor
 update_config
