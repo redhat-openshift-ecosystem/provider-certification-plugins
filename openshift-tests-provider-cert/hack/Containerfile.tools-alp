@@ -1,3 +1,8 @@
+# Code generated for package assets by build-image.sh. DO NOT EDIT.
+# sources:
+# hack/Containerfile.alp
+# hack/Containerfile.tools-alp
+
 # Sonobuoy
 FROM ${CONTAINER_SONOBUOY_MIRROR} as sonobuoy
 

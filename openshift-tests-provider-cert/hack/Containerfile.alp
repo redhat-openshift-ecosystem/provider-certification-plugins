@@ -1,3 +1,8 @@
+# Code generated for package assets by build-image.sh. DO NOT EDIT.
+# sources:
+# hack/Containerfile.alp
+# hack/Containerfile.tools-alp
+
 # Plugin container image
 FROM ${CONTAINER_TOOLS}
 LABEL io.k8s.display-name="OpenShift Tests for Provider Certification Plugin" \
@@ -7,5 +12,6 @@ WORKDIR /plugin
 
 COPY ./tests ./tests
 COPY ./plugin/*.sh ./
+COPY ./VERSION ./
 
 CMD ["./runner.sh"]
