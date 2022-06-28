@@ -74,6 +74,11 @@ spec:
 
     - name: CERT_LEVEL
       value: "1"
+
+    # Example: Runs only 10 tests from suite linked to CERT_LEVEL=1
+    #- name: DEV_MODE_COUNT
+    #  value: "10"
+
     - name: ENV_NODE_NAME
       valueFrom:
         fieldRef:
