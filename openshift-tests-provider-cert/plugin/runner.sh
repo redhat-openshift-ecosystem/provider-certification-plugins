@@ -44,6 +44,9 @@ sig_handler_save_results() {
     os_log_info_local "Adjusting permissions for results files."
     chmod 644 "${junit_output}";
 
+    os_log_info_local "Sending plugin done to unlock report-progress"
+    touch "${PLUGIN_DONE_NOTIFY}"
+
     os_log_info_local "Sending sonobuoy worker the result file path"
     echo "${RESULTS_DIR}/${junit_output}" > "${RESULTS_DONE_NOTIFY}"
 
