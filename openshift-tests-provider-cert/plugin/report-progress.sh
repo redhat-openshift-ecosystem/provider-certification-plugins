@@ -67,7 +67,7 @@ wait_pipe_exists() {
 watch_plugin_done() {
     os_log_info_local "waiting for plugin done file..."
     while true; do
-        if [[ -f "${RESULTS_DONE_NOTIFY}" ]]
+        if [[ -f "${PLUGIN_DONE_NOTIFY}" ]]
         then
             echo "Sonobuoy done detected [done wacther]" |tee -a "${RESULTS_PIPE}"
             return
@@ -88,7 +88,7 @@ watch_dependency_done() {
         last_count=0
         while true;
         do
-            if [[ -f "${RESULTS_DONE_NOTIFY}" ]]
+            if [[ -f "${PLUGIN_DONE_NOTIFY}" ]]
             then
                 echo "[watch_dependency] Done file detected" |tee -a "${RESULTS_PIPE}"
                 return
@@ -164,7 +164,7 @@ report_progress() {
     while true
     do
         # Watch sonobuoy done file
-        if [[ -f "${RESULTS_DONE_NOTIFY}" ]]
+        if [[ -f "${PLUGIN_DONE_NOTIFY}" ]]
         then
             echo "[report_progress] Done file detected"
             break
