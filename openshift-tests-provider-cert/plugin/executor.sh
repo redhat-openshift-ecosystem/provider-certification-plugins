@@ -23,13 +23,41 @@ test ! -f "${SA_TOKEN_PATH}" || os_log_info "[executor] secret not found=${SA_TO
 os_log_info "[executor] Executor started. Choosing execution type based on environment sets."
 
 if [[ -n "${CERT_TEST_SUITE}" ]]; then
-    os_log_info "Running openshift-tests suite [${CERT_TEST_SUITE}] Provider Conformance..."
+    os_log_info "Starting openshift-tests suite [${CERT_TEST_SUITE}] Provider Conformance executor..."
+
     set -x
     ${UTIL_OTESTS_BIN} run \
         --max-parallel-tests "${CERT_TEST_PARALLEL}" \
         --junit-dir "${RESULTS_DIR}" \
-        "${CERT_TEST_SUITE}" \
-        | tee -a "${RESULTS_PIPE}" || true
+        "${CERT_TEST_SUITE}" --dry-run \
+        > "${RESULTS_DIR}/suite-${CERT_TEST_SUITE/\/}.list"
+
+    os_log_info "Saving the test list on ${RESULTS_DIR}/suite-${CERT_TEST_SUITE/\/}.list"
+    wc -l "${RESULTS_DIR}/suite-${CERT_TEST_SUITE/\/}.list"
+
+    if [[ ${DEV_TESTS_COUNT} -gt 0 ]]; then
+        os_log_info "DEV mode detected, applying filter to job count: [${DEV_TESTS_COUNT}]"
+        shuf "${RESULTS_DIR}/suite-${CERT_TEST_SUITE/\/}.list" \
+            | head -n "${DEV_TESTS_COUNT}" \
+            > "${RESULTS_DIR}/suite-${CERT_TEST_SUITE/\/}-DEV.list"
+
+        os_log_info "Saving the DEV test list on ${RESULTS_DIR}/suite-${CERT_TEST_SUITE/\/}-DEV.list"
+        wc -l "${RESULTS_DIR}/suite-${CERT_TEST_SUITE/\/}-DEV.list"
+
+        os_log_info "Running on DEV mode..."
+        ${UTIL_OTESTS_BIN} run \
+            --max-parallel-tests "${CERT_TEST_PARALLEL}" \
+            --junit-dir "${RESULTS_DIR}" \
+            -f "${RESULTS_DIR}/suite-${CERT_TEST_SUITE/\/}-DEV.list" \
+            | tee -a "${RESULTS_PIPE}" || true
+    else
+        os_log_info "Running the test suite..."
+        ${UTIL_OTESTS_BIN} run \
+            --max-parallel-tests "${CERT_TEST_PARALLEL}" \
+            --junit-dir "${RESULTS_DIR}" \
+            "${CERT_TEST_SUITE}" \
+            | tee -a "${RESULTS_PIPE}" || true
+    fi
 
     os_log_info "openshift-tests finished[$?]"
     set +x
