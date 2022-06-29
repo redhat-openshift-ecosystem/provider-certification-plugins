@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 
 #
-# OCP cluster orchestrator and benchmark job runner.
-# See helper function (show_help|-h) for more information.
+# openshift-provider-cert CLI (prototype).
+# This script was used to create the prototype (mvp) for the CLI
+# used to run the provider certification. Actually the project
+# was moved to
+# https://github.com/redhat-openshift-ecosystem/provider-certification-tool
+# This is script is not maintained anymore.
 #
 
 set -o pipefail

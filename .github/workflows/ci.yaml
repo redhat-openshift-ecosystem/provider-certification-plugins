@@ -28,10 +28,6 @@ jobs:
           scandir: './openshift-tests-provider-cert/hack/*.sh'
 
 #
-# Plugin workflow check
-#
-
-#
 # Tests related to plugin: openshift-tests
 #
   plugin-openshift-tests-e2e:
