@@ -1,6 +1,6 @@
 # OpenShift Provider Certification Tool
 
-> temp file: when structured, move to `instructions.md`
+> proposal file: when structured, move to `instructions.md`
 
 ## Setup
 
@@ -91,3 +91,7 @@ git push --set-upstream origin cert-4.10-myProvider
 sonobuoy delete --wait
 ```
 
+## References
+
+- [k8s-conformance instructions](https://github.com/cncf/k8s-conformance/blob/master/instructions.md)
+- - [k8s-conformance terms and conditions](https://github.com/cncf/k8s-conformance/blob/master/terms-conditions/Certified_Kubernetes_Terms.md)
