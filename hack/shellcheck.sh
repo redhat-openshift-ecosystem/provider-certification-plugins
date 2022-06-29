@@ -1,5 +1,12 @@
 #!/bin/bash
 
+#
+# Perform shell lint checks.
+# Used locally on the development environment (make shellcheck),
+# the CI uses the native integration.
+#
+
+
 set -euo pipefail
 
 TMP_BIN="$(pwd)/tmp/bin"

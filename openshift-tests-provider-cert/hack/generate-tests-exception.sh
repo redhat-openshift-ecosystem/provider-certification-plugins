@@ -2,6 +2,8 @@
 
 #
 # Provider certification tests generator.
+# This script (test set) is not used, but will when
+# the post-processor will be refined.
 #
 
 set -o pipefail
