@@ -1,5 +1,8 @@
 
-### Dev Debug | Creating metadata for tests
+## Dev Debug | Creating metadata for tests
+
+This document describes how to use the utility `hack/parse-tests.py` created
+to extract information from tests maintained by `openshift-tests`.
 
 Export tests for conformance suites (`kubernetes/conformance`, `openshift/conformance`) and
 extract metadata from name, exporting to CSV:
