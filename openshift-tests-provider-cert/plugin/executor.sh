@@ -14,8 +14,8 @@ set -o nounset
 os_log_info "[executor] Starting..."
 
 os_log_info "[executor] Checking if credentials are present..."
-test ! -f "${SA_CA_PATH}" || os_log_info "[executor] secret not found=${SA_CA_PATH}"
-test ! -f "${SA_TOKEN_PATH}" || os_log_info "[executor] secret not found=${SA_TOKEN_PATH}"
+test -f "${SA_CA_PATH}" || os_log_info "[executor] secret not found=${SA_CA_PATH}"
+test -f "${SA_TOKEN_PATH}" || os_log_info "[executor] secret not found=${SA_TOKEN_PATH}"
 
 #
 # Executor options
