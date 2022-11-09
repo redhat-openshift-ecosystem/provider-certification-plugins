@@ -37,6 +37,7 @@ declare -grx UTIL_OTESTS_FAILED="${SHARED_DIR}/openshift-tests.failed"
 
 declare -grx PLUGIN_ID_KUBERNETES_CONFORMANCE="10"
 declare -grx PLUGIN_ID_OPENSHIFT_CONFORMANCE="20"
+declare -grx PLUGIN_ID_OPENSHIFT_ARTIFACTS_COLLECTOR="99"
 
 # Defaults
 CERT_TEST_FILE=""

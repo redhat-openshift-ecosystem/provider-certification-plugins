@@ -62,6 +62,21 @@ if [[ -n "${CERT_TEST_SUITE}" ]]; then
     os_log_info "openshift-tests finished[$?]"
     set +x
 
+# Collect artifacts post-execution
+elif [[ "${PLUGIN_ID}" == "${PLUGIN_ID_OPENSHIFT_ARTIFACTS_COLLECTOR}" ]]; then
+
+    pushd "${RESULTS_DIR}" || true
+
+    oc adm must-gather
+    tar cfJ artifacts_must-gather.tar.xz must-gather.local.*
+
+    ${UTIL_OTESTS_BIN} run kubernetes/conformance --dry-run > ./artifacts_e2e-tests_kubernetes-conformance.txt
+    ${UTIL_OTESTS_BIN} run openshift/conformance --dry-run > ./artifacts_e2e-openshift-conformance.txt
+
+    tar cfz raw-results.tar.gz ./artifacts_*
+
+    popd || true;
+
 # To run custom tests, set the environment PLUGIN_ID on plugin definition.
 # To generate the test file, use the script hack/generate-tests-tiers.sh
 elif [[ -n "${CERT_TEST_FILE:-}" ]]; then
