@@ -6,7 +6,7 @@ declare -gx DEV_TESTS_COUNT
 
 declare -grx CERT_TESTS_DIR="./tests/${OPENSHIFT_VERSION:-"v4.10"}"
 
-declare -gx CERT_LEVEL
+declare -gx PLUGIN_ID
 declare -gx CERT_TEST_FILE
 declare -gx CERT_TEST_COUNT
 declare -gx CERT_TEST_SUITE
@@ -34,6 +34,9 @@ declare -grx SA_TOKEN_PATH="/var/run/secrets/kubernetes.io/serviceaccount/token"
 declare -grx UTIL_OTESTS_BIN="${SHARED_DIR}/openshift-tests"
 declare -grx UTIL_OTESTS_READY="${SHARED_DIR}/openshift-tests.ready"
 declare -grx UTIL_OTESTS_FAILED="${SHARED_DIR}/openshift-tests.failed"
+
+declare -grx PLUGIN_ID_KUBERNETES_CONFORMANCE="10"
+declare -grx PLUGIN_ID_OPENSHIFT_CONFORMANCE="20"
 
 # Defaults
 CERT_TEST_FILE=""

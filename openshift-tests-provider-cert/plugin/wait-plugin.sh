@@ -9,12 +9,12 @@ os_log_info_local() {
     os_log_info "$(date +%Y%m%d-%H%M%S)> [waiter] $*"
 }
 
-os_log_info_local "Starting Level[${CERT_LEVEL:-}]..."
+os_log_info_local "Starting Level[${PLUGIN_ID:-}]..."
 init_config
 
-os_log_info_local "Checking if there's plugins blocking Level${CERT_LEVEL:-} execution..."
+os_log_info_local "Checking if there's plugins blocking Level${PLUGIN_ID:-} execution..."
 if [[ ${#PLUGIN_BLOCKED_BY[@]} -ge 1 ]]; then
-    os_log_info_local "Level${CERT_LEVEL:-} plugin is blocked by: [${PLUGIN_BLOCKED_BY[*]}]"
+    os_log_info_local "Level${PLUGIN_ID:-} plugin is blocked by: [${PLUGIN_BLOCKED_BY[*]}]"
     for pod_label in "${PLUGIN_BLOCKED_BY[@]}"; do
         os_log_info_local "Waiting for pod running with label: ${pod_label}"
         kubectl wait \
@@ -24,7 +24,7 @@ if [[ ${#PLUGIN_BLOCKED_BY[@]} -ge 1 ]]; then
             -l sonobuoy-plugin="${pod_label}"
     done
 
-    os_log_info_local "Resource(s) ready! Waiting for Level[${CERT_LEVEL:-}]'s plugins be completed..."
+    os_log_info_local "Resource(s) ready! Waiting for Level[${PLUGIN_ID:-}]'s plugins be completed..."
     for bl_plugin_name in "${PLUGIN_BLOCKED_BY[@]}"; do
         os_log_info_local "Waiting 'completed' condition for pod: ${bl_plugin_name}"
         
@@ -87,4 +87,4 @@ if [[ ${#PLUGIN_BLOCKED_BY[@]} -ge 1 ]]; then
     os_log_info_local "All the conditions has been met!"
 fi
 
-os_log_info_local "Done for Level[${CERT_LEVEL:-}]."
+os_log_info_local "Done for Level[${PLUGIN_ID:-}]."
