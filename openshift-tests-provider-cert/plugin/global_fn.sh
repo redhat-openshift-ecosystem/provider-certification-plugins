@@ -66,6 +66,11 @@ init_config() {
         CERT_TEST_SUITE="openshift/conformance"
         PLUGIN_BLOCKED_BY+=("10-openshift-kube-conformance")
 
+    elif [[ "${PLUGIN_ID:-}" == "${PLUGIN_ID_OPENSHIFT_ARTIFACTS_COLLECTOR}" ]]
+    then
+        PLUGIN_NAME="99-openshift-artifacts-collector"
+        PLUGIN_BLOCKED_BY+=("20-openshift-conformance-validated")
+
     else
         err="[init_config] Unknow value for PLUGIN_ID=[${PLUGIN_ID:-}]"
         create_junit_with_msg "failed" "[opct] ${err}"
