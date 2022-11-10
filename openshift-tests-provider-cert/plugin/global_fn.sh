@@ -54,19 +54,23 @@ init_config() {
         exit 1
     fi
 
-    os_log_info "Setting config for PLUGIN_ID=[${PLUGIN_ID:-}]..."
-
-    if [[ "${PLUGIN_ID:-}" == "${PLUGIN_ID_KUBERNETES_CONFORMANCE}" ]]
+    os_log_info "Setting config for CERT_LEVEL=[${CERT_LEVEL:-}]..."
+    if [[ "${CERT_LEVEL:-}" == "${PLUGIN_ID_KUBE_CONFORMANCE}" ]]
     then
-        PLUGIN_NAME="10-openshift-kube-conformance"
-        CERT_TEST_SUITE="kubernetes/conformance"
+        PLUGIN_NAME="${PLUGIN_NAME_KUBE_CONFORMANCE}"
+        CERT_TEST_SUITE="${OPENSHIFT_TESTS_SUITE_KUBE_CONFORMANCE}"
+        PLUGIN_BLOCKED_BY=("${PLUGIN_NAME_OPENSHIFT_UPGRADE}")
+
+    elif [[ "${CERT_LEVEL:-}" == "${PLUGIN_ID_OPENSHIFT_CONFORMANCE}" ]]
+    then
+        PLUGIN_NAME="${PLUGIN_NAME_OPENSHIFT_CONFORMANCE}"
+        CERT_TEST_SUITE="${OPENSHIFT_TESTS_SUITE_OPENSHIFT_CONFORMANCE}"
+        PLUGIN_BLOCKED_BY+=("${PLUGIN_NAME_KUBE_CONFORMANCE}")
+
+    elif [[ "${CERT_LEVEL:-}" == "${PLUGIN_ID_OPENSHIFT_CONFORMANCE}" ]]
+    then
+        PLUGIN_NAME="${PLUGIN_NAME_OPENSHIFT_UPGRADE}"
         PLUGIN_BLOCKED_BY=()
-
-    elif [[ "${PLUGIN_ID:-}" == "${PLUGIN_ID_OPENSHIFT_CONFORMANCE}" ]]
-    then
-        PLUGIN_NAME="20-openshift-conformance-validated"
-        CERT_TEST_SUITE="openshift/conformance"
-        PLUGIN_BLOCKED_BY+=("10-openshift-kube-conformance")
 
     elif [[ "${PLUGIN_ID:-}" == "${PLUGIN_ID_OPENSHIFT_ARTIFACTS_COLLECTOR}" ]]
     then
@@ -95,6 +99,9 @@ show_config() {
 PLUGIN_NAME=${PLUGIN_NAME}
 PLUGIN_BLOCKED_BY=${PLUGIN_BLOCKED_BY[*]}
 PLUGIN_ID=${PLUGIN_ID}
+CERT_LEVEL=${CERT_LEVEL}
+RUN_MODE=${RUN_MODE}
+UPGRADE_RELEASES=${UPGRADE_RELEASES-}
 CERT_TEST_SUITE=${CERT_TEST_SUITE}
 CERT_TEST_COUNT=${CERT_TEST_COUNT}
 CERT_TEST_PARALLEL=${CERT_TEST_PARALLEL}
@@ -259,6 +266,7 @@ start_utils_extractor() {
     os_log_info "[extractor_start][openshift-tests] unlocking extractor"
     touch "${UTIL_OTESTS_READY}"
 }
+export -f start_utils_extractor
 
 # wait_utils_extractor waits the UTIL_OTESTS_READY control file to be created,
 # it will be ready when the openshift-tests is extracted from internal registry,

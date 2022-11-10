@@ -75,6 +75,30 @@ watch_plugin_done() {
     os_log_info "plugin done file detected!"
 }
 
+# update_pogress_upgrade report the progress when the plugin instance is upgrade.
+# The message will be the progress message from ClusterVersion object.
+update_pogress_upgrade() {
+    local progress_st
+    local progress_message
+    while true; do
+        if [[ -f "${PLUGIN_DONE_NOTIFY}" ]]
+        then
+            echo "[report_progress] Done file detected"
+            break
+        fi
+        progress_st=$(oc get -o jsonpath='{.status.conditions[?(@.type == "Progressing")].status}' clusterversion version)
+        progress_message="upgrade-progressing-${progress_st}"
+        if [[ "$progress_st" == "True" ]]; then
+            progress_message=$(oc get -o jsonpath='{.status.conditions[?(@.type == "Progressing")].message}' clusterversion version)
+        else
+            desired_version=$(oc get -o jsonpath='{.status.desired.version}' clusterversion version)
+            progress_message="${desired_version}=${progress_message}"
+        fi
+        update_progress "updater" "status=${progress_message}";
+        sleep 10
+    done
+}
+
 # watch_dependency_done watches aggregator API (status) to
 # unblock the execution when dependencies was finished the execution.
 watch_dependency_done() {
@@ -94,7 +118,7 @@ watch_dependency_done() {
 
             plugin_status=$(jq -r ".plugins[] | select (.plugin == \"${plugin_name}\" ) |.status // \"\"" "${STATUS_FILE}")
             if [[ "${plugin_status}" == "${SONOBUOY_PLUGIN_STATUS_COMPLETE}" ]] || [[ "${plugin_status}" == "${SONOBUOY_PLUGIN_STATUS_FAILED}" ]]; then
-                echo "Plugin[${plugin_name}] with status[${plugin_status}] is finished!"
+                os_log_info "Plugin[${plugin_name}] with status[${plugin_status}] is finished!"
                 break
             fi
             count=$(jq -r ".plugins[] | select (.plugin == \"${plugin_name}\" ) |.progress.completed // 0" "${STATUS_FILE}")
@@ -186,7 +210,7 @@ report_progress() {
                 has_update=1;
             fi
 
-            if [ $has_update -eq 1 ]; then
+            if [[ $has_update -eq 1 ]] && [[ "${CERT_LEVEL}" != "${PLUGIN_ID_OPENSHIFT_UPGRADE}" ]]; then
                 update_progress "updater" "status=running";
                 has_update=0;
             fi
@@ -220,6 +244,12 @@ PIDS_LOCAL+=($!)
 
 watch_dependency_done &
 PIDS_LOCAL+=($!)
+
+# upgrade plugin
+if [[ "${PLUGIN_ID}" == "${PLUGIN_ID_OPENSHIFT_UPGRADE}" ]]; then
+    update_pogress_upgrade &
+    PIDS_LOCAL+=($!)
+fi
 
 report_progress
 

@@ -7,9 +7,10 @@
 #TODO(mtulio): pipefail should be commented until we provide a better solution
 # to handle errors (failed e2e) on sub-process managed by openshift-tests main proc.
 # https://issues.redhat.com/browse/SPLAT-592
-#set -o pipefail
-set -o nounset
+# set -o pipefail
 # set -o errexit
+set -o nounset
+
 
 os_log_info "[executor] Starting..."
 
@@ -18,12 +19,36 @@ test -f "${SA_CA_PATH}" || os_log_info "[executor] secret not found=${SA_CA_PATH
 test -f "${SA_TOKEN_PATH}" || os_log_info "[executor] secret not found=${SA_TOKEN_PATH}"
 
 #
+# Upgrade functions
+#
+
+run_upgrade() {
+    set -x &&
+    os_log_info "[executor] [upgrade] UPGRADE_RELEASES=${UPGRADE_RELEASES}"
+    os_log_info "[executor] [upgrade] show current version:"
+    oc get clusterversion
+
+    TEST_UPGRADE_SUITE="none"
+    ${UTIL_OTESTS_BIN} run-upgrade "${TEST_UPGRADE_SUITE}" \
+        --to-image "${UPGRADE_RELEASES}" \
+        --options "${TEST_UPGRADE_OPTIONS-}" \
+        --junit-dir "${RESULTS_DIR}" \
+        | tee -a "${RESULTS_PIPE}"
+    set +x
+}
+
+#
 # Executor options
 #
 os_log_info "[executor] Executor started. Choosing execution type based on environment sets."
 
 if [[ -n "${CERT_TEST_SUITE}" ]]; then
     os_log_info "Starting openshift-tests suite [${CERT_TEST_SUITE}] Provider Conformance executor..."
+
+    os_log_info_local "WORKAROUND: chaning SCC..."
+    oc adm policy add-scc-to-group privileged system:authenticated system:serviceaccounts || true
+    oc adm policy add-scc-to-group anyuid system:authenticated system:serviceaccounts || true
+
 
     set -x
     ${UTIL_OTESTS_BIN} run \
@@ -76,6 +101,22 @@ elif [[ "${PLUGIN_ID}" == "${PLUGIN_ID_OPENSHIFT_ARTIFACTS_COLLECTOR}" ]]; then
     tar cfz raw-results.tar.gz ./artifacts_*
 
     popd || true;
+
+# run-upgrade tests
+elif [[ "${PLUGIN_ID}" == "${PLUGIN_ID_OPENSHIFT_UPGRADE}" ]]; then
+
+    if [[ "${RUN_MODE:-''}" == "${PLUGIN_RUN_MODE_UPGRADE}" ]]; then
+        PROGRESSING="$(oc get -o jsonpath='{.status.conditions[?(@.type == "Progressing")].status}' clusterversion version)"
+        os_log_info "[executor] Running Plugin_ID ${PLUGIN_ID}, starting... Cluster is progressing? ${PROGRESSING}"
+
+        run_upgrade
+
+        PROGRESSING="$(oc get -o jsonpath='{.status.conditions[?(@.type == "Progressing")].status}' clusterversion version)"
+        os_log_info "[executor] Running Plugin_ID ${PLUGIN_ID}. finished... Cluster is progressing? ${PROGRESSING}"
+
+    else
+        create_junit_with_msg "pass" "[opct][pass] ignoring upgrade mode on RUN_MODE=[${RUN_MODE-}]."
+    fi
 
 # To run custom tests, set the environment PLUGIN_ID on plugin definition.
 # To generate the test file, use the script hack/generate-tests-tiers.sh
