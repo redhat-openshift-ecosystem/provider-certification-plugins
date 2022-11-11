@@ -21,6 +21,7 @@ TS=$(date +%Y%m%d%H%M%S)
 VERSION_PLUGIN="${VERSION:-dev${TS}}";
 VERSION_PLUGIN_DEVEL="${VERSION_DEVEL:-}";
 FORCE="${FORCE:-false}";
+LATEST="${LATEST:-false}";
 
 # TOOLS version is created by suffix of oc and sonobuoy versions w/o dots
 export VERSION_TOOLS="v0.0.0-oc41018-s0565"
@@ -169,14 +170,14 @@ pusher_plugin() {
     push_image "${IMAGE_PLUGIN}:${VERSION_PLUGIN}"
     if [[ -n ${VERSION_PLUGIN_DEVEL} ]]; then
         push_image "${IMAGE_PLUGIN}:${VERSION_PLUGIN_DEVEL}"
-    else
+    elif [[ "${LATEST}" == true ]]
         push_image "${IMAGE_PLUGIN}:latest"
     fi
 }
 
 build_plugin() {
     echo "#> Checking Tools container image"
-    cmd_succeeded=$( image_exists "${IMAGE_TOOLS}" "${VERSION_TOOLS}"; echo $? )
+    cmd_succeeded=$(image_exists "${IMAGE_TOOLS}" "${VERSION_TOOLS}"; echo $?)
     if [[ $cmd_succeeded -eq 1 ]] && [[ $FORCE == false ]]; then
         echo "#>> Tools container already exists. Ignoring push."
         exit 1
@@ -186,6 +187,7 @@ build_plugin() {
 
 release() {
     FORCE=true
+    LATEST=true
     mirror_sonobuoy
     build_tools
     push_tools
@@ -197,9 +199,10 @@ build_info
 gen_containerfiles
 case $COMMAND in
     "mirror-sonobuoy") mirror_sonobuoy;;
-    "build-plugin") build_plugin ;;
     "build-tools") build_tools ;;
     "push-tools") push_tools ;;
+    "build-plugin") build_plugin ;;
+    "push-plugin") pusher_plugin ;;
     "build-dev") build_plugin ; pusher_plugin ;;
     "release") release;;
     *) echo "Option [$COMMAND] not found"; exit 1 ;;
