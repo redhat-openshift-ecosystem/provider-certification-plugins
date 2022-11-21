@@ -68,8 +68,10 @@ The steps to promote a release to stable are manual, please follow those steps:
 1. Add a dedicated node (optional): `./hack/oc-create-machineset-aws-dedicated.sh`
 1. Follow [these steps](https://github.com/redhat-openshift-ecosystem/provider-certification-tool/blob/main/docs/dev.md#running-customized-certification-plugins) to use the new tag in the plugin manifests.
 ```bash
-make update
-make build
+./openshift-provider-cert-linux-amd64 assets
+./openshift-provider-cert-linux-amd64 run -w --dedicated \
+  --plugin=./openshift-kube-conformance_env-shared.yaml \
+  --plugin=./openshift-conformance-validated_env-shared.yaml \
 ```
 1. Make sure the dedicated node is running, ROLE=tests (`node-role.kubernetes.io/tests=''`): `oc get nodes`
 1. Run the certification environment: `./openshift-provider-cert-linux-amd64 run -w --dedicated`
