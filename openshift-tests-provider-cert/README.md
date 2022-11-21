@@ -66,7 +66,7 @@ The steps to promote a release to stable are manual, please follow those steps:
 
 1. Create a cluster on 4.11+ (usually in AWS)
 1. Add a dedicated node (optional): `./hack/oc-create-machineset-aws-dedicated.sh`
-1. Clone the [CLI/openshift-provider-cert](https://github.com/redhat-openshift-ecosystem/provider-certification-tool) repository, replacing the tag `stable` for [each plugin manifest](https://github.com/redhat-openshift-ecosystem/provider-certification-tool/tree/main/manifests) to the new tag to be evaluated (Example: `v0.1.0`)
+1. Follow [these steps](https://github.com/redhat-openshift-ecosystem/provider-certification-tool/blob/main/docs/dev.md#running-customized-certification-plugins) to use the new tag in the plugin manifests.
 ```bash
 make update
 make build
