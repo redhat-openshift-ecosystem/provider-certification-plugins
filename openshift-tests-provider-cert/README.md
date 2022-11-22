@@ -58,6 +58,50 @@ git push origin v0.0.0-demo1
 1. [Tools image (only when modified)](https://quay.io/repository/ocp-cert/tools?tab=tags)
 2. [Plugin image](https://quay.io/repository/ocp-cert/openshift-tests-provider-cert?tab=tags)
 
+### Steps to promote the release to `stable`
+
+Along the Preview release (v0.*), the CLI will use the tag `stable` on the plugin manifest to run the most recent and stable version of plugins.
+
+The steps to promote a release to stable are manual, please follow those steps:
+
+1. Create a cluster on 4.11+ (usually in AWS)
+1. Add a dedicated node (optional): `./hack/oc-create-machineset-aws-dedicated.sh`
+1. Follow [these steps](https://github.com/redhat-openshift-ecosystem/provider-certification-tool/blob/main/docs/dev.md#running-customized-certification-plugins) to use the new tag in the plugin manifests.
+```bash
+./openshift-provider-cert-linux-amd64 assets
+./openshift-provider-cert-linux-amd64 run -w --dedicated \
+  --plugin=./openshift-kube-conformance_env-shared.yaml \
+  --plugin=./openshift-conformance-validated_env-shared.yaml \
+```
+1. Make sure the dedicated node is running, ROLE=tests (`node-role.kubernetes.io/tests=''`): `oc get nodes`
+1. Run the certification environment: `./openshift-provider-cert-linux-amd64 run -w --dedicated`
+1. Check if the plugin image was created correctly with your new release: `oc describe pods -n openshift-provider-certification | grep Image:`
+1. Wait for the tests to be finished.
+1. Once the execution has been finished, the post processor should display the results, somehting like `Total tests processed: 1837 (1777 pass / 60 failed)` (valid counters)
+1. Collect the archive `./openshift-provider-cert-linux-amd64 retrieve`
+1. Inspect the results `./openshift-provider-cert-linux-amd64 results <artchive>.tar.gz`
+
+If you did not see any errors when running the tool, check the results and inspect the tarball, we are safe to promote the release to `stable`.
+
+> Note: Even if the execution has a few errors on e2e tests, it should not be directly related with the tool or plugins itself, so we are considering `stable` successfull executions, not the content of the e2e that has been addressed in different issue.
+
+Promoting to the new release to stable:
+
+1. Pull the current release created by CI
+```bash
+podman pull quay.io/ocp-cert/openshift-tests-provider-cert:v0.1.0
+```
+1. Tag the release to `stable`
+```bash
+podman tag quay.io/ocp-cert/openshift-tests-provider-cert:v0.1.0 quay.io/ocp-cert/openshift-tests-provider-cert:stable
+```
+1. Upload the image
+```bash
+podman push quay.io/ocp-cert/openshift-tests-provider-cert:stable
+```
+
+
+
 ## Run the plugin
 
 To use the Plugin you should look at the Usage documentation.
