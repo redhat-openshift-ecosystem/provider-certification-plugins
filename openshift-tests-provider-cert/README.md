@@ -79,7 +79,7 @@ The steps to promote a release to stable are manual, please follow those steps:
 1. Wait for the tests to be finished.
 1. Once the execution has been finished, the post processor should display the results, somehting like `Total tests processed: 1837 (1777 pass / 60 failed)` (valid counters)
 1. Collect the archive `./openshift-provider-cert-linux-amd64 retrieve`
-1. Inspect the results ``./openshift-provider-cert-linux-amd64 results <artchive>.tar.gz`
+1. Inspect the results `./openshift-provider-cert-linux-amd64 results <artchive>.tar.gz`
 
 If you did not see any errors when running the tool, check the results and inspect the tarball, we are safe to promote the release to `stable`.
 
