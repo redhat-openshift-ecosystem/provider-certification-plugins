@@ -62,7 +62,7 @@ if [[ -n "${CERT_TEST_SUITE}" ]]; then
     os_log_info "openshift-tests finished[$?]"
     set +x
 
-# To run custom tests, set the environment CERT_LEVEL on plugin definition.
+# To run custom tests, set the environment PLUGIN_ID on plugin definition.
 # To generate the test file, use the script hack/generate-tests-tiers.sh
 elif [[ -n "${CERT_TEST_FILE:-}" ]]; then
     os_log_info "Running openshift-tests for custom tests [${CERT_TEST_FILE}]..."
@@ -87,7 +87,7 @@ elif [[ -n "${CUSTOM_TEST_FILTER_STR:-}" ]]; then
         | tee -a "${RESULTS_PIPE}" || true
 
 # Default execution - running default suite.
-# Set E2E_SUITE on plugin manifest to change it (unset CERT_LEVEL).
+# Set E2E_SUITE on plugin manifest to change it (unset PLUGIN_ID).
 else
     suite="${E2E_SUITE:-kubernetes/conformance}"
     os_log_info "Running default execution for openshift-tests suite [${suite}]..."
