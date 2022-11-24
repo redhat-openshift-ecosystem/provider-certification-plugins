@@ -33,10 +33,22 @@ create_dependencies_plugin() {
 # the intiial values defined on the variables PLUGIN_NAME, CERT_TEST_SUITE,
 # and PLUGIN_BLOCKED_BY.
 init_config() {
-    os_log_info_local "[init_config]"
+    os_log_info_local "[init_config] starting..."
+
+    # Forcing to use newer CLI after plugin renaming
+    if [[ -n "${CERT_LEVEL:-}" ]]
+    then
+        err="[init_config] Wrong CLI version. Please update the openshift-provider-cert binary and try again [CERT_LEVEL=${CERT_LEVEL}]"
+        create_junit_with_msg "failed" "[opct] ${err}"
+        os_log_info_local "${err}. Exiting..."
+        exit 1
+    fi
+
     if [[ -z "${PLUGIN_ID:-}" ]]
     then
-        os_log_info_local "Empty PLUGIN_ID. It should be defined. Exiting..."
+        err="[init_config] Empty PLUGIN_ID[${PLUGIN_ID}]. PLUGIN_ID must be defined by Plugin manifest as env var"
+        create_junit_with_msg "failed" "[opct] ${err}"
+        os_log_info_local "${err}. Exiting..."
         exit 1
     fi
 
@@ -55,7 +67,9 @@ init_config() {
         PLUGIN_BLOCKED_BY+=("10-openshift-kube-conformance")
 
     else
-        os_log_info "[init_config] Unknow value for PLUGIN_ID=[${PLUGIN_ID:-}]"
+        err="[init_config] Unknow value for PLUGIN_ID=[${PLUGIN_ID:-}]"
+        create_junit_with_msg "failed" "[opct] ${err}"
+        os_log_info_local "${err}. Exiting..."
         exit 1
     fi
 
@@ -131,6 +145,7 @@ create_junit_with_msg() {
     local msg
     local failures_count
     local junit_file
+    local faliures_payload
 
     msg_type="$1"; shift
     msg="$1"; shift
@@ -138,6 +153,7 @@ create_junit_with_msg() {
 
     if [[ "${msg_type}" == "failed" ]]; then
         failures_count=1
+        faliures_payload="<failure message=\"\">plugin runtime failed</failure><system-out></system-out>"
     fi
     junit_file="${RESULTS_DIR}/junit_${msg_type}_e2e_$(date +%Y%m%d-%H%M%S).xml"
 
@@ -145,9 +161,7 @@ create_junit_with_msg() {
     cat << EOF > "${junit_file}"
 <testsuite name="openshift-tests" tests="1" skipped="0" failures="${failures_count}" time="1.0">
  <property name="TestVersion" value="v4.1.0"></property>
- <testcase
-    name="${msg}"
-    time="1.0">
+ <testcase name="${msg}" time="0"> ${faliures_payload:-''}
 </testcase>
 </testsuite>
 EOF
@@ -177,7 +191,7 @@ start_utils_extractor() {
 
     os_log_info_local "[extractor_start] check if it was downloaded"
     if [[ ! -f ${util_otests} ]]; then
-        create_junit_with_msg "fail" "[fail][preflight] unable to extract openshift-tests utility. Check if image-registry is present."
+        create_junit_with_msg "failed" "[opct][preflight] unable to extract openshift-tests utility. Check if image-registry is present."
         touch "${UTIL_OTESTS_FAILED}"
         exit 1
     fi
@@ -188,7 +202,7 @@ start_utils_extractor() {
 
     os_log_info_local "[extractor_start] set exec permissions for ${UTIL_OTESTS_BIN}"
     if [[ ! -x ${UTIL_OTESTS_BIN} ]]; then
-        create_junit_with_msg "fail" "[fail][preflight] unable to make ${UTIL_OTESTS_BIN} executable."
+        create_junit_with_msg "failed" "[opct][preflight] unable to make ${UTIL_OTESTS_BIN} executable."
         touch "${UTIL_OTESTS_FAILED}"
         exit 1
     fi
@@ -196,7 +210,7 @@ start_utils_extractor() {
     os_log_info_local "[extractor_start] testing openshift-tests"
     tt_tests=$(${UTIL_OTESTS_BIN} run all --dry-run | wc -l)
     if [[ ${tt_tests} -le 0 ]]; then
-        create_junit_with_msg "fail" "[fail][preflight] failed to get tests from ${UTIL_OTESTS_BIN} utility. Found [${tt_tests}] tests."
+        create_junit_with_msg "failed" "[opct][preflight] failed to get tests from ${UTIL_OTESTS_BIN} utility. Found [${tt_tests}] tests."
         touch "${UTIL_OTESTS_FAILED}"
         exit 1
     fi
