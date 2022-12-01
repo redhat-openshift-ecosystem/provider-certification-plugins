@@ -45,11 +45,6 @@ os_log_info "[executor] Executor started. Choosing execution type based on envir
 if [[ -n "${CERT_TEST_SUITE}" ]]; then
     os_log_info "Starting openshift-tests suite [${CERT_TEST_SUITE}] Provider Conformance executor..."
 
-    os_log_info_local "WORKAROUND: chaning SCC..."
-    oc adm policy add-scc-to-group privileged system:authenticated system:serviceaccounts || true
-    oc adm policy add-scc-to-group anyuid system:authenticated system:serviceaccounts || true
-
-
     set -x
     ${UTIL_OTESTS_BIN} run \
         --max-parallel-tests "${CERT_TEST_PARALLEL}" \

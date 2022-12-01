@@ -210,7 +210,7 @@ report_progress() {
                 has_update=1;
             fi
 
-            if [[ $has_update -eq 1 ]] && [[ "${CERT_LEVEL}" != "${PLUGIN_ID_OPENSHIFT_UPGRADE}" ]]; then
+            if [[ $has_update -eq 1 ]] && [[ "${PLUGIN_ID}" != "${PLUGIN_ID_OPENSHIFT_UPGRADE}" ]]; then
                 update_progress "updater" "status=running";
                 has_update=0;
             fi

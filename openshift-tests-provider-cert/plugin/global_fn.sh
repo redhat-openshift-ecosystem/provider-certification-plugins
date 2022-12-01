@@ -54,20 +54,20 @@ init_config() {
         exit 1
     fi
 
-    os_log_info "Setting config for CERT_LEVEL=[${CERT_LEVEL:-}]..."
-    if [[ "${CERT_LEVEL:-}" == "${PLUGIN_ID_KUBE_CONFORMANCE}" ]]
+    os_log_info "Setting config for PLUGIN_ID=[${PLUGIN_ID:-}]..."
+    if [[ "${PLUGIN_ID:-}" == "${PLUGIN_ID_KUBE_CONFORMANCE}" ]]
     then
         PLUGIN_NAME="${PLUGIN_NAME_KUBE_CONFORMANCE}"
         CERT_TEST_SUITE="${OPENSHIFT_TESTS_SUITE_KUBE_CONFORMANCE}"
         PLUGIN_BLOCKED_BY=("${PLUGIN_NAME_OPENSHIFT_UPGRADE}")
 
-    elif [[ "${CERT_LEVEL:-}" == "${PLUGIN_ID_OPENSHIFT_CONFORMANCE}" ]]
+    elif [[ "${PLUGIN_ID:-}" == "${PLUGIN_ID_OPENSHIFT_CONFORMANCE}" ]]
     then
         PLUGIN_NAME="${PLUGIN_NAME_OPENSHIFT_CONFORMANCE}"
         CERT_TEST_SUITE="${OPENSHIFT_TESTS_SUITE_OPENSHIFT_CONFORMANCE}"
         PLUGIN_BLOCKED_BY+=("${PLUGIN_NAME_KUBE_CONFORMANCE}")
 
-    elif [[ "${CERT_LEVEL:-}" == "${PLUGIN_ID_OPENSHIFT_CONFORMANCE}" ]]
+    elif [[ "${PLUGIN_ID:-}" == "${PLUGIN_ID_OPENSHIFT_CONFORMANCE}" ]]
     then
         PLUGIN_NAME="${PLUGIN_NAME_OPENSHIFT_UPGRADE}"
         PLUGIN_BLOCKED_BY=()

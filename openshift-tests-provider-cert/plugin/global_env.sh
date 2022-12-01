@@ -44,7 +44,7 @@ declare -grx UTIL_OC_FAILED="${SHARED_DIR}/oc.failed"
 declare -grx PLUGIN_ID_OPENSHIFT_ARTIFACTS_COLLECTOR="99"
 # PLUGIN Instances
 declare -grx PLUGIN_ID_KUBE_CONFORMANCE="10"
-declare -grx PLUGIN_NAME_KUBE_CONFORMANCE="${PLUGIN_ID_OPENSHIFT_CONFORMANCE}-openshift-kube-conformance"
+declare -grx PLUGIN_NAME_KUBE_CONFORMANCE="${PLUGIN_ID_KUBE_CONFORMANCE}-openshift-kube-conformance"
 declare -grx OPENSHIFT_TESTS_SUITE_KUBE_CONFORMANCE="kubernentes/conformance"
 
 declare -grx PLUGIN_ID_OPENSHIFT_CONFORMANCE="20"
