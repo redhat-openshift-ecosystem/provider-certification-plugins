@@ -36,9 +36,9 @@ init_config() {
     os_log_info_local "[init_config] starting..."
 
     # Forcing to use newer CLI after plugin renaming
-    if [[ -n "${PLUGIN_ID:-}" ]]
+    if [[ -n "${CERT_LEVEL:-}" ]]
     then
-        err="[init_config] Wrong CLI version. Please update the openshift-provider-cert binary and try again [PLUGIN_ID=${PLUGIN_ID}]"
+        err="[init_config] Detected deprecated env var CERT_LEVEL. It can be caused by wrong CLI version. Please update the openshift-provider-cert binary and try again [CERT_LEVEL=${CERT_LEVEL:-}]"
         create_junit_with_msg "failed" "[opct] ${err}"
         os_log_info_local "${err}. Exiting..."
         exit 1
