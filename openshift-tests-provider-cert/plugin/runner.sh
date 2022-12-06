@@ -37,7 +37,9 @@ sig_handler_save_results() {
     # Create failed junit result file to avoid failures on report.
     # It could happened when executor has crashed.
     if [[ -z "${junit_output}" ]]; then
-        create_junit_with_msg "failed" "[conformance] fallback error: possible that openshift-tests has crashed"
+        msg="[runner] default error handler: openshift-tests did not created JUnit file"
+        os_log_info_local "ERROR: ${msg}"
+        create_junit_with_msg "failed" "[opct] ${msg}"
         junit_output=$(ls junit*.xml);
     fi
 
