@@ -7,7 +7,8 @@
 FROM ${CONTAINER_TOOLS}
 LABEL io.k8s.display-name="OpenShift Tests for Provider Certification Plugin" \
       io.k8s.description="OpenShift is a platform for developing, building, and deploying containerized applications." \
-      io.openshift.tags="openshift,tests,e2e,partner,certification,plugin"
+      io.openshift.tags="openshift,tests,e2e,partner,certification,plugin" \
+      io.openshift.opct.versions="base=${CONTAINER_BASE},sonobuoy=${VERSION_SONOBUOY},oc=${VERSION_OC}"
 WORKDIR /plugin
 
 COPY ./tests ./tests

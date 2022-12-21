@@ -126,15 +126,15 @@ update_config() {
 # should be shared on the exported KUBECONFIG file.
 openshift_login() {
     os_log_info_local "[login] Login to OpenShift cluster [${KUBE_API_INT}]"
-    oc login "${KUBE_API_INT}" \
+    ${UTIL_OC_BIN} login "${KUBE_API_INT}" \
         --token="$(cat "${SA_TOKEN_PATH}")" \
         --certificate-authority="${SA_CA_PATH}" || true;
 
     os_log_info_local "[login] Discovering apiServerInternalURI"
-    INT_URI="$(oc get infrastructures cluster -o json | jq -r .status.apiServerInternalURI)"
+    INT_URI="$(${UTIL_OC_BIN} get infrastructures cluster -o json | jq -r .status.apiServerInternalURI)"
 
     os_log_info_local "[login] Login to OpenShift cluster with internal URI [${INT_URI}]"
-    oc login "${INT_URI}" \
+    ${UTIL_OC_BIN} login "${INT_URI}" \
         --token="$(cat "${SA_TOKEN_PATH}")" \
         --certificate-authority="${SA_CA_PATH}" || true;
 }
@@ -183,45 +183,78 @@ export -f create_junit_with_msg
 # checks it before calling the plugin.
 start_utils_extractor() {
     os_log_info_local "[extractor_start] Starting"
-    local util_otests="./openshift-tests"
 
     os_log_info_local "[extractor_start] Login to OpenShift Registry"
-    oc registry login
+    ${UTIL_OC_BIN} registry login
 
-    os_log_info_local "[extractor_start] Extracting openshift-tests utility"
-    oc image extract \
+    # Extracting oc (from tests image)
+    local util_oc="./oc"
+    os_log_info_local "[extractor_start][oc] Extracting oc utility from 'tests' image"
+    ${UTIL_OC_BIN} image extract \
+        image-registry.openshift-image-registry.svc:5000/openshift/tests:latest \
+        --insecure=true \
+        --file="/usr/bin/oc"
+
+    os_log_info_local "[extractor_start][oc] check if it was downloaded"
+    if [[ ! -f ${util_oc} ]]; then
+        create_junit_with_msg "failed" "[opct][preflight] unable to extract oc utility. Check if image-registry is present."
+        touch "${UTIL_OC_FAILED}"
+        exit 1
+    fi
+
+    os_log_info_local "[extractor_start][oc] set exec permissions for ${UTIL_OC_BIN}"
+    chmod u+x ${util_oc}
+    if [[ ! -x ${UTIL_OC_BIN} ]]; then
+        create_junit_with_msg "failed" "[opct][preflight] unable to make ${UTIL_OC_BIN} executable."
+        touch "${UTIL_OC_FAILED}"
+        exit 1
+    fi
+
+    os_log_info_local "[extractor_start][oc] move to ${UTIL_OC_BIN}"
+    mv -f ${util_oc} "${UTIL_OC_BIN}"
+
+    os_log_info_local "[extractor_start][oc] getting the version"
+    ${UTIL_OC_BIN} version
+
+    os_log_info_local "[extractor_start][oc] Success! Unlocking extractor"
+    touch "${UTIL_OC_READY}"
+
+    # Extracting openshift-tests
+    local util_otests="./openshift-tests"
+    os_log_info_local "[extractor_start][openshift-tests] Extracting the utility"
+    ${UTIL_OC_BIN} image extract \
         image-registry.openshift-image-registry.svc:5000/openshift/tests:latest \
         --insecure=true \
         --file="/usr/bin/openshift-tests"
 
-    os_log_info_local "[extractor_start] check if it was downloaded"
+    os_log_info_local "[extractor_start][openshift-tests] check if it was downloaded"
     if [[ ! -f ${util_otests} ]]; then
-        create_junit_with_msg "failed" "[opct][preflight] unable to extract openshift-tests utility. Check if image-registry is present."
+        create_junit_with_msg "failed" "[opct][preflight][openshift-tests] unable to extract utility. Check if image-registry is present."
         touch "${UTIL_OTESTS_FAILED}"
         exit 1
     fi
     chmod u+x ${util_otests}
 
-    os_log_info_local "[extractor_start] move to ${UTIL_OTESTS_BIN}"
+    os_log_info_local "[extractor_start][openshift-tests] move to ${UTIL_OTESTS_BIN}"
     mv ${util_otests} "${UTIL_OTESTS_BIN}"
 
-    os_log_info_local "[extractor_start] set exec permissions for ${UTIL_OTESTS_BIN}"
+    os_log_info_local "[extractor_start][openshift-tests] set exec permissions for ${UTIL_OTESTS_BIN}"
     if [[ ! -x ${UTIL_OTESTS_BIN} ]]; then
-        create_junit_with_msg "failed" "[opct][preflight] unable to make ${UTIL_OTESTS_BIN} executable."
+        create_junit_with_msg "failed" "[opct][preflight][openshift-tests] unable to make ${UTIL_OTESTS_BIN} executable."
         touch "${UTIL_OTESTS_FAILED}"
         exit 1
     fi
 
-    os_log_info_local "[extractor_start] testing openshift-tests"
+    os_log_info_local "[extractor_start][openshift-tests] testing openshift-tests"
     tt_tests=$(${UTIL_OTESTS_BIN} run all --dry-run | wc -l)
     if [[ ${tt_tests} -le 0 ]]; then
-        create_junit_with_msg "failed" "[opct][preflight] failed to get tests from ${UTIL_OTESTS_BIN} utility. Found [${tt_tests}] tests."
+        create_junit_with_msg "failed" "[opct][preflight][openshift-tests] failed to get tests from ${UTIL_OTESTS_BIN} utility. Found [${tt_tests}] tests."
         touch "${UTIL_OTESTS_FAILED}"
         exit 1
     fi
-    os_log_info_local "[extractor_start] Success! openshift-tests has [${tt_tests}] tests available."
+    os_log_info_local "[extractor_start][openshift-tests] Success! [${tt_tests}] tests available."
 
-    os_log_info_local "[extractor_start] unlocking extractor"
+    os_log_info_local "[extractor_start][openshift-tests] unlocking extractor"
     touch "${UTIL_OTESTS_READY}"
 }
 
@@ -229,15 +262,25 @@ start_utils_extractor() {
 # it will be ready when the openshift-tests is extracted from internal registry,
 # controller by start_utils_extractor().
 wait_utils_extractor() {
-    os_log_info_local "[extractor_wait] waiting for utils_extractor()"
+    os_log_info_local "[extractor_wait][oc] waiting for utils_extractor()"
     while true;
     do
-        os_log_info_local "[extractor_wait] Check files exists=[${UTIL_OTESTS_READY} ${UTIL_OTESTS_FAILED}]"
+        os_log_info_local "[extractor_wait][oc] Check files exists=[${UTIL_OC_READY} ${UTIL_OC_FAILED}]"
+        test -f "${UTIL_OC_READY}" && break
+        test -f "${UTIL_OC_FAILED}" && exit 1
+        sleep "${STATUS_UPDATE_INTERVAL_SEC}"
+    done
+    os_log_info_local "[extractor_wait][oc] finished!"
+
+    os_log_info_local "[extractor_wait][openshift-tests] waiting for utils_extractor()"
+    while true;
+    do
+        os_log_info_local "[extractor_wait][openshift-tests] Check files exists=[${UTIL_OTESTS_READY} ${UTIL_OTESTS_FAILED}]"
         test -f "${UTIL_OTESTS_READY}" && break
         test -f "${UTIL_OTESTS_FAILED}" && exit 1
         sleep "${STATUS_UPDATE_INTERVAL_SEC}"
     done
-    os_log_info_local "[extractor_wait] finished!"
+    os_log_info_local "[extractor_wait][openshift-tests] finished!"
 }
 
 

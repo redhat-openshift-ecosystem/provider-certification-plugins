@@ -31,10 +31,16 @@ declare -grx KUBE_API_INT="https://172.30.0.1:443"
 declare -grx SA_CA_PATH="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 declare -grx SA_TOKEN_PATH="/var/run/secrets/kubernetes.io/serviceaccount/token"
 
+# Utilities
 declare -grx UTIL_OTESTS_BIN="${SHARED_DIR}/openshift-tests"
-declare -grx UTIL_OTESTS_READY="${SHARED_DIR}/openshift-tests.ready"
-declare -grx UTIL_OTESTS_FAILED="${SHARED_DIR}/openshift-tests.failed"
+declare -grx UTIL_OTESTS_READY="${UTIL_OTESTS_BIN}.ready"
+declare -grx UTIL_OTESTS_FAILED="${UTIL_OTESTS_BIN}.failed"
 
+declare -grx UTIL_OC_BIN="/usr/bin/oc"
+declare -grx UTIL_OC_READY="${SHARED_DIR}/oc.ready"
+declare -grx UTIL_OC_FAILED="${SHARED_DIR}/oc.failed"
+
+# Plugins
 declare -grx PLUGIN_ID_KUBERNETES_CONFORMANCE="10"
 declare -grx PLUGIN_ID_OPENSHIFT_CONFORMANCE="20"
 declare -grx PLUGIN_ID_OPENSHIFT_ARTIFACTS_COLLECTOR="99"
