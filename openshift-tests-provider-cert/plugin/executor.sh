@@ -67,7 +67,7 @@ elif [[ "${PLUGIN_ID}" == "${PLUGIN_ID_OPENSHIFT_ARTIFACTS_COLLECTOR}" ]]; then
 
     pushd "${RESULTS_DIR}" || true
 
-    oc adm must-gather
+    ${UTIL_OC_BIN} adm must-gather
     tar cfJ artifacts_must-gather.tar.xz must-gather.local.*
 
     ${UTIL_OTESTS_BIN} run kubernetes/conformance --dry-run > ./artifacts_e2e-tests_kubernetes-conformance.txt
