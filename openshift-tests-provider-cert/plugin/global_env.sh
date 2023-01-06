@@ -72,10 +72,6 @@ declare -grx SONOBUOY_PLUGIN_STATUS_FAILED="failed"
 declare -grx PLUGIN_WAIT_TIMEOUT_COUNT=1080
 declare -grx PLUGIN_WAIT_TIMEOUT_INTERVAL=10
 
-# Sonobuot Plugin Statuses
-declare -grx SONOBUOY_PLUGIN_STATUS_COMPLETE="complete"
-declare -grx SONOBUOY_PLUGIN_STATUS_FAILED="failed"
-
 # Defaults
 CERT_TEST_FILE=""
 CERT_TEST_SUITE=""
