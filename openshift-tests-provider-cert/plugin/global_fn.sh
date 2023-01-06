@@ -78,7 +78,7 @@ init_config() {
         PLUGIN_BLOCKED_BY+=("${PLUGIN_NAME_OPENSHIFT_CONFORMANCE}")
 
     else
-        err="[init_config] Unknow value for PLUGIN_ID=[${PLUGIN_ID:-}]"
+        err="[init_config] Unknown value for PLUGIN_ID=[${PLUGIN_ID:-}]"
         create_junit_with_msg "failed" "[opct] ${err}"
         os_log_info "${err}. Exiting..."
         exit 1
