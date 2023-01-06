@@ -28,8 +28,7 @@ run_upgrade() {
     os_log_info "[executor] [upgrade] show current version:"
     oc get clusterversion
 
-    TEST_UPGRADE_SUITE="none"
-    ${UTIL_OTESTS_BIN} run-upgrade "${TEST_UPGRADE_SUITE}" \
+    ${UTIL_OTESTS_BIN} run-upgrade "${OPENSHIFT_TESTS_SUITE_UPGRADE}" \
         --to-image "${UPGRADE_RELEASES}" \
         --options "${TEST_UPGRADE_OPTIONS-}" \
         --junit-dir "${RESULTS_DIR}" \
@@ -100,6 +99,8 @@ elif [[ "${PLUGIN_ID}" == "${PLUGIN_ID_OPENSHIFT_ARTIFACTS_COLLECTOR}" ]]; then
 # run-upgrade tests
 elif [[ "${PLUGIN_ID}" == "${PLUGIN_ID_OPENSHIFT_UPGRADE}" ]]; then
 
+    # the plugin instance 'upgrade' will always run, depending of the CLI setting
+    # RUN_MODE, the upgrade will be started or not
     if [[ "${RUN_MODE:-''}" == "${PLUGIN_RUN_MODE_UPGRADE}" ]]; then
         PROGRESSING="$(oc get -o jsonpath='{.status.conditions[?(@.type == "Progressing")].status}' clusterversion version)"
         os_log_info "[executor] Running Plugin_ID ${PLUGIN_ID}, starting... Cluster is progressing? ${PROGRESSING}"

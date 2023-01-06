@@ -74,8 +74,8 @@ init_config() {
 
     elif [[ "${PLUGIN_ID:-}" == "${PLUGIN_ID_OPENSHIFT_ARTIFACTS_COLLECTOR}" ]]
     then
-        PLUGIN_NAME="99-openshift-artifacts-collector"
-        PLUGIN_BLOCKED_BY+=("20-openshift-conformance-validated")
+        PLUGIN_NAME="${PLUGIN_NAME_OPENSHIFT_UPGRADE}"
+        PLUGIN_BLOCKED_BY+=("${PLUGIN_NAME_OPENSHIFT_CONFORMANCE}")
 
     else
         err="[init_config] Unknow value for PLUGIN_ID=[${PLUGIN_ID:-}]"
