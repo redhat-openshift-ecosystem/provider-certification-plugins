@@ -159,17 +159,19 @@ create_junit_with_msg() {
     local msg
     local failures_count
     local junit_file
+    local junit_file_type
     local faliures_payload
 
     msg_type="$1"; shift
     msg="$1"; shift
+    junit_file_type="${2:-'e2e'}"
     failures_count=0
 
     if [[ "${msg_type}" == "failed" ]]; then
         failures_count=1
         faliures_payload="<failure message=\"\">plugin runtime failed</failure><system-out></system-out>"
     fi
-    junit_file="${RESULTS_DIR}/junit_${msg_type}_e2e_$(date +%Y%m%d-%H%M%S).xml"
+    junit_file="${RESULTS_DIR}/junit_${junit_file_type}_${msg_type}_$(date +%Y%m%d-%H%M%S).xml"
 
     os_log_info "Creating ${msg_type} JUnit result file [${junit_file}]"
     cat << EOF > "${junit_file}"

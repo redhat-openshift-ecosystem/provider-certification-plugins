@@ -61,7 +61,7 @@ sig_handler_save_results() {
         msg="[runner] default error handler: openshift-tests did not created JUnit file(s)"
         os_log_info "ERROR: ${msg}"
         create_junit_with_msg "failed" "[opct] ${msg}"
-        junit_output=$(ls junit*.xml);
+        junit_output=$(ls ${junit_prefix}*.xml);
 
     elif [[ "${#JUNIT_FILES[*]}" -gt 1 ]]; then
         os_log_info "More than one JUnit found=[${#JUNIT_FILES[*]}], using only ${JUNIT_FILES[0]}"
