@@ -90,7 +90,7 @@ openshift_login
 os_log_info "starting sonobuoy status scraper..."
 start_status_collector &
 
-os_log_info "starting openshift-tests utility extractor..."
+os_log_info "starting utilities extractor..."
 start_utils_extractor &
 
 os_log_info "initializing plugin config..."
@@ -106,6 +106,14 @@ update_config
 
 os_log_info "starting waiter..."
 "$(dirname "$0")"/wait-plugin.sh
+
+# TODO: force to donwload again after the waiter plugin - the goal is to test
+# if we will not use utilities extracted before the cluster was upgraded.
+# TODO: check the RUN_MODE var (it's downwarded only to upgrade plugin)
+if [[ "${PLUGIN_ID}" != "${PLUGIN_ID_OPENSHIFT_UPGRADE}" ]]; then
+    os_log_info "starting utilities extractor updater..."
+    start_utils_extractor
+fi
 
 os_log_info "starting executor..."
 "$(dirname "$0")"/executor.sh #| tee -a ${results_script_dir}/executor.log
