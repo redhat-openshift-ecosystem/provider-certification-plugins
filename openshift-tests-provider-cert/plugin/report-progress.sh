@@ -182,7 +182,9 @@ watch_dependency_done() {
 # by plugin container.
 report_progress() {
     local has_update
+    local err_count
     has_update=0
+    err_count=0
     while true
     do
         # Watch sonobuoy done file
@@ -202,10 +204,22 @@ report_progress() {
                 PROGRESS["total"]=$(echo "${job_progress:1:-1}" | cut -d'/' -f 3)
 
             elif [[ $line == failed:* ]]; then
+                err_count=$(( err_count + 1 ))
                 if [ -z "${PROGRESS["failures"]}" ]; then
                     PROGRESS["failures"]=\"$(echo "$line" | cut -d"\"" -f2)\"
                 else
-                    PROGRESS["failures"]+=,\"$(echo "$line" | cut -d"\"" -f2)\"
+                    # Trucanting the 'failures' from payload:
+                    # https://issues.redhat.com/browse/OPCT-24
+                    # Stop flooding the aggregator API with long error messages, when
+                    # there are many errors on the cluster. Note: this will not affect
+                    # the final results, it's just the progress API.
+                    if [[ ${err_count} -gt 30 ]]; then
+                        PROGRESS["failures"]+=,\"$(echo "$line" | cut -d"\"" -f2)\"
+                    else
+                        sig_err=$(echo "$line" | cut -d"\"" -f2 | grep -Po '^(\[sig-[a-zA-Z-]*\])')
+                        err_msg="${sig_err} ERR#${err_count}"
+                        PROGRESS["failures"]+=,\"${err_msg}\"
+                    fi
                 fi
                 has_update=1;
             fi

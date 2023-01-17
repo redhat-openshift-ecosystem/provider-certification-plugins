@@ -46,8 +46,6 @@ if [[ -n "${CERT_TEST_SUITE}" ]]; then
 
     set -x
     ${UTIL_OTESTS_BIN} run \
-        --max-parallel-tests "${CERT_TEST_PARALLEL}" \
-        --junit-dir "${RESULTS_DIR}" \
         "${CERT_TEST_SUITE}" --dry-run \
         > "${RESULTS_DIR}/suite-${CERT_TEST_SUITE/\/}.list"
 
@@ -101,6 +99,7 @@ elif [[ "${PLUGIN_ID}" == "${PLUGIN_ID_OPENSHIFT_UPGRADE}" ]]; then
 
     # the plugin instance 'upgrade' will always run, depending of the CLI setting
     # RUN_MODE, the upgrade will be started or not
+    os_log_info "[executor] PLUGIN=${PLUGIN_ID} on mode=${RUN_MODE:-''}"
     if [[ "${RUN_MODE:-''}" == "${PLUGIN_RUN_MODE_UPGRADE}" ]]; then
         PROGRESSING="$(oc get -o jsonpath='{.status.conditions[?(@.type == "Progressing")].status}' clusterversion version)"
         os_log_info "[executor] Running Plugin_ID ${PLUGIN_ID}, starting... Cluster is progressing? ${PROGRESSING}"
@@ -111,6 +110,7 @@ elif [[ "${PLUGIN_ID}" == "${PLUGIN_ID_OPENSHIFT_UPGRADE}" ]]; then
         os_log_info "[executor] Running Plugin_ID ${PLUGIN_ID}. finished... Cluster is progressing? ${PROGRESSING}"
 
     else
+        os_log_info "[executor] Creating pass JUnit files due the execution mode != upgrade"
         create_junit_with_msg "pass" "[opct][pass] ignoring upgrade mode on RUN_MODE=[${RUN_MODE-}]." "upgrade"
     fi
 
