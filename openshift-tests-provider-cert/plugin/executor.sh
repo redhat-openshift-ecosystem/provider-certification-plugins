@@ -7,10 +7,9 @@
 #TODO(mtulio): pipefail should be commented until we provide a better solution
 # to handle errors (failed e2e) on sub-process managed by openshift-tests main proc.
 # https://issues.redhat.com/browse/SPLAT-592
-# set -o pipefail
-# set -o errexit
+#set -o pipefail
 set -o nounset
-
+# set -o errexit
 
 os_log_info "[executor] Starting..."
 

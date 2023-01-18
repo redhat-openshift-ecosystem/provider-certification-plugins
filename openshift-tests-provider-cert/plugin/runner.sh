@@ -45,10 +45,9 @@ sig_handler_save_results() {
         # - 2) pack the metadata into tarball to avoid post-processor discoverying/processing files
         # - 3) change the result format to raw
         # - 4) send to aggregator the raw results
+        # https://issues.redhat.com/browse/OPCT-33
         junit_prefix="junit_upgrade"
     fi
-
-    # TODO: evaluate if we need to collect all metadata instead only junits.
 
     # generic result file: JUnit
     os_log_info "Looking for junit result files..."
