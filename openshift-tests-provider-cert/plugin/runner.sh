@@ -1,12 +1,20 @@
 #!/usr/bin/env bash
 
 #
-# openshift-tests-partner-cert runner
+# openshift-tests-conformance (plugin)
 #
 
 set -o pipefail
 set -o nounset
 # set -o errexit
+
+# os_log_info logger function, printing the current bash script
+# and line as prefix.
+os_log_info() {
+    local cnt="plugin"
+    echo "$(date +%Y-%m-%d_%H:%M:%S) | [${cnt}] | $(caller | awk '{print$2":"$1}')> " "$@"
+}
+export -f os_log_info
 
 # shellcheck disable=SC1091
 source "$(dirname "$0")"/global_env.sh
