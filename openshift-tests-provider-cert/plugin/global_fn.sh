@@ -1,5 +1,14 @@
 #!/usr/bin/env bash
 
+# Shared functions used across services
+
+# os_log_info logger function, printing the current bash script
+# and line as prefix.
+os_log_info() {
+    echo "$(date +%Y-%m-%d_%H:%M:%S) | [${SERVICE_NAME}] | $(caller | awk '{print$2":"$1}')> " "$@"
+}
+export -f os_log_info
+
 # sys_sig_handler_error handles the ERR sigspec.
 sys_sig_handler_error(){
     os_log_info "[signal handler] ERROR on line $(caller)" >&2

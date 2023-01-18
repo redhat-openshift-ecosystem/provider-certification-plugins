@@ -12,13 +12,7 @@ set -o errexit
 declare -gx PIDS_LOCAL
 declare -gx PROGRESS
 
-# os_log_info logger function, printing the current bash script
-# and line as prefix.
-os_log_info() {
-    local cnt="progress"
-    echo "$(date +%Y-%m-%d_%H:%M:%S) | [${cnt}] | $(caller | awk '{print$2":"$1}')> " "$@"
-}
-export -f os_log_info
+declare -gxr SERVICE_NAME="report-progress"
 
 # shellcheck disable=SC1091
 source "$(dirname "$0")"/global_env.sh
