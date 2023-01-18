@@ -30,14 +30,14 @@ if [[ ${#PLUGIN_BLOCKED_BY[@]} -ge 1 ]]; then
         
         # Wait until sonobuoy job is completed
         timeout_checks=0
-        timeout_count=100
+        timeout_count=${PLUGIN_WAIT_TIMEOUT_COUNT}
         last_count=0
         while true;
         do
             # TODO(bug:st-updater): avoid check status in empty file
             if [[ ! -s "${STATUS_FILE}" ]]; then
                 os_log_info_local "Plugin[${bl_plugin_name}] status WARNING: empty status detected...waiting next check..."
-                sleep 10
+                sleep "${PLUGIN_WAIT_TIMEOUT_INTERVAL}"
                 continue
             fi
             plugin_status=$(jq -r ".plugins[] | select (.plugin == \"${bl_plugin_name}\" ) |.status // \"\"" "${STATUS_FILE}")
@@ -58,7 +58,7 @@ if [[ ${#PLUGIN_BLOCKED_BY[@]} -ge 1 ]]; then
             if [[ ${count} -gt ${last_count} ]]; then
                 last_count=${count}
                 timeout_checks=0
-                sleep 10
+                sleep "${PLUGIN_WAIT_TIMEOUT_INTERVAL}"
                 continue
             fi
             ## 2. Dont get stuck for blocked plugins (which is already waiting for deps)
@@ -66,12 +66,12 @@ if [[ ${#PLUGIN_BLOCKED_BY[@]} -ge 1 ]]; then
             current_msg=$(jq -r ".plugins[] | select (.plugin == \"${PLUGIN_NAME}\" ) |.progress.msg // \"\"" "${STATUS_FILE}")
             if [[ "${blocker_msg}" =~ "status=blocked-by" ]]; then
                 timeout_checks=0
-                sleep 10
+                sleep "${PLUGIN_WAIT_TIMEOUT_INTERVAL}"
                 continue
             ## Should wait for blocker timeout (then !waiting-for state) to start timeout count
             elif [[ "${blocker_msg}" =~ "status=waiting-for" ]] && [[ "${current_msg}" =~ "status=blocked-by" ]]; then
                 timeout_checks=0
-                sleep 10
+                sleep "${PLUGIN_WAIT_TIMEOUT_INTERVAL}"
                 continue
             fi
             last_count=${count}
@@ -81,7 +81,7 @@ if [[ ${#PLUGIN_BLOCKED_BY[@]} -ge 1 ]]; then
                 exit 1
             fi
             os_log_info_local "Waiting 30s for Plugin[${bl_plugin_name}]...[${timeout_checks}/${timeout_count}]"
-            sleep 30
+            sleep "${PLUGIN_WAIT_TIMEOUT_INTERVAL}"
         done
     done
     os_log_info_local "All the conditions has been met!"
