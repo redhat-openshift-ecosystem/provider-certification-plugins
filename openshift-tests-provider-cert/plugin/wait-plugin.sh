@@ -44,7 +44,7 @@ if [[ ${#PLUGIN_BLOCKED_BY[@]} -ge 1 ]]; then
 
             os_log_info_local "Plugin[${bl_plugin_name}] with status[${plugin_status}]..."
             os_log_info_local "$(cat "${STATUS_FILE}")"
-            if [[ "${plugin_status}" == "complete" ]]; then
+            if [[ "${plugin_status}" == "${SONOBUOY_PLUGIN_STATUS_COMPLETE}" ]] || [[ "${plugin_status}" == "${SONOBUOY_PLUGIN_STATUS_FAILED}" ]]; then
                 os_log_info_local "Plugin[${bl_plugin_name}] with status[${plugin_status}] is completed!"
                 break
             fi

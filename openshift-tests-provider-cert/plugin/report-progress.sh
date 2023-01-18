@@ -95,7 +95,7 @@ watch_dependency_done() {
             fi
 
             plugin_status=$(jq -r ".plugins[] | select (.plugin == \"${plugin_name}\" ) |.status // \"\"" "${STATUS_FILE}")
-            if [[ "${plugin_status}" == "complete" ]]; then
+            if [[ "${plugin_status}" == "${SONOBUOY_PLUGIN_STATUS_COMPLETE}" ]] || [[ "${plugin_status}" == "${SONOBUOY_PLUGIN_STATUS_FAILED}" ]]; then
                 echo "Plugin[${plugin_name}] with status[${plugin_status}] is finished!"
                 break
             fi
