@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 #
-# openshift-tests-partner-cert plugin - progress reporter
+# openshift-tests-conformance (report-progress)
 # Send progress from openshift-tests execution to sonobuoy worker.
 #
 
@@ -12,14 +12,12 @@ set -o errexit
 declare -gx PIDS_LOCAL
 declare -gx PROGRESS
 
+declare -gxr SERVICE_NAME="report-progress"
+
 # shellcheck disable=SC1091
 source "$(dirname "$0")"/global_env.sh
 # shellcheck disable=SC1091
 source "$(dirname "$0")"/global_fn.sh
-
-os_log_info_local() {
-    echo "$(date +%Y%m%d-%H%M%S)> [report] $*"
-}
 
 # wait_progress_api waits for sonobuoy worker is listening.
 wait_progress_api() {
@@ -28,13 +26,13 @@ wait_progress_api() {
     addr_ip=$(echo "${PROGRESS_URL}" |grep -Po '(\d+.\d+.\d+.\d+)')
     addr_port=$(echo "${PROGRESS_URL}" |grep -Po '\d{4}')
 
-    os_log_info_local "waiting for sonobuoy-worker service is ready..."
+    os_log_info "waiting for sonobuoy-worker service is ready..."
     while true
     do
         test "$(echo '' | curl telnet://"${addr_ip}":"${addr_port}" >/dev/null 2>&1; echo $?)" -eq 0 && break
         sleep 1
     done
-    os_log_info_local "sonobuoy-worker progress api[${PROGRESS_URL}] is ready."
+    os_log_info "sonobuoy-worker progress api[${PROGRESS_URL}] is ready."
 }
 
 # update_progress sends updates to the progress report API (worker).
@@ -48,13 +46,13 @@ update_progress() {
         \"failures\":[${PROGRESS["failures"]}],
         \"msg\":\"${msg}\"
     }"
-    os_log_info_local "Sending report payload [${component_caller}]: ${body}"
+    os_log_info "Sending report payload [${component_caller}]: ${body}"
     curl -s "${PROGRESS_URL}" -d "${body}" || true
 }
 
 # wait_pipe_exists wait until the pipe file is created by plugin.
 wait_pipe_exists() {
-    os_log_info_local "waiting for pipe creation..."
+    os_log_info "waiting for pipe creation..."
     while true
     do
         test -p "${RESULTS_PIPE}" && break
@@ -65,7 +63,7 @@ wait_pipe_exists() {
 
 # watch_plugin_done watches to block the plugin to be finished prematurely.
 watch_plugin_done() {
-    os_log_info_local "waiting for plugin done file..."
+    os_log_info "waiting for plugin done file..."
     while true; do
         if [[ -f "${PLUGIN_DONE_NOTIFY}" ]]
         then
@@ -74,15 +72,15 @@ watch_plugin_done() {
         fi
         sleep 1
     done
-    os_log_info_local "plugin done file detected!"
+    os_log_info "plugin done file detected!"
 }
 
 # watch_dependency_done watches aggregator API (status) to
 # unblock the execution when dependencies was finished the execution.
 watch_dependency_done() {
-    os_log_info_local "[watch_dependency] Starting dependency check..."
+    os_log_info "[watch_dependency] Starting dependency check..."
     for plugin_name in "${PLUGIN_BLOCKED_BY[@]}"; do
-        os_log_info_local "waiting for plugin [${plugin_name}]"
+        os_log_info "waiting for plugin [${plugin_name}]"
         timeout_checks=0
         timeout_count=${PLUGIN_WAIT_TIMEOUT_COUNT}
         last_count=0
@@ -150,9 +148,9 @@ watch_dependency_done() {
             fi
             sleep "${PLUGIN_WAIT_TIMEOUT_INTERVAL}"
         done
-        os_log_info_local "plugin [${plugin_name}] finished!"
+        os_log_info "plugin [${plugin_name}] finished!"
     done
-    os_log_info_local "[plugin dependencies] Finished!"
+    os_log_info "[plugin dependencies] Finished!"
 }
 
 # report_progress reads the pipe file, parses the progress counters and reports it
@@ -225,9 +223,9 @@ PIDS_LOCAL+=($!)
 
 report_progress
 
-os_log_info_local "Waiting for PIDs [finalizer]: ${PIDS_LOCAL[*]}"
+os_log_info "Waiting for PIDs [finalizer]: ${PIDS_LOCAL[*]}"
 wait "${PIDS_LOCAL[@]}"
 
 update_progress "finalizer" "status=report-progress-finished";
 
-os_log_info_local "all done"
+os_log_info "all done"
