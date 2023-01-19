@@ -106,12 +106,17 @@ update_config
 os_log_info "starting waiter..."
 "$(dirname "$0")"/wait-plugin.sh
 
-# TODO: force to donwload again after the waiter plugin - the goal is to test
-# if we will not use utilities extracted before the cluster was upgraded.
-# TODO: check the RUN_MODE var (it's downwarded only to upgrade plugin)
-if [[ "${PLUGIN_ID}" != "${PLUGIN_ID_OPENSHIFT_UPGRADE}" ]]; then
-    os_log_info "starting utilities extractor updater..."
-    start_utils_extractor
+# Force to update the utilities after cluster upgrades.
+# It's mandatory to avoid running clusters with old e2e binaries.
+if [[ "${RUN_MODE:-''}" == "${PLUGIN_RUN_MODE_UPGRADE}" ]]; then
+    if [[ "${PLUGIN_ID}" != "${PLUGIN_ID_OPENSHIFT_UPGRADE}" ]]; then
+        os_log_info "starting utilities extractor updater..."
+        start_utils_extractor
+    else
+        os_log_info "ignoring extractor updater: ${PLUGIN_ID:-''}==${PLUGIN_ID_OPENSHIFT_UPGRADE}"
+    fi
+else
+    os_log_info "ignoring extractor updater: ${RUN_MODE:-''}!=${PLUGIN_RUN_MODE_UPGRADE}"
 fi
 
 os_log_info "starting executor..."
