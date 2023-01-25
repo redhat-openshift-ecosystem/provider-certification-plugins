@@ -240,6 +240,10 @@ report_progress() {
 
 openshift_login
 init_config
+
+os_log_info "starting preflight checks..."
+preflight_check_upgrade_waiter
+
 wait_utils_extractor
 update_config
 

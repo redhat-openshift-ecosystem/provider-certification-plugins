@@ -40,6 +40,9 @@ declare -grx UTIL_OC_BIN="/usr/bin/oc"
 declare -grx UTIL_OC_READY="${SHARED_DIR}/oc.ready"
 declare -grx UTIL_OC_FAILED="${SHARED_DIR}/oc.failed"
 
+declare -grx CHECK_MCP_READY="${SHARED_DIR}/upgrade-mcp.ready"
+declare -grx CHECK_MCP_FAILED="${SHARED_DIR}/upgrade-mcp.failed"
+
 # PLUGIN Instances vars
 ## openshift-cluster-upgrade
 declare -grx PLUGIN_ID_OPENSHIFT_UPGRADE="05"

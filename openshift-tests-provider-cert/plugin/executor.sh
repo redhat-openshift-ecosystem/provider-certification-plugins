@@ -21,11 +21,12 @@ test -f "${SA_TOKEN_PATH}" || os_log_info "[executor] secret not found=${SA_TOKE
 # Upgrade functions
 #
 
+# Run the upgrade with openshift-tests
 run_upgrade() {
     set -x &&
     os_log_info "[executor] [upgrade] UPGRADE_RELEASES=${UPGRADE_RELEASES}"
     os_log_info "[executor] [upgrade] show current version:"
-    oc get clusterversion
+    ${UTIL_OC_BIN} get clusterversion
 
     ${UTIL_OTESTS_BIN} run-upgrade "${OPENSHIFT_TESTS_SUITE_UPGRADE}" \
         --to-image "${UPGRADE_RELEASES}" \

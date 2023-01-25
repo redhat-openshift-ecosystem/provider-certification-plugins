@@ -86,6 +86,9 @@ trap sig_handler_save_results EXIT
 os_log_info "logging to the cluster..."
 openshift_login
 
+os_log_info "starting preflight checks..."
+preflight_check_upgrade
+
 os_log_info "starting sonobuoy status scraper..."
 start_status_collector &
 

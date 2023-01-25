@@ -168,7 +168,7 @@ create_junit_with_msg() {
 
     msg_type="$1"; shift
     msg="$1"; shift
-    junit_file_type="${2:-'e2e'}"
+    junit_file_type="${1:-e2e}"
     failures_count=0
 
     if [[ "${msg_type}" == "failed" ]]; then
@@ -328,3 +328,56 @@ wait_status_file() {
     os_log_info "[status_file] Status file found!"
 }
 export -f wait_status_file
+
+#
+# Cluster 'Upgrade' feature
+#
+
+# Run preflight checks before the upgrade. The execution must fail
+# when there is not MachineConfigPool named 'opct' on the cluster.
+# Required on the documentation:
+# https://github.com/redhat-openshift-ecosystem/provider-certification-tool/blob/main/docs/user.md#prerequisites
+# https://issues.redhat.com/browse/OPCT-35
+preflight_check_upgrade() {
+    os_log_info "[preflight][upgrade] starting checks for 'upgrade'..."
+
+    if [[ "${RUN_MODE:-''}" != "${PLUGIN_RUN_MODE_UPGRADE}" ]]; then
+        os_log_info "[preflight][upgrade] ignoring checks as RUN_MODE!=upgrade [${PLUGIN_RUN_MODE_UPGRADE}]"
+        touch "${CHECK_MCP_READY}"
+        return
+    fi
+
+    if [[ "${PLUGIN_ID}" == "${PLUGIN_ID_OPENSHIFT_ARTIFACTS_COLLECTOR}" ]]; then
+        os_log_info "[preflight][upgrade] check for PLUGIN_ID=${PLUGIN_ID_OPENSHIFT_ARTIFACTS_COLLECTOR}"
+        touch "${CHECK_MCP_READY}"
+        return
+    fi
+
+    os_log_info "[preflight][upgrade] check MachineConfigPool 'opct' exists"
+    ${UTIL_OC_BIN} get machineconfigpool opct
+    RC_MCP=$?
+    if [[ ${RC_MCP} -ne 0 ]]; then
+        err="MachineConfigPool opct not found. Return code=${RC_MCP}"
+        create_junit_with_msg "failed" "[opct][mode=${PLUGIN_RUN_MODE_UPGRADE}] ${err}" "upgrade"
+        os_log_info "[executor] ${err}. Exiting..."
+        touch "${CHECK_MCP_FAILED}"
+        exit 1
+    fi
+    touch "${CHECK_MCP_READY}"
+}
+export -f preflight_check_upgrade
+
+# Wait for check file for MCP
+# https://issues.redhat.com/browse/OPCT-35
+preflight_check_upgrade_waiter() {
+    os_log_info "[preflight_check][upgrade-waiter] waiting for MachineConfigPool check"
+    while true;
+    do
+        os_log_info "[preflight_check][upgrade-waiter] Check files exists=[${CHECK_MCP_READY} ${CHECK_MCP_FAILED}]"
+        test -f "${CHECK_MCP_READY}" && break
+        test -f "${CHECK_MCP_FAILED}" && exit 1
+        sleep "${STATUS_UPDATE_INTERVAL_SEC}"
+    done
+    os_log_info "[preflight_check][upgrade-waiter] finished!"
+}
+export -f preflight_check_upgrade_waiter
