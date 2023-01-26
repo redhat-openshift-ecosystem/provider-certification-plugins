@@ -18,6 +18,25 @@ test -f "${SA_CA_PATH}" || os_log_info "[executor] secret not found=${SA_CA_PATH
 test -f "${SA_TOKEN_PATH}" || os_log_info "[executor] secret not found=${SA_TOKEN_PATH}"
 
 #
+# Upgrade functions
+#
+
+# Run the upgrade with openshift-tests
+run_upgrade() {
+    set -x &&
+    os_log_info "[executor] [upgrade] UPGRADE_RELEASES=${UPGRADE_RELEASES}"
+    os_log_info "[executor] [upgrade] show current version:"
+    ${UTIL_OC_BIN} get clusterversion
+
+    ${UTIL_OTESTS_BIN} run-upgrade "${OPENSHIFT_TESTS_SUITE_UPGRADE}" \
+        --to-image "${UPGRADE_RELEASES}" \
+        --options "${TEST_UPGRADE_OPTIONS-}" \
+        --junit-dir "${RESULTS_DIR}" \
+        | tee -a "${RESULTS_PIPE}"
+    set +x
+}
+
+#
 # Executor options
 #
 os_log_info "[executor] Executor started. Choosing execution type based on environment sets."
@@ -27,8 +46,6 @@ if [[ -n "${CERT_TEST_SUITE}" ]]; then
 
     set -x
     ${UTIL_OTESTS_BIN} run \
-        --max-parallel-tests "${CERT_TEST_PARALLEL}" \
-        --junit-dir "${RESULTS_DIR}" \
         "${CERT_TEST_SUITE}" --dry-run \
         > "${RESULTS_DIR}/suite-${CERT_TEST_SUITE/\/}.list"
 
@@ -76,6 +93,26 @@ elif [[ "${PLUGIN_ID}" == "${PLUGIN_ID_OPENSHIFT_ARTIFACTS_COLLECTOR}" ]]; then
     tar cfz raw-results.tar.gz ./artifacts_*
 
     popd || true;
+
+# run-upgrade tests
+elif [[ "${PLUGIN_ID}" == "${PLUGIN_ID_OPENSHIFT_UPGRADE}" ]]; then
+
+    # the plugin instance 'upgrade' will always run, depending of the CLI setting
+    # RUN_MODE, the upgrade will be started or not
+    os_log_info "[executor] PLUGIN=${PLUGIN_ID} on mode=${RUN_MODE:-''}"
+    if [[ "${RUN_MODE:-''}" == "${PLUGIN_RUN_MODE_UPGRADE}" ]]; then
+        PROGRESSING="$(oc get -o jsonpath='{.status.conditions[?(@.type == "Progressing")].status}' clusterversion version)"
+        os_log_info "[executor] Running Plugin_ID ${PLUGIN_ID}, starting... Cluster is progressing? ${PROGRESSING}"
+
+        run_upgrade
+
+        PROGRESSING="$(oc get -o jsonpath='{.status.conditions[?(@.type == "Progressing")].status}' clusterversion version)"
+        os_log_info "[executor] Running Plugin_ID ${PLUGIN_ID}. finished... Cluster is progressing? ${PROGRESSING}"
+
+    else
+        os_log_info "[executor] Creating pass JUnit files due the execution mode != upgrade"
+        create_junit_with_msg "pass" "[opct][pass] ignoring upgrade mode on RUN_MODE=[${RUN_MODE-}]." "upgrade"
+    fi
 
 # To run custom tests, set the environment PLUGIN_ID on plugin definition.
 # To generate the test file, use the script hack/generate-tests-tiers.sh

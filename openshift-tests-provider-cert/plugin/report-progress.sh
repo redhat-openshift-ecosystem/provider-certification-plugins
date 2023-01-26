@@ -75,6 +75,30 @@ watch_plugin_done() {
     os_log_info "plugin done file detected!"
 }
 
+# update_pogress_upgrade report the progress when the plugin instance is upgrade.
+# The message will be the progress message from ClusterVersion object.
+update_pogress_upgrade() {
+    local progress_st
+    local progress_message
+    while true; do
+        if [[ -f "${PLUGIN_DONE_NOTIFY}" ]]
+        then
+            echo "[report_progress] Done file detected"
+            break
+        fi
+        progress_st=$(oc get -o jsonpath='{.status.conditions[?(@.type == "Progressing")].status}' clusterversion version)
+        progress_message="upgrade-progressing-${progress_st}"
+        if [[ "$progress_st" == "True" ]]; then
+            progress_message=$(oc get -o jsonpath='{.status.conditions[?(@.type == "Progressing")].message}' clusterversion version)
+        else
+            desired_version=$(oc get -o jsonpath='{.status.desired.version}' clusterversion version)
+            progress_message="${desired_version}=${progress_message}"
+        fi
+        update_progress "updater" "status=${progress_message}";
+        sleep 10
+    done
+}
+
 # watch_dependency_done watches aggregator API (status) to
 # unblock the execution when dependencies was finished the execution.
 watch_dependency_done() {
@@ -94,7 +118,7 @@ watch_dependency_done() {
 
             plugin_status=$(jq -r ".plugins[] | select (.plugin == \"${plugin_name}\" ) |.status // \"\"" "${STATUS_FILE}")
             if [[ "${plugin_status}" == "${SONOBUOY_PLUGIN_STATUS_COMPLETE}" ]] || [[ "${plugin_status}" == "${SONOBUOY_PLUGIN_STATUS_FAILED}" ]]; then
-                echo "Plugin[${plugin_name}] with status[${plugin_status}] is finished!"
+                os_log_info "Plugin[${plugin_name}] with status[${plugin_status}] is finished!"
                 break
             fi
             count=$(jq -r ".plugins[] | select (.plugin == \"${plugin_name}\" ) |.progress.completed // 0" "${STATUS_FILE}")
@@ -158,7 +182,9 @@ watch_dependency_done() {
 # by plugin container.
 report_progress() {
     local has_update
+    local err_count
     has_update=0
+    err_count=0
     while true
     do
         # Watch sonobuoy done file
@@ -178,15 +204,27 @@ report_progress() {
                 PROGRESS["total"]=$(echo "${job_progress:1:-1}" | cut -d'/' -f 3)
 
             elif [[ $line == failed:* ]]; then
+                err_count=$(( err_count + 1 ))
                 if [ -z "${PROGRESS["failures"]}" ]; then
                     PROGRESS["failures"]=\"$(echo "$line" | cut -d"\"" -f2)\"
                 else
-                    PROGRESS["failures"]+=,\"$(echo "$line" | cut -d"\"" -f2)\"
+                    # Trucanting the 'failures' from payload:
+                    # https://issues.redhat.com/browse/OPCT-24
+                    # Stop flooding the aggregator API with long error messages, when
+                    # there are many errors on the cluster. Note: this will not affect
+                    # the final results, it's just the progress API.
+                    if [[ ${err_count} -gt 30 ]]; then
+                        PROGRESS["failures"]+=,\"$(echo "$line" | cut -d"\"" -f2)\"
+                    else
+                        sig_err=$(echo "$line" | cut -d"\"" -f2 | grep -Po '^(\[sig-[a-zA-Z-]*\])')
+                        err_msg="${sig_err} ERR#${err_count}"
+                        PROGRESS["failures"]+=,\"${err_msg}\"
+                    fi
                 fi
                 has_update=1;
             fi
 
-            if [ $has_update -eq 1 ]; then
+            if [[ $has_update -eq 1 ]] && [[ "${PLUGIN_ID}" != "${PLUGIN_ID_OPENSHIFT_UPGRADE}" ]]; then
                 update_progress "updater" "status=running";
                 has_update=0;
             fi
@@ -202,6 +240,10 @@ report_progress() {
 
 openshift_login
 init_config
+
+os_log_info "starting preflight checks..."
+preflight_check_upgrade_waiter
+
 wait_utils_extractor
 update_config
 
@@ -220,6 +262,12 @@ PIDS_LOCAL+=($!)
 
 watch_dependency_done &
 PIDS_LOCAL+=($!)
+
+# upgrade plugin
+if [[ "${PLUGIN_ID}" == "${PLUGIN_ID_OPENSHIFT_UPGRADE}" ]]; then
+    update_pogress_upgrade &
+    PIDS_LOCAL+=($!)
+fi
 
 report_progress
 

@@ -55,26 +55,30 @@ init_config() {
     fi
 
     os_log_info "Setting config for PLUGIN_ID=[${PLUGIN_ID:-}]..."
-
-    if [[ "${PLUGIN_ID:-}" == "${PLUGIN_ID_KUBERNETES_CONFORMANCE}" ]]
+    if [[ "${PLUGIN_ID:-}" == "${PLUGIN_ID_OPENSHIFT_UPGRADE}" ]]
     then
-        PLUGIN_NAME="10-openshift-kube-conformance"
-        CERT_TEST_SUITE="kubernetes/conformance"
+        PLUGIN_NAME="${PLUGIN_NAME_OPENSHIFT_UPGRADE}"
         PLUGIN_BLOCKED_BY=()
+
+    elif [[ "${PLUGIN_ID:-}" == "${PLUGIN_ID_KUBE_CONFORMANCE}" ]]
+    then
+        PLUGIN_NAME="${PLUGIN_NAME_KUBE_CONFORMANCE}"
+        CERT_TEST_SUITE="${OPENSHIFT_TESTS_SUITE_KUBE_CONFORMANCE}"
+        PLUGIN_BLOCKED_BY=("${PLUGIN_NAME_OPENSHIFT_UPGRADE}")
 
     elif [[ "${PLUGIN_ID:-}" == "${PLUGIN_ID_OPENSHIFT_CONFORMANCE}" ]]
     then
-        PLUGIN_NAME="20-openshift-conformance-validated"
-        CERT_TEST_SUITE="openshift/conformance"
-        PLUGIN_BLOCKED_BY+=("10-openshift-kube-conformance")
+        PLUGIN_NAME="${PLUGIN_NAME_OPENSHIFT_CONFORMANCE}"
+        CERT_TEST_SUITE="${OPENSHIFT_TESTS_SUITE_OPENSHIFT_CONFORMANCE}"
+        PLUGIN_BLOCKED_BY+=("${PLUGIN_NAME_KUBE_CONFORMANCE}")
 
     elif [[ "${PLUGIN_ID:-}" == "${PLUGIN_ID_OPENSHIFT_ARTIFACTS_COLLECTOR}" ]]
     then
-        PLUGIN_NAME="99-openshift-artifacts-collector"
-        PLUGIN_BLOCKED_BY+=("20-openshift-conformance-validated")
+        PLUGIN_NAME="${PLUGIN_NAME_OPENSHIFT_ARTIFACTS_COLLECTOR}"
+        PLUGIN_BLOCKED_BY+=("${PLUGIN_NAME_OPENSHIFT_CONFORMANCE}")
 
     else
-        err="[init_config] Unknow value for PLUGIN_ID=[${PLUGIN_ID:-}]"
+        err="[init_config] Unknown value for PLUGIN_ID=[${PLUGIN_ID:-}]"
         create_junit_with_msg "failed" "[opct] ${err}"
         os_log_info "${err}. Exiting..."
         exit 1
@@ -95,10 +99,17 @@ show_config() {
 PLUGIN_NAME=${PLUGIN_NAME}
 PLUGIN_BLOCKED_BY=${PLUGIN_BLOCKED_BY[*]}
 PLUGIN_ID=${PLUGIN_ID}
+CERT_LEVEL=${CERT_LEVEL:-''}
+RUN_MODE=${RUN_MODE:-''}
+UPGRADE_RELEASES=${UPGRADE_RELEASES-}
 CERT_TEST_SUITE=${CERT_TEST_SUITE}
 CERT_TEST_COUNT=${CERT_TEST_COUNT}
 CERT_TEST_PARALLEL=${CERT_TEST_PARALLEL}
 RESULTS_DIR=${RESULTS_DIR}
+ENV_NODE_NAME=${ENV_NODE_NAME:-}
+ENV_POD_NAME=${ENV_POD_NAME:-}
+ENV_POD_NAMESPACE=${ENV_POD_NAMESPACE:-}
+DEV_MODE_COUNT=${DEV_MODE_COUNT:-}
 #> Config Dump [end] <#
 #> Version INFO [start] <#
 $(cat VERSION || true)
@@ -152,17 +163,19 @@ create_junit_with_msg() {
     local msg
     local failures_count
     local junit_file
+    local junit_file_type
     local faliures_payload
 
     msg_type="$1"; shift
     msg="$1"; shift
+    junit_file_type="${1:-e2e}"
     failures_count=0
 
     if [[ "${msg_type}" == "failed" ]]; then
         failures_count=1
         faliures_payload="<failure message=\"\">plugin runtime failed</failure><system-out></system-out>"
     fi
-    junit_file="${RESULTS_DIR}/junit_${msg_type}_e2e_$(date +%Y%m%d-%H%M%S).xml"
+    junit_file="${RESULTS_DIR}/junit_${junit_file_type}_${msg_type}_$(date +%Y%m%d-%H%M%S).xml"
 
     os_log_info "Creating ${msg_type} JUnit result file [${junit_file}]"
     cat << EOF > "${junit_file}"
@@ -259,6 +272,7 @@ start_utils_extractor() {
     os_log_info "[extractor_start][openshift-tests] unlocking extractor"
     touch "${UTIL_OTESTS_READY}"
 }
+export -f start_utils_extractor
 
 # wait_utils_extractor waits the UTIL_OTESTS_READY control file to be created,
 # it will be ready when the openshift-tests is extracted from internal registry,
@@ -314,3 +328,56 @@ wait_status_file() {
     os_log_info "[status_file] Status file found!"
 }
 export -f wait_status_file
+
+#
+# Cluster 'Upgrade' feature
+#
+
+# Run preflight checks before the upgrade. The execution must fail
+# when there is not MachineConfigPool named 'opct' on the cluster.
+# Required on the documentation:
+# https://github.com/redhat-openshift-ecosystem/provider-certification-tool/blob/main/docs/user.md#prerequisites
+# https://issues.redhat.com/browse/OPCT-35
+preflight_check_upgrade() {
+    os_log_info "[preflight][upgrade] starting checks for 'upgrade'..."
+
+    if [[ "${RUN_MODE:-''}" != "${PLUGIN_RUN_MODE_UPGRADE}" ]]; then
+        os_log_info "[preflight][upgrade] ignoring checks as RUN_MODE!=upgrade [${PLUGIN_RUN_MODE_UPGRADE}]"
+        touch "${CHECK_MCP_READY}"
+        return
+    fi
+
+    if [[ "${PLUGIN_ID}" == "${PLUGIN_ID_OPENSHIFT_ARTIFACTS_COLLECTOR}" ]]; then
+        os_log_info "[preflight][upgrade] check for PLUGIN_ID=${PLUGIN_ID_OPENSHIFT_ARTIFACTS_COLLECTOR}"
+        touch "${CHECK_MCP_READY}"
+        return
+    fi
+
+    os_log_info "[preflight][upgrade] check MachineConfigPool 'opct' exists"
+    ${UTIL_OC_BIN} get machineconfigpool opct
+    RC_MCP=$?
+    if [[ ${RC_MCP} -ne 0 ]]; then
+        err="MachineConfigPool opct not found. Return code=${RC_MCP}"
+        create_junit_with_msg "failed" "[opct][mode=${PLUGIN_RUN_MODE_UPGRADE}] ${err}" "upgrade"
+        os_log_info "[executor] ${err}. Exiting..."
+        touch "${CHECK_MCP_FAILED}"
+        exit 1
+    fi
+    touch "${CHECK_MCP_READY}"
+}
+export -f preflight_check_upgrade
+
+# Wait for check file for MCP
+# https://issues.redhat.com/browse/OPCT-35
+preflight_check_upgrade_waiter() {
+    os_log_info "[preflight_check][upgrade-waiter] waiting for MachineConfigPool check"
+    while true;
+    do
+        os_log_info "[preflight_check][upgrade-waiter] Check files exists=[${CHECK_MCP_READY} ${CHECK_MCP_FAILED}]"
+        test -f "${CHECK_MCP_READY}" && break
+        test -f "${CHECK_MCP_FAILED}" && exit 1
+        sleep "${STATUS_UPDATE_INTERVAL_SEC}"
+    done
+    os_log_info "[preflight_check][upgrade-waiter] finished!"
+}
+export -f preflight_check_upgrade_waiter

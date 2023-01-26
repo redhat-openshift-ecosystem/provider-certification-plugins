@@ -40,19 +40,40 @@ declare -grx UTIL_OC_BIN="/usr/bin/oc"
 declare -grx UTIL_OC_READY="${SHARED_DIR}/oc.ready"
 declare -grx UTIL_OC_FAILED="${SHARED_DIR}/oc.failed"
 
-# Plugins
-declare -grx PLUGIN_ID_KUBERNETES_CONFORMANCE="10"
+declare -grx CHECK_MCP_READY="${SHARED_DIR}/upgrade-mcp.ready"
+declare -grx CHECK_MCP_FAILED="${SHARED_DIR}/upgrade-mcp.failed"
+
+# PLUGIN Instances vars
+## openshift-cluster-upgrade
+declare -grx PLUGIN_ID_OPENSHIFT_UPGRADE="05"
+declare -grx PLUGIN_NAME_OPENSHIFT_UPGRADE="${PLUGIN_ID_OPENSHIFT_UPGRADE}-openshift-cluster-upgrade"
+declare -grx OPENSHIFT_TESTS_SUITE_UPGRADE="none"
+
+## openshift-kube-conformance
+declare -grx PLUGIN_ID_KUBE_CONFORMANCE="10"
+declare -grx PLUGIN_NAME_KUBE_CONFORMANCE="${PLUGIN_ID_KUBE_CONFORMANCE}-openshift-kube-conformance"
+declare -grx OPENSHIFT_TESTS_SUITE_KUBE_CONFORMANCE="kubernetes/conformance"
+
+## openshift-conformance-validated
 declare -grx PLUGIN_ID_OPENSHIFT_CONFORMANCE="20"
+declare -grx PLUGIN_NAME_OPENSHIFT_CONFORMANCE="${PLUGIN_ID_OPENSHIFT_CONFORMANCE}-openshift-conformance-validated"
+declare -grx OPENSHIFT_TESTS_SUITE_OPENSHIFT_CONFORMANCE="openshift/conformance"
+
+## openshift-artifacts-collector
 declare -grx PLUGIN_ID_OPENSHIFT_ARTIFACTS_COLLECTOR="99"
+declare -grx PLUGIN_NAME_OPENSHIFT_ARTIFACTS_COLLECTOR="${PLUGIN_ID_OPENSHIFT_ARTIFACTS_COLLECTOR}-openshift-artifacts-collector"
+
+# Plugin Execution modes (| regular | upgrade). Default: regular|''
+declare -grx PLUGIN_RUN_MODE_UPGRADE="upgrade"
+
+# Sonobuot Plugin Statuses
+declare -grx SONOBUOY_PLUGIN_STATUS_COMPLETE="complete"
+declare -grx SONOBUOY_PLUGIN_STATUS_FAILED="failed"
 
 ## Setting 3h for the plugin blocker feature (wait-plugin).
 ## We don't want to run forever, however starting prematurely is not acceptable.
 declare -grx PLUGIN_WAIT_TIMEOUT_COUNT=1080
 declare -grx PLUGIN_WAIT_TIMEOUT_INTERVAL=10
-
-# Sonobuot Plugin Statuses
-declare -grx SONOBUOY_PLUGIN_STATUS_COMPLETE="complete"
-declare -grx SONOBUOY_PLUGIN_STATUS_FAILED="failed"
 
 # Defaults
 CERT_TEST_FILE=""
