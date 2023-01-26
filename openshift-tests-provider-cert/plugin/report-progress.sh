@@ -84,7 +84,7 @@ watch_dependency_done() {
     for plugin_name in "${PLUGIN_BLOCKED_BY[@]}"; do
         os_log_info_local "waiting for plugin [${plugin_name}]"
         timeout_checks=0
-        timeout_count=100
+        timeout_count=${PLUGIN_WAIT_TIMEOUT_COUNT}
         last_count=0
         while true;
         do
@@ -96,7 +96,7 @@ watch_dependency_done() {
 
             plugin_status=$(jq -r ".plugins[] | select (.plugin == \"${plugin_name}\" ) |.status // \"\"" "${STATUS_FILE}")
             if [[ "${plugin_status}" == "complete" ]]; then
-                echo "Plugin[${plugin_name}] with status[${plugin_status}] is completed!"
+                echo "Plugin[${plugin_name}] with status[${plugin_status}] is finished!"
                 break
             fi
             count=$(jq -r ".plugins[] | select (.plugin == \"${plugin_name}\" ) |.progress.completed // 0" "${STATUS_FILE}")
@@ -127,19 +127,19 @@ watch_dependency_done() {
             if [[ ${count} -gt ${last_count} ]]; then
                 last_count=${count}
                 timeout_checks=0
-                sleep 10
+                sleep "${PLUGIN_WAIT_TIMEOUT_INTERVAL}"
                 continue
             fi
             # dont run timeouts for blockers plugins
             if [[ "${blocker_msg}" =~ "status=blocked-by" ]]; then
                 timeout_checks=0
-                sleep 10
+                sleep "${PLUGIN_WAIT_TIMEOUT_INTERVAL}"
                 continue
             fi
             # dont run timeouts for if blocker is waiting
             if [[ "${blocker_msg}" =~ "status=waiting-for" ]] && [[ "${state_blocking}" =~ "blocked-by" ]]; then
                 timeout_checks=0
-                sleep 10
+                sleep "${PLUGIN_WAIT_TIMEOUT_INTERVAL}"
                 continue
             fi
             last_count=${count}
@@ -148,7 +148,7 @@ watch_dependency_done() {
                 echo "Timeout waiting condition 'complete' for plugin[${plugin_name}]."
                 exit 1
             fi
-            sleep 10
+            sleep "${PLUGIN_WAIT_TIMEOUT_INTERVAL}"
         done
         os_log_info_local "plugin [${plugin_name}] finished!"
     done

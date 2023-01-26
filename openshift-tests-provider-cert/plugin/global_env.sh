@@ -45,6 +45,11 @@ declare -grx PLUGIN_ID_KUBERNETES_CONFORMANCE="10"
 declare -grx PLUGIN_ID_OPENSHIFT_CONFORMANCE="20"
 declare -grx PLUGIN_ID_OPENSHIFT_ARTIFACTS_COLLECTOR="99"
 
+## Setting 3h for the plugin blocker feature (wait-plugin).
+## We don't want to run forever, however starting prematurely is not acceptable.
+declare -grx PLUGIN_WAIT_TIMEOUT_COUNT=1080
+declare -grx PLUGIN_WAIT_TIMEOUT_INTERVAL=10
+
 # Defaults
 CERT_TEST_FILE=""
 CERT_TEST_SUITE=""
