@@ -11,6 +11,12 @@ set -o errexit
 
 declare -gx PIDS_LOCAL
 declare -gx PROGRESS
+declare -gx COUNTER_TOTAL
+declare -gx COUNTER_STARTED
+declare -gx COUNTER_PASSED
+declare -gx COUNTER_SKIPPED
+declare -gx COUNTER_FAILED
+declare -gx COUNTER_COMPLETED
 
 declare -gxr SERVICE_NAME="report-progress"
 
@@ -182,9 +188,7 @@ watch_dependency_done() {
 # by plugin container.
 report_progress() {
     local has_update
-    local err_count
     has_update=0
-    err_count=0
     while true
     do
         # Watch sonobuoy done file
@@ -196,15 +200,24 @@ report_progress() {
 
         while read -r line;
         do
-            local job_progress
-            job_progress=$(echo "$line" | grep -Po "\([0-9]{1,}\/[0-9]{1,}\/[0-9]{1,}\)" || true);
-            if [[ -n "${job_progress}" ]]; then
+            # Example 'started' line (4.11-):
+            # started: (14/3468/3476) "<test_name>"
+            # Example 'started' line (4.12+):
+            # started: 14/3468/3476 "<test_name>"
+            if [[ $line == started:* ]]; then
                 has_update=1;
-                PROGRESS["completed"]=$(echo "${job_progress:1:-1}" | cut -d'/' -f 2)
-                PROGRESS["total"]=$(echo "${job_progress:1:-1}" | cut -d'/' -f 3)
+                COUNTER_STARTED=$(( COUNTER_STARTED + 1 ))
+
+            elif [[ $line == passed:* ]]; then
+                has_update=1;
+                COUNTER_PASSED=$(( COUNTER_PASSED + 1 ))
+
+            elif [[ $line == skipped:* ]]; then
+                has_update=1;
+                COUNTER_SKIPPED=$(( COUNTER_SKIPPED + 1 ))
 
             elif [[ $line == failed:* ]]; then
-                err_count=$(( err_count + 1 ))
+                COUNTER_FAILED=$(( COUNTER_FAILED + 1 ))
                 if [ -z "${PROGRESS["failures"]}" ]; then
                     PROGRESS["failures"]=\"$(echo "$line" | cut -d"\"" -f2)\"
                 else
@@ -213,22 +226,31 @@ report_progress() {
                     # Stop flooding the aggregator API with long error messages, when
                     # there are many errors on the cluster. Note: this will not affect
                     # the final results, it's just the progress API.
-                    if [[ ${err_count} -gt 30 ]]; then
+                    if [[ ${COUNTER_FAILED} -gt 30 ]]; then
                         PROGRESS["failures"]+=,\"$(echo "$line" | cut -d"\"" -f2)\"
                     else
                         sig_err=$(echo "$line" | cut -d"\"" -f2 | grep -Po '^(\[sig-[a-zA-Z-]*\])')
-                        err_msg="${sig_err} ERR#${err_count}"
+                        err_msg="${sig_err} ERR#${COUNTER_FAILED}"
                         PROGRESS["failures"]+=,\"${err_msg}\"
                     fi
                 fi
                 has_update=1;
             fi
+            COUNTER_COMPLETED=$(( COUNTER_PASSED + COUNTER_SKIPPED + COUNTER_FAILED ))
+
+            # The COUNTER_TOTAL knows e2e tests defined on the suite (not including monitoring
+            # tests).
+            # TODO: Is there any way to find the total counter including all tests before the execution?
+            if [[ ${COUNTER_COMPLETED} -ge ${COUNTER_TOTAL} ]]; then
+                PROGRESS["total"]=${COUNTER_COMPLETED}
+            fi
 
             if [[ $has_update -eq 1 ]] && [[ "${PLUGIN_ID}" != "${PLUGIN_ID_OPENSHIFT_UPGRADE}" ]]; then
-                update_progress "updater" "status=running";
+                PROGRESS["completed"]=${COUNTER_COMPLETED}
+                msg_st="T/C/P/F/S=${PROGRESS["total"]}/${COUNTER_COMPLETED}/${COUNTER_PASSED}/${COUNTER_FAILED}/${COUNTER_SKIPPED}"
+                update_progress "updater" "status=running=${msg_st}";
                 has_update=0;
             fi
-            job_progress="";
 
         done <"${RESULTS_PIPE}"
     done
@@ -248,7 +270,13 @@ wait_utils_extractor
 update_config
 
 PIDS_LOCAL=()
-PROGRESS=( ["completed"]=0 ["total"]=${CERT_TEST_COUNT} ["failures"]="" ["msg"]="" )
+PROGRESS=( ["completed"]=0 ["total"]=${CERT_TEST_COUNT} ["failures"]="" ["msg"]="starting..." )
+COUNTER_TOTAL=${CERT_TEST_COUNT}
+COUNTER_STARTED=0
+COUNTER_FAILED=0
+COUNTER_PASSED=0
+COUNTER_SKIPPED=0
+COUNTER_COMPLETED=0
 
 wait_status_file
 
