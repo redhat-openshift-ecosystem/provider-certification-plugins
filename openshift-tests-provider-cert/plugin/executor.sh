@@ -88,7 +88,7 @@ elif [[ "${PLUGIN_ID}" == "${PLUGIN_ID_OPENSHIFT_ARTIFACTS_COLLECTOR}" ]]; then
     tar cfJ artifacts_must-gather.tar.xz must-gather.local.*
 
     ${UTIL_OTESTS_BIN} run kubernetes/conformance --dry-run > ./artifacts_e2e-tests_kubernetes-conformance.txt
-    ${UTIL_OTESTS_BIN} run openshift/conformance --dry-run > ./artifacts_e2e-openshift-conformance.txt
+    ${UTIL_OTESTS_BIN} run openshift/conformance --dry-run > ./artifacts_e2e-tests_openshift-conformance.txt
 
     tar cfz raw-results.tar.gz ./artifacts_*
 
