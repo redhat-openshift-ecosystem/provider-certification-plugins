@@ -4,12 +4,12 @@
 # openshift-tests-partner-cert runner
 #
 
-#TODO(mtulio): pipefail should be commented until we provide a better solution
-# to handle errors (failed e2e) on sub-process managed by openshift-tests main proc.
+#TODO: pipefail should be disabled until a better solution is provided
+# to handle errors (failed e2e) on sub-process managed by openshift-tests binary.
 # https://issues.redhat.com/browse/SPLAT-592
 #set -o pipefail
+#set -o errexit
 set -o nounset
-# set -o errexit
 
 os_log_info "[executor] Starting..."
 
@@ -36,67 +36,11 @@ run_upgrade() {
     set +x
 }
 
-#
-# Executor options
-#
-os_log_info "[executor] Executor started. Choosing execution type based on environment sets."
-
-if [[ -n "${CERT_TEST_SUITE}" ]]; then
-    os_log_info "Starting openshift-tests suite [${CERT_TEST_SUITE}] Provider Conformance executor..."
-
-    set -x
-    ${UTIL_OTESTS_BIN} run \
-        "${CERT_TEST_SUITE}" --dry-run \
-        > "${RESULTS_DIR}/suite-${CERT_TEST_SUITE/\/}.list"
-
-    os_log_info "Saving the test list on ${RESULTS_DIR}/suite-${CERT_TEST_SUITE/\/}.list"
-    wc -l "${RESULTS_DIR}/suite-${CERT_TEST_SUITE/\/}.list"
-
-    if [[ ${DEV_TESTS_COUNT} -gt 0 ]]; then
-        os_log_info "DEV mode detected, applying filter to job count: [${DEV_TESTS_COUNT}]"
-        shuf "${RESULTS_DIR}/suite-${CERT_TEST_SUITE/\/}.list" \
-            | head -n "${DEV_TESTS_COUNT}" \
-            > "${RESULTS_DIR}/suite-${CERT_TEST_SUITE/\/}-DEV.list"
-
-        os_log_info "Saving the DEV test list on ${RESULTS_DIR}/suite-${CERT_TEST_SUITE/\/}-DEV.list"
-        wc -l "${RESULTS_DIR}/suite-${CERT_TEST_SUITE/\/}-DEV.list"
-
-        os_log_info "Running on DEV mode..."
-        ${UTIL_OTESTS_BIN} run \
-            --max-parallel-tests "${CERT_TEST_PARALLEL}" \
-            --junit-dir "${RESULTS_DIR}" \
-            -f "${RESULTS_DIR}/suite-${CERT_TEST_SUITE/\/}-DEV.list" \
-            | tee -a "${RESULTS_PIPE}" || true
-    else
-        os_log_info "Running the test suite..."
-        ${UTIL_OTESTS_BIN} run \
-            --max-parallel-tests "${CERT_TEST_PARALLEL}" \
-            --junit-dir "${RESULTS_DIR}" \
-            "${CERT_TEST_SUITE}" \
-            | tee -a "${RESULTS_PIPE}" || true
-    fi
-
-    os_log_info "openshift-tests finished[$?]"
-    set +x
-
-# Collect artifacts post-execution
-elif [[ "${PLUGIN_ID}" == "${PLUGIN_ID_OPENSHIFT_ARTIFACTS_COLLECTOR}" ]]; then
-
-    pushd "${RESULTS_DIR}" || true
-
-    ${UTIL_OC_BIN} adm must-gather
-    tar cfJ artifacts_must-gather.tar.xz must-gather.local.*
-
-    ${UTIL_OTESTS_BIN} run kubernetes/conformance --dry-run > ./artifacts_e2e-tests_kubernetes-conformance.txt
-    ${UTIL_OTESTS_BIN} run openshift/conformance --dry-run > ./artifacts_e2e-tests_openshift-conformance.txt
-
-    tar cfz raw-results.tar.gz ./artifacts_*
-
-    popd || true;
-
-# run-upgrade tests
-elif [[ "${PLUGIN_ID}" == "${PLUGIN_ID_OPENSHIFT_UPGRADE}" ]]; then
-
+# Run Plugin for Cluster Upgrade using openshift-tests binary when the plugin
+# instance is the upgrade running in mode=upgrade (CLI option). When success
+# the results will be saved in JUnit format, otherwise the custom failures will
+# be created.
+run_plugin_upgrade() {
     # the plugin instance 'upgrade' will always run, depending of the CLI setting
     # RUN_MODE, the upgrade will be started or not
     os_log_info "[executor] PLUGIN=${PLUGIN_ID} on mode=${RUN_MODE:-''}"
@@ -113,42 +57,153 @@ elif [[ "${PLUGIN_ID}" == "${PLUGIN_ID_OPENSHIFT_UPGRADE}" ]]; then
         os_log_info "[executor] Creating pass JUnit files due the execution mode != upgrade"
         create_junit_with_msg "pass" "[opct][pass] ignoring upgrade mode on RUN_MODE=[${RUN_MODE-}]." "upgrade"
     fi
+}
 
-# To run custom tests, set the environment PLUGIN_ID on plugin definition.
-# To generate the test file, use the script hack/generate-tests-tiers.sh
-elif [[ -n "${CERT_TEST_FILE:-}" ]]; then
-    os_log_info "Running openshift-tests for custom tests [${CERT_TEST_FILE}]..."
-    if [[ -s ${CERT_TEST_FILE} ]]; then
-        ${UTIL_OTESTS_BIN} run \
-            --junit-dir "${RESULTS_DIR}" \
-            -f "${CERT_TEST_FILE}" \
-            | tee -a "${RESULTS_PIPE}" || true
-        os_log_info "openshift-tests finished[$?]"
-    else
-        os_log_info "the file provided has no tests. Sending progress and finish executor...";
-        echo "(0/0/0)" > "${RESULTS_PIPE}"
-        create_junit_with_msg "empty" "[conformance] empty test list: ${CERT_TEST_FILE} has no tests to run"
+#
+# Conformance functions
+#
+
+# Run Conformance Plugins calling openshift-tests, when success the JUnit will be
+# created, otherwise custom error is raised as custom result file (JUnits).
+run_plugins_conformance() {
+
+    if [[ -z "${CERT_TEST_SUITE}" ]]; then
+        err="[executor][PluginID#${PLUGIN_ID}] CERT_TEST_SUITE should be always defined. Current value: ${CERT_TEST_SUITE}"
+        os_log_info "${err}"
+        create_junit_with_msg "failed" "[opct] ${err}"
+        exit 1
     fi
 
-# Filter by string pattern from 'all' tests
-elif [[ -n "${CUSTOM_TEST_FILTER_STR:-}" ]]; then
-    os_log_info "Generating a filter [${CUSTOM_TEST_FILTER_STR}]..."
-    ${UTIL_OTESTS_BIN} run --dry-run all \
-        | grep "${CUSTOM_TEST_FILTER_STR}" \
-        | ${UTIL_OTESTS_BIN} run -f - \
-        | tee -a "${RESULTS_PIPE}" || true
+    os_log_info "[executor][PluginID#${PLUGIN_ID}] Starting openshift-tests suite [${CERT_TEST_SUITE}] Provider Conformance executor..."
 
-# Default execution - running default suite.
-# Set E2E_SUITE on plugin manifest to change it (unset PLUGIN_ID).
-else
-    suite="${E2E_SUITE:-kubernetes/conformance}"
-    os_log_info "Running default execution for openshift-tests suite [${suite}]..."
+    set -x
     ${UTIL_OTESTS_BIN} run \
+        "${CERT_TEST_SUITE}" --dry-run \
+        > "${RESULTS_DIR}/suite-${CERT_TEST_SUITE/\/}.list"
+
+    os_log_info "Saving the test list on ${RESULTS_DIR}/suite-${CERT_TEST_SUITE/\/}.list"
+    wc -l "${RESULTS_DIR}/suite-${CERT_TEST_SUITE/\/}.list"
+
+    # "Dev Mode": limit the number of tests to run in development with CLI run option (--dev-count N)
+    if [[ ${DEV_TESTS_COUNT} -gt 0 ]]; then
+        os_log_info "DEV mode detected, applying filter to job count: [${DEV_TESTS_COUNT}]"
+        shuf "${RESULTS_DIR}/suite-${CERT_TEST_SUITE/\/}.list" \
+            | head -n "${DEV_TESTS_COUNT}" \
+            > "${RESULTS_DIR}/suite-${CERT_TEST_SUITE/\/}-DEV.list"
+
+        os_log_info "Saving the DEV test list on ${RESULTS_DIR}/suite-${CERT_TEST_SUITE/\/}-DEV.list"
+        wc -l "${RESULTS_DIR}/suite-${CERT_TEST_SUITE/\/}-DEV.list"
+
+        os_log_info "Running on DEV mode..."
+        ${UTIL_OTESTS_BIN} run \
+            --max-parallel-tests "${CERT_TEST_PARALLEL}" \
+            --junit-dir "${RESULTS_DIR}" \
+            -f "${RESULTS_DIR}/suite-${CERT_TEST_SUITE/\/}-DEV.list" \
+            | tee -a "${RESULTS_PIPE}" || true
+
+        os_log_info "[executor][PluginID#${PLUGIN_ID}] openshift-tests finished[$?] (DEV Mode)"
+        return
+    fi
+
+    # Regular Conformance runner
+    os_log_info "Running the test suite..."
+    ${UTIL_OTESTS_BIN} run \
+        --max-parallel-tests "${CERT_TEST_PARALLEL}" \
         --junit-dir "${RESULTS_DIR}" \
-        "${suite}" \
+        "${CERT_TEST_SUITE}" \
         | tee -a "${RESULTS_PIPE}" || true
 
-    os_log_info "openshift-tests finished[$?]"
-fi
+    os_log_info "[executor][PluginID#${PLUGIN_ID}] openshift-tests finished[$?]"
+    set +x
+}
+
+#
+# Collector functions
+#
+
+# Collect must-gather and pre-process any data* from it, then create a tarball file.
+collect_must_gather() {
+    os_log_info "[executor][PluginID#${PLUGIN_ID}] Collecting must-gather"
+    ${UTIL_OC_BIN} adm must-gather --dest-dir=must-gather-opct
+
+    # TODO: Pre-process data from must-gather to avoid client-side extra steps.
+    # Examples of data to be processed:
+    # > insights rules
+    # > etcd latency parser from logs
+
+    # Create the tarball file artifacts_must-gather.tar.xz
+    os_log_info "[executor][PluginID#${PLUGIN_ID}] Packing must-gather"
+    tar cfJ artifacts_must-gather.tar.xz must-gather-opct*
+
+    os_log_info "[executor][PluginID#${PLUGIN_ID}] must-gather collector done."
+}
+
+# Collect e2e Conformance tests from a given suite, it will save the list into a file.
+collect_tests_conformance() {
+    local suite
+    local ofile
+    suite=$1; shift
+    ofile=$1; shift
+    os_log_info "[executor][PluginID#${PLUGIN_ID}] Collecting e2e list> ${suite}"
+
+    truncate -s 0 "${ofile}"
+    CNT_T=$(${UTIL_OTESTS_BIN} run "${suite}" --dry-run -o "${ofile}" | wc -l)
+    CNT_C=$(wc -l "${ofile}" | awk '{print$1}')
+
+    os_log_info "[executor][PluginID#${PLUGIN_ID}] e2e count ${suite} openshift-tests> ${CNT_T}"
+    os_log_info "[executor][PluginID#${PLUGIN_ID}] e2e count ${suite} collected> ${CNT_C}"
+}
+
+collect_tests_upgrade() {
+    suite="${OPENSHIFT_TESTS_SUITE_UPGRADE}"
+    ofile="./artifacts_e2e-tests_openshift-upgrade.txt"
+    truncate -s 0 ${ofile}
+    if [[ "${RUN_MODE:-''}" == "${PLUGIN_RUN_MODE_UPGRADE}" ]]; then
+        ${UTIL_OTESTS_BIN} run-upgrade "${suite}" --to-image "${UPGRADE_RELEASES}" --dry-run > ${ofile}
+        CNT_T=$(${UTIL_OTESTS_BIN} run-upgrade "${suite}" --to-image "${UPGRADE_RELEASES}" --dry-run | wc -l)
+        os_log_info "[executor][PluginID#${PLUGIN_ID}] e2e count ${suite} openshift-tests> ${CNT_T}"
+    fi
+    CNT_C=$(wc -l ${ofile} | awk '{print$1}')
+    os_log_info "[executor][PluginID#${PLUGIN_ID}] e2e count ${suite} collected> ${CNT_C}"
+}
+
+# Run Plugin for Collecor. The Collector plugin is the last one executed on the
+# cluster. It will collect custom files used on the Validation environment, at the
+# end it will generate a tarbal file to submit the raw results to Sonobuoy.
+run_plugin_collector() {
+    os_log_info "[executor][PluginID#${PLUGIN_ID}] Starting Artifacts Collector"
+
+    pushd "${RESULTS_DIR}" || true
+
+    # Collecting must-gather
+    collect_must_gather
+
+    # Collecting e2e list for Kubernetes Conformance
+    collect_tests_conformance "${OPENSHIFT_TESTS_SUITE_KUBE_CONFORMANCE}" "./artifacts_e2e-tests_kubernetes-conformance.txt"
+
+    # Collecting e2e list for OpenShift Conformance
+    collect_tests_conformance "${OPENSHIFT_TESTS_SUITE_OPENSHIFT_CONFORMANCE}" "./artifacts_e2e-tests_openshift-conformance.txt"
+
+    # Collecting e2e list for OpenShift Upgrade (when mode=upgrade)
+    collect_tests_upgrade
+
+    # Creating Result file used to publish to sonobuoy. (last step)
+    tar cfz raw-results.tar.gz ./artifacts_*
+
+    popd || true;
+}
+
+#
+# Executor options
+#
+os_log_info "[executor] Executor started. Choosing execution type based on environment sets."
+
+
+case "${PLUGIN_ID}" in
+    "${PLUGIN_ID_OPENSHIFT_UPGRADE}") run_plugin_upgrade ;;
+    "${PLUGIN_ID_KUBE_CONFORMANCE}"|"${PLUGIN_ID_OPENSHIFT_CONFORMANCE}") run_plugins_conformance ;;
+    "${PLUGIN_ID_OPENSHIFT_ARTIFACTS_COLLECTOR}") run_plugin_collector ;;
+    *) os_log_info "[executor] PluginID." ;;
+esac
 
 os_log_info "Plugin executor finished. Result[$?]";
