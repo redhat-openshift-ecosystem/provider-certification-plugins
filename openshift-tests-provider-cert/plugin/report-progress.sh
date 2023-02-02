@@ -237,6 +237,7 @@ report_progress() {
                 has_update=1;
             fi
             COUNTER_COMPLETED=$(( COUNTER_PASSED + COUNTER_SKIPPED + COUNTER_FAILED ))
+            PROGRESS["completed"]=${COUNTER_COMPLETED}
 
             # The COUNTER_TOTAL knows e2e tests defined on the suite (not including monitoring
             # tests).
@@ -246,7 +247,6 @@ report_progress() {
             fi
 
             if [[ $has_update -eq 1 ]] && [[ "${PLUGIN_ID}" != "${PLUGIN_ID_OPENSHIFT_UPGRADE}" ]]; then
-                PROGRESS["completed"]=${COUNTER_COMPLETED}
                 msg_st="T/C/P/F/S=${PROGRESS["total"]}/${COUNTER_COMPLETED}/${COUNTER_PASSED}/${COUNTER_FAILED}/${COUNTER_SKIPPED}"
                 update_progress "updater" "status=running=${msg_st}";
                 has_update=0;
