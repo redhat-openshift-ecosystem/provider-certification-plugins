@@ -13,6 +13,12 @@ set -o nounset
 
 os_log_info "[executor] Starting..."
 
+IMAGE_MIRROR=""
+if [ -n "${MIRROR_IMAGE_REPOSITORY:-}" ]; then
+    IMAGE_MIRROR="--from-repository ${MIRROR_IMAGE_REPOSITORY}"
+    os_log_info "[executor] Disconnected image registry configured"
+fi
+
 os_log_info "[executor] Checking if credentials are present..."
 test -f "${SA_CA_PATH}" || os_log_info "[executor] secret not found=${SA_CA_PATH}"
 test -f "${SA_TOKEN_PATH}" || os_log_info "[executor] secret not found=${SA_TOKEN_PATH}"
@@ -28,7 +34,7 @@ run_upgrade() {
     os_log_info "[executor] [upgrade] show current version:"
     ${UTIL_OC_BIN} get clusterversion
 
-    ${UTIL_OTESTS_BIN} run-upgrade "${OPENSHIFT_TESTS_SUITE_UPGRADE}" \
+    ${UTIL_OTESTS_BIN} run-upgrade "${OPENSHIFT_TESTS_SUITE_UPGRADE}" "${IMAGE_MIRROR}" \
         --to-image "${UPGRADE_RELEASES}" \
         --options "${TEST_UPGRADE_OPTIONS-}" \
         --junit-dir "${RESULTS_DIR}" \
@@ -96,7 +102,7 @@ run_plugins_conformance() {
 
         os_log_info "Running on DEV mode..."
         ${UTIL_OTESTS_BIN} run \
-            --max-parallel-tests "${CERT_TEST_PARALLEL}" \
+            --max-parallel-tests "${CERT_TEST_PARALLEL}" "${IMAGE_MIRROR}" \
             --junit-dir "${RESULTS_DIR}" \
             -f "${RESULTS_DIR}/suite-${CERT_TEST_SUITE/\/}-DEV.list" \
             | tee -a "${RESULTS_PIPE}" || true
@@ -108,7 +114,7 @@ run_plugins_conformance() {
     # Regular Conformance runner
     os_log_info "Running the test suite..."
     ${UTIL_OTESTS_BIN} run \
-        --max-parallel-tests "${CERT_TEST_PARALLEL}" \
+        --max-parallel-tests "${CERT_TEST_PARALLEL}" "${IMAGE_MIRROR}" \
         --junit-dir "${RESULTS_DIR}" \
         "${CERT_TEST_SUITE}" \
         | tee -a "${RESULTS_PIPE}" || true
