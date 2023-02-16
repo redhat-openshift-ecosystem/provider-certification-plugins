@@ -23,15 +23,15 @@ VERSION_PLUGIN_DEVEL="${VERSION_DEVEL:-}";
 FORCE="${FORCE:-false}";
 
 # TOOLS version is created by suffix of oc and sonobuoy versions w/o dots
-export VERSION_TOOLS="v0.0.0-alp3163-oc41118-s05612"
+export VERSION_TOOLS="v0.0.0-alp3164-oc4121-s05612"
 export VERSION_SONOBUOY="v0.56.12"
-export VERSION_OC="4.11.18"
+export VERSION_OC="4.12.1"
 
 IMAGE_PLUGIN="${REGISTRY_PLUGIN}/openshift-tests-provider-cert"
 IMAGE_TOOLS="${REGISTRY_TOOLS}/tools"
 IMAGE_SONOBUOY="docker.io/sonobuoy/sonobuoy"
 
-export CONTAINER_BASE="alpine:3.16.3"
+export CONTAINER_BASE="alpine:3.16.4"
 export CONTAINER_SONOBUOY="${IMAGE_SONOBUOY}:${VERSION_SONOBUOY}"
 export CONTAINER_SONOBUOY_MIRROR="${REGISTRY_MIRROR}/sonobuoy:${VERSION_SONOBUOY}"
 export CONTAINER_TOOLS="${IMAGE_TOOLS}:${VERSION_TOOLS}"
