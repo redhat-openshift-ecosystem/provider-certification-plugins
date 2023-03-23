@@ -33,7 +33,7 @@ run_upgrade() {
     os_log_info "[executor] [upgrade] UPGRADE_RELEASES=${UPGRADE_RELEASES}"
     os_log_info "[executor] [upgrade] show current version:"
     ${UTIL_OC_BIN} get clusterversion
-
+    # shellcheck disable=SC2086
     ${UTIL_OTESTS_BIN} run-upgrade "${OPENSHIFT_TESTS_SUITE_UPGRADE}" ${IMAGE_MIRROR} \
         --to-image "${UPGRADE_RELEASES}" \
         --options "${TEST_UPGRADE_OPTIONS-}" \
@@ -101,6 +101,7 @@ run_plugins_conformance() {
         wc -l "${RESULTS_DIR}/suite-${CERT_TEST_SUITE/\/}-DEV.list"
 
         os_log_info "Running on DEV mode..."
+        # shellcheck disable=SC2086
         ${UTIL_OTESTS_BIN} run \
             --max-parallel-tests "${CERT_TEST_PARALLEL}" ${IMAGE_MIRROR} \
             --junit-dir "${RESULTS_DIR}" \
@@ -113,6 +114,7 @@ run_plugins_conformance() {
 
     # Regular Conformance runner
     os_log_info "Running the test suite..."
+    # shellcheck disable=SC2086
     ${UTIL_OTESTS_BIN} run \
         --max-parallel-tests "${CERT_TEST_PARALLEL}" ${IMAGE_MIRROR} \
         --junit-dir "${RESULTS_DIR}" \
