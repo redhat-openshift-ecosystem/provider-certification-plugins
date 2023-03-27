@@ -31,6 +31,8 @@ declare -grx KUBE_API_INT="https://172.30.0.1:443"
 declare -grx SA_CA_PATH="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 declare -grx SA_TOKEN_PATH="/var/run/secrets/kubernetes.io/serviceaccount/token"
 
+declare -gx MIRROR_IMAGE_REPOSITORY
+
 # Utilities
 declare -grx UTIL_OTESTS_BIN="${SHARED_DIR}/openshift-tests"
 declare -grx UTIL_OTESTS_READY="${UTIL_OTESTS_BIN}.ready"
