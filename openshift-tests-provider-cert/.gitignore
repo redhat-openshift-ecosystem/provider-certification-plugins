@@ -2,3 +2,4 @@
 VERSION
 Containerfile
 Containerfile.tools
+build/
