@@ -137,7 +137,14 @@ collect_must_gather() {
     # TODO: Pre-process data from must-gather to avoid client-side extra steps.
     # Examples of data to be processed:
     # > insights rules
-    # > etcd latency parser from logs
+
+    # extracting msg from etcd logs: request latency apply took too long (attl)
+    cat must-gather-opct/*/namespaces/openshift-etcd/pods/*/etcd/etcd/logs/current.log \
+        | ocp-etcd-log-filters \
+        > artifacts_must-gather_parser-etcd-attl-all.txt
+    cat must-gather-opct/*/namespaces/openshift-etcd/pods/*/etcd/etcd/logs/current.log \
+        | ocp-etcd-log-filters -aggregator hour \
+        > artifacts_must-gather_parser-etcd-attl-hour.txt
 
     # Create the tarball file artifacts_must-gather.tar.xz
     os_log_info "[executor][PluginID#${PLUGIN_ID}] Packing must-gather"

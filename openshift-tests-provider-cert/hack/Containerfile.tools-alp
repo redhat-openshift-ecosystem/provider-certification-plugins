@@ -3,10 +3,14 @@
 # hack/Containerfile.alp
 # hack/Containerfile.tools-alp
 
-# Sonobuoy
+#
+## Sonobuoy
+#
 FROM ${CONTAINER_SONOBUOY_MIRROR} as sonobuoy
 
-# Base image
+#
+## Base image
+#
 FROM ${CONTAINER_BASE} as base
 
 # gcompat: allow to run glibc programs (oc and jq)
@@ -25,7 +29,20 @@ RUN apk add --no-cache --update tar binutils \
     && chmod +x jq oc \
     && strip oc
 
-# Tools image
+#
+## ocp-etcd-log-filters builder
+#
+FROM golang:1.19-alpine as oelf-builder
+
+COPY cmd/ocp-etcd-log-filters/*.go $GOPATH/src/github.com/opct/plugins/
+WORKDIR $GOPATH/src/github.com/opct/plugins/
+ADD cmd/ocp-etcd-log-filters/*.go .
+RUN go build -ldflags="-s -w" \
+    -o /usr/bin/ocp-etcd-log-filters *.go
+
+#
+## Tools image
+#
 FROM base
 LABEL io.k8s.display-name="OpenShift Tests for Provider Certification Tools" \
       io.k8s.description="OpenShift is a platform for developing, building, and deploying containerized applications." \
@@ -34,6 +51,7 @@ WORKDIR /tools
 COPY --from=sonobuoy /sonobuoy /usr/bin/
 COPY --from=clients /clients/oc /usr/bin/
 COPY --from=clients /clients/jq /usr/bin/
+COPY --from=oelf-builder /usr/bin/ocp-etcd-log-filters /usr/bin/
 RUN ln -svf /usr/bin/oc /usr/bin/kubectl
 
 RUN rm -rf /var/cache/apk/*

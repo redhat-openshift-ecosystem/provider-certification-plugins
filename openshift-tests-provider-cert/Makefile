@@ -13,6 +13,12 @@ build-dev:
 	VERSION_DEVEL=devel REGISTRY_PLUGIN=$(DEV_REGISTRY) hack/build-image.sh build-dev
 .PHONY: build-dev
 
+build-tool-etcd-log-filter:
+	mkdir -p build/
+	go build -o build/ocp-etcd-log-filters \
+		-ldflags="-s -w" cmd/ocp-etcd-log-filters/*.go
+.PHONY: build-tool-etcd-log-filter
+
 release:
 	VERSION_PLUGIN=$(VERSION) hack/build-image.sh release
 .PHONY: release
