@@ -23,8 +23,8 @@ VERSION_PLUGIN_DEVEL="${VERSION_DEVEL:-}";
 FORCE="${FORCE:-false}";
 
 # TOOLS version is created by suffix of oc and sonobuoy versions w/o dots
-export VERSION_TOOLS="v0.0.0-alp3164-oc4121-s05612-v0"
-export CONTAINER_BASE="alpine:3.16.4"
+export VERSION_TOOLS="v0.0.0-alp3165-oc4121-s05612-v0"
+export CONTAINER_BASE="alpine:3.16.5"
 export VERSION_OC="4.12.1"
 export VERSION_SONOBUOY="v0.56.12"
 
