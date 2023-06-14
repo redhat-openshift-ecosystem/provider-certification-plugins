@@ -23,16 +23,18 @@ VERSION_PLUGIN_DEVEL="${VERSION_DEVEL:-}";
 FORCE="${FORCE:-false}";
 
 # TOOLS version is created by suffix of oc and sonobuoy versions w/o dots
-export VERSION_TOOLS="v0.0.0-alp3165-oc4121-s05612-v0"
-export CONTAINER_BASE="alpine:3.16.5"
-export VERSION_OC="4.12.1"
+export CONTAINER_BASE_GOBUILD="golang:1.19-alpine"
+export CONTAINER_BASE_BUILD="alpine:3.16.5"
+export CONTAINER_BASE="quay.io/fedora/fedora-minimal:38-x86_64"
+export VERSION_TOOLS="v0.1.0"
+export VERSION_OC="4.13.3"
 export VERSION_SONOBUOY="v0.56.12"
 
 IMAGE_PLUGIN="${REGISTRY_PLUGIN}/openshift-tests-provider-cert"
 IMAGE_TOOLS="${REGISTRY_TOOLS}/tools"
-IMAGE_SONOBUOY="docker.io/sonobuoy/sonobuoy"
+IMAGE_SONOBUOY_MIRROR="docker.io/sonobuoy/sonobuoy"
 
-export CONTAINER_SONOBUOY="${IMAGE_SONOBUOY}:${VERSION_SONOBUOY}"
+export CONTAINER_SONOBUOY="${IMAGE_SONOBUOY_MIRROR}:${VERSION_SONOBUOY}"
 export CONTAINER_SONOBUOY_MIRROR="${REGISTRY_MIRROR}/sonobuoy:${VERSION_SONOBUOY}"
 export CONTAINER_TOOLS="${IMAGE_TOOLS}:${VERSION_TOOLS}"
 export CONTAINER_PLUGIN="${IMAGE_PLUGIN}:${VERSION_PLUGIN}"
