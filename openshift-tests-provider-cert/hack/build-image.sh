@@ -26,7 +26,7 @@ FORCE="${FORCE:-false}";
 export CONTAINER_BASE_GOBUILD="golang:1.19-alpine"
 export CONTAINER_BASE_BUILD="alpine:3.16.5"
 export CONTAINER_BASE="quay.io/fedora/fedora-minimal:38-x86_64"
-export VERSION_TOOLS="v0.1.0"
+export VERSION_TOOLS="v0.2.0"
 export VERSION_OC="4.13.3"
 export VERSION_SONOBUOY="v0.56.12"
 
@@ -134,7 +134,7 @@ push_tools() {
     cmd_succeeded=$( image_exists "${IMAGE_TOOLS}" "${VERSION_TOOLS}"; echo $? )
     if [[ $cmd_succeeded -eq 0 ]] && [[ $FORCE == false ]]; then
         echo "#>> Tools container already exists. Ignoring push."
-        exit 1
+        return
     fi
     echo "#> Starting Tools container pusher"
     pusher_tools
@@ -180,7 +180,7 @@ build_plugin() {
     echo "#> Checking Tools container image"
     cmd_succeeded=$( image_exists "${IMAGE_TOOLS}" "${VERSION_TOOLS}"; echo $? )
     if [[ $cmd_succeeded -eq 1 ]] && [[ $FORCE == false ]]; then
-        echo "#>> Tools container already exists. Ignoring push."
+        echo "#>> Tools image [${IMAGE_TOOLS}:${VERSION_TOOLS}] does not exists. build it with options build-tools and push-tools."
         exit 1
     fi
     builder_plugin
