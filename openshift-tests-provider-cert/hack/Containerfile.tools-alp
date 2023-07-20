@@ -15,24 +15,24 @@ FROM ${CONTAINER_BASE} as base
 
 # gcompat: allow to run glibc programs (oc and jq)
 # sononbuoy is already built with musl
-RUN apk add --no-cache --update \
-    bash curl grep gcompat xz
+RUN microdnf install -y bash curl grep tar xz gzip && \
+    microdnf clean all
 
 FROM base as clients
 WORKDIR /clients
 
 ADD https://mirror.openshift.com/pub/openshift-v4/amd64/clients/ocp/${VERSION_OC}/openshift-client-linux.tar.gz ./
-ADD https://stedolan.github.io/jq/download/linux64/jq ./
-RUN apk add --no-cache --update tar binutils \
+ADD https://github.com/jqlang/jq/releases/download/jq-1.4/jq-linux-x86_64 ./
+RUN microdnf install -y binutils \
     && tar xvfz openshift-client-linux.tar.gz \
     && rm -f openshift-client-linux.tar.gz kubectl README.md \
-    && chmod +x jq oc \
+    && chmod +x jq-linux-x86_64 oc \
     && strip oc
 
 #
 ## ocp-etcd-log-filters builder
 #
-FROM golang:1.19-alpine as oelf-builder
+FROM ${CONTAINER_BASE_GOBUILD} as oelf-builder
 
 COPY cmd/ocp-etcd-log-filters/*.go $GOPATH/src/github.com/opct/plugins/
 WORKDIR $GOPATH/src/github.com/opct/plugins/
@@ -50,7 +50,7 @@ LABEL io.k8s.display-name="OpenShift Tests for Provider Certification Tools" \
 WORKDIR /tools
 COPY --from=sonobuoy /sonobuoy /usr/bin/
 COPY --from=clients /clients/oc /usr/bin/
-COPY --from=clients /clients/jq /usr/bin/
+COPY --from=clients /clients/jq-linux-x86_64 /usr/bin/jq
 COPY --from=oelf-builder /usr/bin/ocp-etcd-log-filters /usr/bin/
 RUN ln -svf /usr/bin/oc /usr/bin/kubectl
 
