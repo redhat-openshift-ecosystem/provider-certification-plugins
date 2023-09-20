@@ -1,5 +1,5 @@
 # Code generated for package assets by build-image.sh. DO NOT EDIT.
-# sources:
+# Instead, edit the sources container files:
 # hack/Containerfile.alp
 # hack/Containerfile.tools-alp
 
@@ -23,11 +23,13 @@ WORKDIR /clients
 
 ADD https://mirror.openshift.com/pub/openshift-v4/amd64/clients/ocp/${VERSION_OC}/openshift-client-linux.tar.gz ./
 ADD https://github.com/jqlang/jq/releases/download/jq-1.4/jq-linux-x86_64 ./
+ADD https://github.com/elmiko/camgi.rs/releases/download/v0.9.0/camgi-0.9.0-linux-x86_64.tar ./
 RUN microdnf install -y binutils \
     && tar xvfz openshift-client-linux.tar.gz \
     && rm -f openshift-client-linux.tar.gz kubectl README.md \
-    && chmod +x jq-linux-x86_64 oc \
-    && strip oc
+    && tar xvf camgi-0.9.0-linux-x86_64.tar && rm camgi-0.9.0-linux-x86_64.tar \
+    && chmod +x jq-linux-x86_64 oc camgi \
+    && strip oc && strip camgi
 
 #
 ## ocp-etcd-log-filters builder
@@ -51,6 +53,7 @@ WORKDIR /tools
 COPY --from=sonobuoy /sonobuoy /usr/bin/
 COPY --from=clients /clients/oc /usr/bin/
 COPY --from=clients /clients/jq-linux-x86_64 /usr/bin/jq
+COPY --from=clients /clients/camgi /usr/bin/camgi
 COPY --from=oelf-builder /usr/bin/ocp-etcd-log-filters /usr/bin/
 RUN ln -svf /usr/bin/oc /usr/bin/kubectl
 

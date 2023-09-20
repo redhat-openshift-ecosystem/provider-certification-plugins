@@ -139,12 +139,17 @@ collect_must_gather() {
     # > insights rules
 
     # extracting msg from etcd logs: request latency apply took too long (attl)
+    os_log_info "[executor][PluginID#${PLUGIN_ID}] Collecting etcd log filters"
     cat must-gather-opct/*/namespaces/openshift-etcd/pods/*/etcd/etcd/logs/current.log \
         | ocp-etcd-log-filters \
         > artifacts_must-gather_parser-etcd-attl-all.txt
     cat must-gather-opct/*/namespaces/openshift-etcd/pods/*/etcd/etcd/logs/current.log \
         | ocp-etcd-log-filters -aggregator hour \
         > artifacts_must-gather_parser-etcd-attl-hour.txt
+
+    # generate camgi report
+    os_log_info "[executor][PluginID#${PLUGIN_ID}] Generating camgi report"
+    camgi must-gather-opct/ > artifacts_must-gather_camgi.html || true
 
     # Create the tarball file artifacts_must-gather.tar.xz
     os_log_info "[executor][PluginID#${PLUGIN_ID}] Packing must-gather"
