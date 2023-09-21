@@ -187,6 +187,26 @@ collect_tests_upgrade() {
     os_log_info "[executor][PluginID#${PLUGIN_ID}] e2e count ${suite} collected> ${CNT_C}"
 }
 
+# collect_metrics extracts metrics from Prometheus within the time frame the
+# OPCT was executed (~6 hours), saving it as a raw data into the
+# artifact path. The Prometheus expression are preferred than the raw metric to
+# save storage and server-side CPU/RAM processing raw data.
+# The expressions are extracted from OpenShift Dashboards.
+# There is no automation to load the extracted data at this moment. There were
+# some initial work backfilling raw prometheus query in this project:
+# https://github.com/mtulio/must-gather-monitoring#load-metrics-to-a-local-prometheus-deployment
+# The collector script (must-gather-monitoring) was adapted from the original proposal:
+# https://github.com/openshift/must-gather/pull/214
+collect_metrics() {
+    os_log_info "[executor][PluginID#${PLUGIN_ID}] Starting Metrics Collector"
+    ${UTIL_OC_BIN} adm must-gather --dest-dir=must-gather-metrics --image=quay.io/opct/must-gather-monitoring:v0.1.0
+
+    # Create the tarball file removing the image name from the path of must-gather
+    os_log_info "[executor][PluginID#${PLUGIN_ID}] Packing must-gather-metrics"
+    cp -v must-gather-metrics/timestamp must-gather-metrics/event-filter.html must-gather-metrics/*/monitoring/
+    tar cfJ artifacts_must-gather-metrics.tar.xz -C must-gather-metrics/*/ monitoring/
+}
+
 # Run Plugin for Collecor. The Collector plugin is the last one executed on the
 # cluster. It will collect custom files used on the Validation environment, at the
 # end it will generate a tarbal file to submit the raw results to Sonobuoy.
@@ -198,6 +218,9 @@ run_plugin_collector() {
     # Collecting must-gather
     collect_must_gather
 
+    # Experimental: Collect metrics
+    collect_metrics
+
     # Collecting e2e list for Kubernetes Conformance
     collect_tests_conformance "${OPENSHIFT_TESTS_SUITE_KUBE_CONFORMANCE}" "./artifacts_e2e-tests_kubernetes-conformance.txt"
 
@@ -208,6 +231,8 @@ run_plugin_collector() {
     collect_tests_upgrade
 
     # Creating Result file used to publish to sonobuoy. (last step)
+    os_log_info "[executor][PluginID#${PLUGIN_ID}] Packing all results..."
+    ls -sh ./artifacts_*
     tar cfz raw-results.tar.gz ./artifacts_*
 
     popd || true;

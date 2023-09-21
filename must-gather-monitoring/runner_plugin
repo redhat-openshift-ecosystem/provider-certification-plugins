@@ -1,0 +1,13 @@
+#!/bin/env bash
+
+set -o pipefail
+set -o errexit
+set -o nounset
+set -x
+
+cd /tmp
+oc adm must-gather --dest-dir=must-gather-metrics --image=quay.io/opct/must-gather-monitoring:"${IMAGE_VERSION}"
+
+cp -v must-gather-metrics/timestamp must-gather-metrics/event-filter.html must-gather-metrics/*/monitoring/
+tar cfJ "${RESULTS_PATH}/artifacts_must-gather-metrics.tar.xz" -C must-gather-metrics/*/ monitoring/
+echo "${RESULTS_PATH}/artifacts_must-gather-metrics.tar.xz" > /tmp/sonobuoy/results/done

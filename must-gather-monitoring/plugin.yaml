@@ -1,0 +1,22 @@
+sonobuoy-config:
+  driver: Job
+  plugin-name: must-gather-monitoring
+  result-format: raw
+  source_url: https://raw.githubusercontent.com/redhat-ecosystem/provider-certification-plugins/main/must-gather-monitoring/plugin.yaml
+  description: A quickly way to collect Prometheus Metrics on OpenShift/OKD clusters.
+spec:
+  name: plugin
+  image: quay.io/opct/must-gather-monitoring:v0.1.0
+  imagePullPolicy: Always
+  command:
+  - bash
+  -  /usr/bin/runner_plugin
+  env:
+  - name: IMAGE_VERSION
+    value: "v0.1.0"
+  - name: RESULTS_PATH
+    value: /tmp/sonobuoy/results
+  resources: {}
+  volumeMounts:
+  - mountPath: /tmp/sonobuoy/results
+    name: results
