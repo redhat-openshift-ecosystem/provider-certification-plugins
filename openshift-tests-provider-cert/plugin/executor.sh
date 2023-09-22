@@ -187,6 +187,49 @@ collect_tests_upgrade() {
     os_log_info "[executor][PluginID#${PLUGIN_ID}] e2e count ${suite} collected> ${CNT_C}"
 }
 
+# collect_performance_etcdfio run the recommended method to measure the disk information
+# for etcd deployments. It will run into two nodes for each role (master and worker).
+collect_performance_etcdfio() {
+
+    os_log_info "[executor][PluginID#${PLUGIN_ID}] Starting Artifacts Collector - Performance - etcdfio"
+
+    os_log_info "[executor][PluginID#${PLUGIN_ID}][performance][etcdfio] master"
+    local idx=0
+    node_role="controlplane"
+    for node in $(${UTIL_OC_BIN} get nodes -l 'node-role.kubernetes.io/master' -o jsonpath='{.items[*].metadata.name}'); do
+        os_log_info "[executor][PluginID#${PLUGIN_ID}][performance][etcdfio] ${node_role}#${idx}: ${node}"
+
+        result_file="./artifacts_performance_etcdfio_${node_role}-${idx}.txt"
+        oc debug node/"${node}" -- chroot /host /bin/bash -c "podman run --volume /var/lib/etcd:/var/lib/etcd:Z quay.io/openshift-scale/etcd-perf" > "${result_file}";
+        echo "etcdfio=${node}=$(grep ^'INFO: 99th percentile of fsync is ' ${result_file} | awk -F'of fsync is ' '{print$2}')" >> ${result_file}
+
+        idx=$((idx+1))
+        test $idx -ge 3 && break
+    done
+
+    os_log_info "[executor][PluginID#${PLUGIN_ID}][performance][etcdfio] worker"
+    idx=0
+    node_role="worker"
+    for node in $(${UTIL_OC_BIN} get nodes -l '!node-role.kubernetes.io/master' -o jsonpath='{.items[*].metadata.name}'); do
+        os_log_info "[executor][PluginID#${PLUGIN_ID}][performance][etcdfio] ${node_role}#${idx}: ${node}"
+
+        result_file="./artifacts_performance_etcdfio_${node_role}-${idx}.txt"
+        oc debug node/"${node}" -- chroot /host /bin/bash -c "mkdir /var/cache/opct; podman run --volume /var/cache/opct:/var/lib/etcd:Z quay.io/openshift-scale/etcd-perf" > "${result_file}";
+        echo "etcdfio=${node}=$(grep ^'INFO: 99th percentile of fsync is ' ${result_file} | awk -F'of fsync is ' '{print$2}')" >>  ${result_file}
+
+        idx=$((idx+1))
+        test $idx -ge 2 && break
+    done
+}
+
+# collect performance tests
+collect_performance() {
+
+    # Collect disk performance information with: etcdfio
+    collect_performance_etcdfio
+
+}
+
 # collect_metrics extracts metrics from Prometheus within the time frame the
 # OPCT was executed (~6 hours), saving it as a raw data into the
 # artifact path. The Prometheus expression are preferred than the raw metric to
@@ -217,6 +260,10 @@ run_plugin_collector() {
 
     # Collecting must-gather
     collect_must_gather
+
+    # Experimental: Collect performance data
+    # running after must-gather to prevent impacting in etcd logs when testing etcdfio.
+    collect_performance
 
     # Experimental: Collect metrics
     collect_metrics
