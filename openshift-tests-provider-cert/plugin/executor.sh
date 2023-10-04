@@ -13,15 +13,93 @@ set -o nounset
 
 os_log_info "[executor] Starting..."
 
-IMAGE_MIRROR=""
+OPENSHIFT_TESTS_EXTRA_ARGS=""
 if [ -n "${MIRROR_IMAGE_REPOSITORY:-}" ]; then
-    IMAGE_MIRROR="--from-repository ${MIRROR_IMAGE_REPOSITORY}"
+    OPENSHIFT_TESTS_EXTRA_ARGS+="--from-repository ${MIRROR_IMAGE_REPOSITORY} "
     os_log_info "[executor] Disconnected image registry configured"
 fi
 
 os_log_info "[executor] Checking if credentials are present..."
 test -f "${SA_CA_PATH}" || os_log_info "[executor] secret not found=${SA_CA_PATH}"
 test -f "${SA_TOKEN_PATH}" || os_log_info "[executor] secret not found=${SA_TOKEN_PATH}"
+
+# Check the platform type
+os_log_info "[executor] discovering platform type..."
+PLATFORM_TYPE=$(oc get infrastructure cluster -o jsonpath='{.spec.platformSpec.type}' | tr '[:upper:]' '[:lower:]')
+os_log_info "[executor] platform type=[${PLATFORM_TYPE}]"
+
+#
+# Platform-specific setup/functions
+#
+# See also # https://github.com/openshift/release/blob/master/ci-operator/step-registry/openshift/e2e/test/openshift-e2e-test-commands.sh
+
+function setup_provider_azure() {
+    os_log_info "[executor] setting provider configuration for [${PLATFORM_TYPE}]"
+
+    # openshift-tests args
+    export TEST_PROVIDER=azure
+    OPENSHIFT_TESTS_EXTRA_ARGS+="--provider ${TEST_PROVIDER}"
+
+    # setup credentials file
+    export AZURE_AUTH_LOCATION=/tmp/osServicePrincipal.json
+    creds_file=/tmp/cloud-creds.json
+    ${UTIL_OC_BIN} get secret/azure-credentials -n kube-system -o jsonpath='{.data}' > $creds_file
+    cat <<EOF > ${AZURE_AUTH_LOCATION}
+{
+  "subscriptionId": "$(jq -r .azure_subscription_id $creds_file | base64 -d)",
+  "clientId": "$(jq -r .azure_client_id $creds_file | base64 -d)",
+  "clientSecret": "$(jq -r .azure_client_secret $creds_file | base64 -d)",
+  "tenantId": "$(jq -r .azure_tenant_id $creds_file | base64 -d)"
+}
+EOF
+}
+
+function setup_provider_aws() {
+    os_log_info "[executor] setting provider configuration for [${PLATFORM_TYPE}]"
+
+    # openshift-tests args
+    export PROVIDER_ARGS="-provider=aws -gce-zone=us-east-1"
+    REGION="$(${UTIL_OC_BIN} get -o jsonpath='{.status.platformStatus.aws.region}' infrastructure cluster)"
+    ZONE="$(${UTIL_OC_BIN} get -o jsonpath='{.items[0].metadata.labels.failure-domain\.beta\.kubernetes\.io/zone}' nodes)"
+    export TEST_PROVIDER="{\"type\":\"aws\",\"region\":\"${REGION}\",\"zone\":\"${ZONE}\",\"multizone\":true,\"multimaster\":true}"
+
+    OPENSHIFT_TESTS_EXTRA_ARGS+="--provider ${TEST_PROVIDER}"
+
+    # setup credentials file
+    export AWS_SHARED_CREDENTIALS_FILE=/tmp/.awscred
+    creds_file=/tmp/cloud-creds.json
+    ${UTIL_OC_BIN} get secret/aws-creds -n kube-system -o jsonpath='{.data}' > $creds_file
+    cat <<EOF > ${AWS_SHARED_CREDENTIALS_FILE}
+[default]
+aws_access_key_id=$(jq -r .aws_access_key_id $creds_file | base64 -d)
+aws_secret_access_key=$(jq -r .aws_secret_access_key $creds_file | base64 -d)
+EOF
+
+}
+
+function setup_provider_vsphere() {
+    os_log_info "[executor] setting provider configuration for [${PLATFORM_TYPE}]"
+
+    # openshift-tests args
+    export TEST_PROVIDER=vsphere
+    OPENSHIFT_TESTS_EXTRA_ARGS+="--provider ${TEST_PROVIDER}"
+
+    # setup credentials file
+    export VSPHERE_CONF_FILE="${SHARED_DIR}/vsphere.conf"
+    ${UTIL_OC_BIN} -n openshift-config get cm/cloud-provider-config -o jsonpath='{.data.config}' > "$VSPHERE_CONF_FILE"
+
+    ## The test suite requires a vSphere config file with explicit user and password fields.
+    creds_file=/tmp/cloud-creds.json
+    ${UTIL_OC_BIN} get secret/vsphere-cloud-credentials -n openshift-cloud-controller-manager -o jsonpath='{.data}' > $creds_file
+
+    USER_KEY=$(jq -r ". | keys[] | select(. | endswith(\".username\"))" $creds_file)
+    PASS_KEY=$(jq -r ". | keys[] | select(. | endswith(\".password\"))" $creds_file)
+    GOVC_USERNAME=$(jq -r ".[\"${USER_KEY}\"]" $creds_file | base64 -d)
+    GOVC_PASSWORD=$(jq -r ".[\"${PASS_KEY}\"]" $creds_file | base64 -d)
+
+    sed -i "/secret-name \=/c user = \"${GOVC_USERNAME}\"" "$VSPHERE_CONF_FILE"
+    sed -i "/secret-namespace \=/c password = \"${GOVC_PASSWORD}\"" "$VSPHERE_CONF_FILE"
+}
 
 #
 # Upgrade functions
@@ -34,7 +112,7 @@ run_upgrade() {
     os_log_info "[executor] [upgrade] show current version:"
     ${UTIL_OC_BIN} get clusterversion
     # shellcheck disable=SC2086
-    ${UTIL_OTESTS_BIN} run-upgrade "${OPENSHIFT_TESTS_SUITE_UPGRADE}" ${IMAGE_MIRROR} \
+    ${UTIL_OTESTS_BIN} run-upgrade "${OPENSHIFT_TESTS_SUITE_UPGRADE}" ${OPENSHIFT_TESTS_EXTRA_ARGS} \
         --to-image "${UPGRADE_RELEASES}" \
         --options "${TEST_UPGRADE_OPTIONS-}" \
         --junit-dir "${RESULTS_DIR}" \
@@ -103,7 +181,7 @@ run_plugins_conformance() {
         os_log_info "Running on DEV mode..."
         # shellcheck disable=SC2086
         ${UTIL_OTESTS_BIN} run \
-            --max-parallel-tests "${CERT_TEST_PARALLEL}" ${IMAGE_MIRROR} \
+            --max-parallel-tests "${CERT_TEST_PARALLEL}" ${OPENSHIFT_TESTS_EXTRA_ARGS} \
             --junit-dir "${RESULTS_DIR}" \
             -f "${RESULTS_DIR}/suite-${CERT_TEST_SUITE/\/}-DEV.list" \
             | tee -a "${RESULTS_PIPE}" || true
@@ -116,7 +194,7 @@ run_plugins_conformance() {
     os_log_info "Running the test suite..."
     # shellcheck disable=SC2086
     ${UTIL_OTESTS_BIN} run \
-        --max-parallel-tests "${CERT_TEST_PARALLEL}" ${IMAGE_MIRROR} \
+        --max-parallel-tests "${CERT_TEST_PARALLEL}" ${OPENSHIFT_TESTS_EXTRA_ARGS} \
         --junit-dir "${RESULTS_DIR}" \
         "${CERT_TEST_SUITE}" \
         | tee -a "${RESULTS_PIPE}" || true
@@ -288,8 +366,17 @@ run_plugin_collector() {
 #
 # Executor options
 #
-os_log_info "[executor] Executor started. Choosing execution type based on environment sets."
 
+# Setup integrated providers / credentials and extra params required to the test environment.
+case $PLATFORM_TYPE in
+    azure) setup_provider_azure ;;
+    aws)  setup_provider_aws ;;
+    vsphere)  setup_provider_vsphere ;;
+    none|external) echo "INFO: platform type [${PLATFORM_TYPE}] does not require credentials for tests." ;;
+    *) echo "WARN: provider setup is ignored or not supported for platform type=[${PLATFORM_TYPE}]";;
+esac
+
+os_log_info "[executor] Executor started. Choosing execution type based on environment sets."
 
 case "${PLUGIN_ID}" in
     "${PLUGIN_ID_OPENSHIFT_UPGRADE}") run_plugin_upgrade ;;
