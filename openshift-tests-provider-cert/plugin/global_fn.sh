@@ -197,27 +197,60 @@ export -f create_junit_with_msg
 # from local registry - the image-registry is required, the CLI
 # checks it before calling the plugin.
 start_utils_extractor() {
-    os_log_info "[extractor_start] Starting"
+    os_log_info "[extractor] Starting"
 
-    os_log_info "[extractor_start] Login to OpenShift Registry"
-    ${UTIL_OC_BIN} registry login
+    local registry_host
+    local registry_host_router
+    local registry_args
+    registry_host="image-registry.openshift-image-registry.svc:5000"
+
+    os_log_info "[extractor_login] setting image-puller arguments to use service-account's token"
+    registry_args="--auth-basic=image-puller:$(cat "${SA_TOKEN_PATH}")"
+
+    # The image-registry fails the authentication in the internal registry when
+    # custom route is defined. Workaround it.
+    os_log_info "[extractor_login] checking if the defaultRoute is set to the image-registry"
+    cfg_default_route=$(${UTIL_OC_BIN} get configs.imageregistry.operator.openshift.io/cluster -o jsonpath='{.spec.defaultRoute}')
+    if [[ $cfg_default_route == true ]]; then
+
+        os_log_info "[extractor_login] getting image registry routes"
+        registry_host_router=$(${UTIL_OC_BIN} get routes -n openshift-image-registry -o json \
+            | jq -r '.items[] | select(.metadata.name == "default-route").spec.host // ""' || true)
+
+        if [ -z "${registry_host_router:-}" ]; then
+            os_log_info "[extractor_login] ERROR: image-registry config is .spec.defaultRoute=true, but the route was not found."
+            os_log_info "[extractor_login] Review the result of the following commands:"
+            echo "\$ ${UTIL_OC_BIN} get configs.imageregistry.operator.openshift.io/cluster -o jsonpath='{.spec.defaultRoute}'"
+            echo "\$ ${UTIL_OC_BIN} get routes -n openshift-image-registry"
+
+            create_junit_with_msg "failed" "[opct][preflight] unable to extract oc utility. Check if image-registry is present."
+            touch "${UTIL_OC_FAILED}"
+        fi
+
+        os_log_info "[extractor_login] setting up login to registry with args: --registry=${registry_host} --auth-basic=image-puller:[redacted]"
+        registry_host=${registry_host_router}
+        registry_args+=" --registry=${registry_host}"
+    fi
+
+    os_log_info "[extractor_login] initiating registry login at ${registry_host}"
+    ${UTIL_OC_BIN} registry login "${registry_args}"
 
     # Extracting oc (from tests image)
     local util_oc="./oc"
-    os_log_info "[extractor_start][oc] Extracting oc utility from 'tests' image"
+    os_log_info "[extractor][oc] upgrading 'oc' from ${registry_host}/openshift/tests:latest"
     ${UTIL_OC_BIN} image extract \
-        image-registry.openshift-image-registry.svc:5000/openshift/tests:latest \
+        "${registry_host}"/openshift/tests:latest \
         --insecure=true \
         --file="/usr/bin/oc"
 
-    os_log_info "[extractor_start][oc] check if it was downloaded"
+    os_log_info "[extractor][oc] check if it was downloaded"
     if [[ ! -f ${util_oc} ]]; then
         create_junit_with_msg "failed" "[opct][preflight] unable to extract oc utility. Check if image-registry is present."
         touch "${UTIL_OC_FAILED}"
         exit 1
     fi
 
-    os_log_info "[extractor_start][oc] set exec permissions for ${UTIL_OC_BIN}"
+    os_log_info "[extractor][oc] set exec permissions for ${UTIL_OC_BIN}"
     chmod u+x ${util_oc}
     if [[ ! -x ${UTIL_OC_BIN} ]]; then
         create_junit_with_msg "failed" "[opct][preflight] unable to make ${UTIL_OC_BIN} executable."
@@ -225,24 +258,24 @@ start_utils_extractor() {
         exit 1
     fi
 
-    os_log_info "[extractor_start][oc] move to ${UTIL_OC_BIN}"
+    os_log_info "[extractor][oc] move to ${UTIL_OC_BIN}"
     mv -f ${util_oc} "${UTIL_OC_BIN}"
 
-    os_log_info "[extractor_start][oc] getting the version"
+    os_log_info "[extractor][oc] getting the version"
     ${UTIL_OC_BIN} version
 
-    os_log_info "[extractor_start][oc] Success! Unlocking extractor"
+    os_log_info "[extractor][oc] Success! Unlocking extractor"
     touch "${UTIL_OC_READY}"
 
     # Extracting openshift-tests
     local util_otests="./openshift-tests"
-    os_log_info "[extractor_start][openshift-tests] Extracting the utility"
+    os_log_info "[extractor][openshift-tests] extracting ${registry_host}/openshift/tests:latest"
     ${UTIL_OC_BIN} image extract \
-        image-registry.openshift-image-registry.svc:5000/openshift/tests:latest \
+        "${registry_host}"/openshift/tests:latest \
         --insecure=true \
         --file="/usr/bin/openshift-tests"
 
-    os_log_info "[extractor_start][openshift-tests] check if it was downloaded"
+    os_log_info "[extractor][openshift-tests] check if it was downloaded"
     if [[ ! -f ${util_otests} ]]; then
         create_junit_with_msg "failed" "[opct][preflight][openshift-tests] unable to extract utility. Check if image-registry is present."
         touch "${UTIL_OTESTS_FAILED}"
@@ -250,26 +283,26 @@ start_utils_extractor() {
     fi
     chmod u+x ${util_otests}
 
-    os_log_info "[extractor_start][openshift-tests] move to ${UTIL_OTESTS_BIN}"
+    os_log_info "[extractor][openshift-tests] move to ${UTIL_OTESTS_BIN}"
     mv ${util_otests} "${UTIL_OTESTS_BIN}"
 
-    os_log_info "[extractor_start][openshift-tests] set exec permissions for ${UTIL_OTESTS_BIN}"
+    os_log_info "[extractor][openshift-tests] set exec permissions for ${UTIL_OTESTS_BIN}"
     if [[ ! -x ${UTIL_OTESTS_BIN} ]]; then
         create_junit_with_msg "failed" "[opct][preflight][openshift-tests] unable to make ${UTIL_OTESTS_BIN} executable."
         touch "${UTIL_OTESTS_FAILED}"
         exit 1
     fi
 
-    os_log_info "[extractor_start][openshift-tests] testing openshift-tests"
+    os_log_info "[extractor][openshift-tests] testing openshift-tests"
     tt_tests=$(${UTIL_OTESTS_BIN} run all --dry-run | wc -l)
     if [[ ${tt_tests} -le 0 ]]; then
         create_junit_with_msg "failed" "[opct][preflight][openshift-tests] failed to get tests from ${UTIL_OTESTS_BIN} utility. Found [${tt_tests}] tests."
         touch "${UTIL_OTESTS_FAILED}"
         exit 1
     fi
-    os_log_info "[extractor_start][openshift-tests] Success! [${tt_tests}] tests available."
+    os_log_info "[extractor][openshift-tests] Success! [${tt_tests}] tests available."
 
-    os_log_info "[extractor_start][openshift-tests] unlocking extractor"
+    os_log_info "[extractor][openshift-tests] unlocking extractor"
     touch "${UTIL_OTESTS_READY}"
 }
 export -f start_utils_extractor
