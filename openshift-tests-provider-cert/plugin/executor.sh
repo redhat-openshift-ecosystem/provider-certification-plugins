@@ -270,34 +270,47 @@ collect_tests_upgrade() {
 collect_performance_etcdfio() {
 
     os_log_info "[executor][PluginID#${PLUGIN_ID}] Starting Artifacts Collector - Performance - etcdfio"
+    local image
+    local msg_prefix
 
-    os_log_info "[executor][PluginID#${PLUGIN_ID}][performance][etcdfio] master"
+    msg_prefix="[executor][PluginID#${PLUGIN_ID}][performance][etcdfio]:"
+
+    image=quay.io/openshift-scale/etcd-perf:latest
+    if [ -n "${MIRROR_IMAGE_REPOSITORY:-}" ]; then
+        from=$image
+        image="${MIRROR_IMAGE_REPOSITORY}/etcd-perf:latest"
+        os_log_info "${msg_prefix} image overrided for disconnected. from=[$from] to=[$image]"
+    fi
+
+    os_log_info "${msg_prefix} running tests on master nodes"
     local idx=0
     node_role="controlplane"
     for node in $(${UTIL_OC_BIN} get nodes -l 'node-role.kubernetes.io/master' -o jsonpath='{.items[*].metadata.name}'); do
         os_log_info "[executor][PluginID#${PLUGIN_ID}][performance][etcdfio] ${node_role}#${idx}: ${node}"
 
         result_file="./artifacts_performance_etcdfio_${node_role}-${idx}.txt"
-        oc debug node/"${node}" -- chroot /host /bin/bash -c "podman run --volume /var/lib/etcd:/var/lib/etcd:Z quay.io/openshift-scale/etcd-perf" > "${result_file}";
+        oc debug node/"${node}" -- chroot /host /bin/bash -c "podman run --volume /var/lib/etcd:/var/lib/etcd:Z ${image}" > "${result_file}";
         echo "etcdfio=${node}=$(grep ^'INFO: 99th percentile of fsync is ' ${result_file} | awk -F'of fsync is ' '{print$2}')" >> ${result_file}
 
         idx=$((idx+1))
         test $idx -ge 3 && break
     done
 
-    os_log_info "[executor][PluginID#${PLUGIN_ID}][performance][etcdfio] worker"
+    os_log_info "${msg_prefix} running tests on worker nodes"
     idx=0
     node_role="worker"
     for node in $(${UTIL_OC_BIN} get nodes -l '!node-role.kubernetes.io/master' -o jsonpath='{.items[*].metadata.name}'); do
         os_log_info "[executor][PluginID#${PLUGIN_ID}][performance][etcdfio] ${node_role}#${idx}: ${node}"
 
         result_file="./artifacts_performance_etcdfio_${node_role}-${idx}.txt"
-        oc debug node/"${node}" -- chroot /host /bin/bash -c "mkdir /var/cache/opct; podman run --volume /var/cache/opct:/var/lib/etcd:Z quay.io/openshift-scale/etcd-perf" > "${result_file}";
+        oc debug node/"${node}" -- chroot /host /bin/bash -c "mkdir /var/cache/opct; podman run --volume /var/cache/opct:/var/lib/etcd:Z ${image}" > "${result_file}";
         echo "etcdfio=${node}=$(grep ^'INFO: 99th percentile of fsync is ' ${result_file} | awk -F'of fsync is ' '{print$2}')" >>  ${result_file}
 
         idx=$((idx+1))
         test $idx -ge 2 && break
     done
+
+    os_log_info "${msg_prefix} finished!"
 }
 
 # collect performance tests
@@ -320,12 +333,28 @@ collect_performance() {
 # https://github.com/openshift/must-gather/pull/214
 collect_metrics() {
     os_log_info "[executor][PluginID#${PLUGIN_ID}] Starting Metrics Collector"
-    ${UTIL_OC_BIN} adm must-gather --dest-dir=must-gather-metrics --image=quay.io/opct/must-gather-monitoring:v0.1.0
+
+    local image
+    local msg_prefix
+
+    msg_prefix="[executor][PluginID#${PLUGIN_ID}][collector][metrics]:"
+
+    image=quay.io/opct/must-gather-monitoring:v0.1.0
+    if [ -n "${MIRROR_IMAGE_REPOSITORY:-}" ]; then
+        from=$image
+        image="${MIRROR_IMAGE_REPOSITORY}/must-gather-monitoring:v0.1.0t"
+        os_log_info "${msg_prefix} image overrided for disconnected. from=[$from] to=[$image]"
+    fi
+
+    os_log_info "${msg_prefix} collecting metrics..."
+    ${UTIL_OC_BIN} adm must-gather --dest-dir=must-gather-metrics --image="${image}"
 
     # Create the tarball file removing the image name from the path of must-gather
-    os_log_info "[executor][PluginID#${PLUGIN_ID}] Packing must-gather-metrics"
+    os_log_info "${msg_prefix} Packing must-gather-metrics..."
     cp -v must-gather-metrics/timestamp must-gather-metrics/event-filter.html must-gather-metrics/*/monitoring/
     tar cfJ artifacts_must-gather-metrics.tar.xz -C must-gather-metrics/*/ monitoring/
+
+    os_log_info "${msg_prefix} finished!"
 }
 
 # Run Plugin for Collecor. The Collector plugin is the last one executed on the
@@ -337,23 +366,23 @@ run_plugin_collector() {
     pushd "${RESULTS_DIR}" || true
 
     # Collecting must-gather
-    collect_must_gather
+    collect_must_gather || true
 
     # Experimental: Collect performance data
     # running after must-gather to prevent impacting in etcd logs when testing etcdfio.
-    collect_performance
+    collect_performance || true
 
     # Experimental: Collect metrics
-    collect_metrics
+    collect_metrics || true
 
     # Collecting e2e list for Kubernetes Conformance
-    collect_tests_conformance "${OPENSHIFT_TESTS_SUITE_KUBE_CONFORMANCE}" "./artifacts_e2e-tests_kubernetes-conformance.txt"
+    collect_tests_conformance "${OPENSHIFT_TESTS_SUITE_KUBE_CONFORMANCE}" "./artifacts_e2e-tests_kubernetes-conformance.txt"  || true
 
     # Collecting e2e list for OpenShift Conformance
-    collect_tests_conformance "${OPENSHIFT_TESTS_SUITE_OPENSHIFT_CONFORMANCE}" "./artifacts_e2e-tests_openshift-conformance.txt"
+    collect_tests_conformance "${OPENSHIFT_TESTS_SUITE_OPENSHIFT_CONFORMANCE}" "./artifacts_e2e-tests_openshift-conformance.txt"  || true
 
     # Collecting e2e list for OpenShift Upgrade (when mode=upgrade)
-    collect_tests_upgrade
+    collect_tests_upgrade  || true
 
     # Creating Result file used to publish to sonobuoy. (last step)
     os_log_info "[executor][PluginID#${PLUGIN_ID}] Packing all results..."
