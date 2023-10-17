@@ -1,0 +1,60 @@
+# Code generated for package assets by build-image.sh. DO NOT EDIT.
+# Instead, edit the sources container files:
+# hack/Containerfile.alp
+# hack/Containerfile.tools-alp
+
+#
+## Base image
+#
+FROM quay.io/fedora/fedora-minimal:38 as base
+
+# gcompat: allow to run glibc programs (oc and jq)
+# sononbuoy is already built with musl
+RUN microdnf install -y bash curl grep tar xz gzip && \
+    microdnf clean all
+
+FROM base as clients
+WORKDIR /clients
+ARG JQ_URL=TBD
+ARG JQ_BIN=TBD
+ARG CAMGI_URL=TBD
+ARG CAMGI_TAR=TBD
+ARG OC_URL=TBD
+ARG OC_TAR=TBD
+
+ADD ${OC_URL} ./
+ADD ${JQ_URL} ./
+ADD ${CAMGI_URL} ./
+RUN microdnf install -y binutils \
+    && tar xvfz ${OC_TAR} \
+    && rm -f ${OC_TAR} kubectl README.md \
+    && tar xvf ${CAMGI_TAR} && rm ${CAMGI_TAR} \
+    && chmod +x ${JQ_BIN} oc camgi \
+    && strip oc && strip camgi \
+    && mv ${JQ_BIN} jq
+
+#
+## Tools image
+#
+FROM base
+ARG QUAY_EXPIRATION=never
+ARG TARGETARCH
+ARG TARGETPLATFORM
+ARG TARGETOS
+LABEL io.k8s.display-name="OPCT Tools" \
+      io.k8s.description="OPCT Tools is the base image for most of OPCT plugins." \
+      io.openshift.tags="openshift,tests,e2e,partner,conformance,tools" \
+      quay.expires-after=${QUAY_EXPIRATION} \
+      architecture=$TARGETARCH \
+      platform=$TARGETPLATFORM \
+      os=$TARGETOS
+
+WORKDIR /tools
+ARG SONOBUOY_VERSION=TBD
+COPY --from=quay.io/opct/sonobuoy:${SONOBUOY_VERSION} /sonobuoy /usr/bin/
+COPY --from=clients /clients/oc /usr/bin/
+COPY --from=clients /clients/jq /usr/bin/jq
+COPY --from=clients /clients/camgi /usr/bin/camgi
+
+COPY ./VERSION .
+RUN ln -svf /usr/bin/oc /usr/bin/kubectl

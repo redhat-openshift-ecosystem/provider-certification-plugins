@@ -2,7 +2,6 @@
 
 #
 # Container image builder.
-# - Check if sonobuoy mirror exists, if not mirror it
 # - Check if tools image exists, if not mirror it
 # - Build the Plugin container image
 #
@@ -11,33 +10,8 @@ set -o pipefail
 set -o nounset
 set -o errexit
 
-REGISTRY_PLUGIN="${REGISTRY_PLUGIN:-quay.io/ocp-cert}"
-REGISTRY_TOOLS="${REGISTRY_TOOLS:-quay.io/ocp-cert}"
-REGISTRY_MIRROR="${REGISTRY_TOOLS:-quay.io/ocp-cert}"
-
-COMMAND="${1:-}";
-
-TS=$(date +%Y%m%d%H%M%S)
-VERSION_PLUGIN="${VERSION:-dev${TS}}";
-VERSION_PLUGIN_DEVEL="${VERSION_DEVEL:-}";
-FORCE="${FORCE:-false}";
-
-# TOOLS version is created by suffix of oc and sonobuoy versions w/o dots
-export CONTAINER_BASE_GOBUILD="golang:1.19-alpine"
-export CONTAINER_BASE_BUILD="alpine:3.16.5"
-export CONTAINER_BASE="quay.io/fedora/fedora-minimal:38-x86_64"
-export VERSION_TOOLS="v0.2.0"
-export VERSION_OC="4.13.3"
-export VERSION_SONOBUOY="v0.56.12"
-
-IMAGE_PLUGIN="${REGISTRY_PLUGIN}/openshift-tests-provider-cert"
-IMAGE_TOOLS="${REGISTRY_TOOLS}/tools"
-IMAGE_SONOBUOY_MIRROR="docker.io/sonobuoy/sonobuoy"
-
-export CONTAINER_SONOBUOY="${IMAGE_SONOBUOY_MIRROR}:${VERSION_SONOBUOY}"
-export CONTAINER_SONOBUOY_MIRROR="${REGISTRY_MIRROR}/sonobuoy:${VERSION_SONOBUOY}"
-export CONTAINER_TOOLS="${IMAGE_TOOLS}:${VERSION_TOOLS}"
-export CONTAINER_PLUGIN="${IMAGE_PLUGIN}:${VERSION_PLUGIN}"
+# shellcheck disable=SC1091
+source "$(dirname "$0")/../build.env"
 
 build_info() {
     cat << EOF > ./VERSION
@@ -77,23 +51,6 @@ push_image() {
 tag_image() {
     echo "##> Tagging images: ${1} => ${2}"
     podman tag "${1}" "${2}"
-}
-
-#
-# Sonobuoy image
-#
-mirror_sonobuoy() {
-    echo "#> Checking sonobuoy container image"
-    SB_EXISTS=$(skopeo list-tags docker://"${REGISTRY_MIRROR}"/sonobuoy |jq -r ".Tags | index (\"${VERSION_SONOBUOY}\") // false")
-    if [[ ${SB_EXISTS} == false ]]; then
-        echo "#>> Sonobuoy container version is missing, starting the mirror"
-        echo "#>> Creating Sonobuoy mirror from ${CONTAINER_SONOBUOY} to ${CONTAINER_SONOBUOY_MIRROR}"
-        podman pull ${CONTAINER_SONOBUOY} &&
-            tag_image "${CONTAINER_SONOBUOY}" "${CONTAINER_SONOBUOY_MIRROR}" &&
-            push_image "${CONTAINER_SONOBUOY_MIRROR}"
-        return
-    fi
-    echo "#>> Sonobuoy container is present[${REGISTRY_MIRROR}/sonobuoy:${VERSION_SONOBUOY}], ignoring mirror."
 }
 
 #
@@ -188,7 +145,6 @@ build_plugin() {
 
 release() {
     FORCE=true
-    mirror_sonobuoy
     build_tools
     push_tools
     build_plugin
@@ -198,7 +154,6 @@ release() {
 build_info
 gen_containerfiles
 case $COMMAND in
-    "mirror-sonobuoy") mirror_sonobuoy;;
     "build-plugin") build_plugin ;;
     "build-tools") build_tools ;;
     "push-tools") push_tools ;;

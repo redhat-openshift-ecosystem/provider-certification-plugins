@@ -339,10 +339,11 @@ collect_metrics() {
 
     msg_prefix="[executor][PluginID#${PLUGIN_ID}][collector][metrics]:"
 
-    image=quay.io/opct/must-gather-monitoring:v0.1.0
+    version=v0.2.0
+    image=quay.io/opct/must-gather-monitoring:${version}
     if [ -n "${MIRROR_IMAGE_REPOSITORY:-}" ]; then
         from=$image
-        image="${MIRROR_IMAGE_REPOSITORY}/must-gather-monitoring:v0.1.0t"
+        image="${MIRROR_IMAGE_REPOSITORY}/must-gather-monitoring:${version}"
         os_log_info "${msg_prefix} image overrided for disconnected. from=[$from] to=[$image]"
     fi
 
