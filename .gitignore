@@ -1,2 +1,5 @@
 # Result files
 *.tar.gz
+tools/VERSION
+openshift-tests-provider-cert/VERSION
+must-gather-monitoring/VERSION

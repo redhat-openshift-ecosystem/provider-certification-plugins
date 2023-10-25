@@ -12,7 +12,7 @@ os_log_info_local() {
 os_log_info_local "Starting Level[${PLUGIN_ID:-}]..."
 init_config
 
-os_log_info_local "Checking if there's plugins blocking Level${PLUGIN_ID:-} execution..."
+os_log_info_local "Checking if there are plugins blocking Level${PLUGIN_ID:-} execution..."
 if [[ ${#PLUGIN_BLOCKED_BY[@]} -ge 1 ]]; then
     os_log_info_local "Level${PLUGIN_ID:-} plugin is blocked by: [${PLUGIN_BLOCKED_BY[*]}]"
     for pod_label in "${PLUGIN_BLOCKED_BY[@]}"; do
@@ -25,7 +25,7 @@ if [[ ${#PLUGIN_BLOCKED_BY[@]} -ge 1 ]]; then
             -l sonobuoy-plugin="${pod_label}"
     done
 
-    os_log_info_local "Resource(s) ready! Waiting for Level[${PLUGIN_ID:-}]'s plugins be completed..."
+    os_log_info_local "Resource(s) ready! Waiting for plugin Level[${PLUGIN_ID:-}] execution..."
     for bl_plugin_name in "${PLUGIN_BLOCKED_BY[@]}"; do
         os_log_info_local "Waiting 'completed' condition for pod: ${bl_plugin_name}"
         
@@ -85,7 +85,7 @@ if [[ ${#PLUGIN_BLOCKED_BY[@]} -ge 1 ]]; then
             sleep "${PLUGIN_WAIT_TIMEOUT_INTERVAL}"
         done
     done
-    os_log_info_local "All the conditions has been met!"
+    os_log_info_local "All blocker conditions have been completed!"
 fi
 
-os_log_info_local "Done for Level[${PLUGIN_ID:-}]."
+os_log_info_local "Plugin Level[${PLUGIN_ID:-}] waiter done."

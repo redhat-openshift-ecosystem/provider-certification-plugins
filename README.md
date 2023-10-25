@@ -1,7 +1,5 @@
-# OpenShift Provider Certification Plugins
+# OPCT Plugins
 
-Plugins used to evaluate the conformant of an OpenShift installation.
+Plugins used by [OPCT project](https://github.com/redhat-openshift-ecosystem/provider-certification-tool) to validate OpenShift/OKD installations.
 
-The plugins are built to run with `openshift-provider-cert` utility used to evaluate if the OpenShift installation is in conformant.
-
-To read more how to use it, please check the [User Documentation](https://github.com/redhat-openshift-ecosystem/provider-certification-tool/blob/main/docs/user.md) of [project provider-certification-tool](https://github.com/redhat-openshift-ecosystem/provider-certification-tool).
+To get started, please check the [User Documentation](https://redhat-openshift-ecosystem.github.io/provider-certification-tool/user/) of [OPCT project](https://github.com/redhat-openshift-ecosystem/provider-certification-tool).

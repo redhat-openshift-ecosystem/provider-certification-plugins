@@ -1,15 +1,25 @@
-FROM registry.svc.ci.openshift.org/openshift/origin-v4.0:cli
 
-FROM quay.io/openshift/origin-must-gather:4.14.0 as builder
+ARG TOOLS_IMG=quay.io/opct/tools:v0.2.0
+FROM --platform=$TARGETPLATFORM ${TOOLS_IMG} AS build
 
-FROM quay.io/centos/centos:stream8
+ARG QUAY_EXPIRATION=never
+ARG TARGETARCH
+ARG TARGETPLATFORM
+ARG TARGETOS
+LABEL io.k8s.display-name="OPCT Must-Gather Monitoring" \
+      io.k8s.description="Collect Prometheus raw metrics from OpenShift/OCP Clusters." \
+      io.openshift.tags="openshift,monitoring,must-gather,opct" \
+      quay.expires-after=${QUAY_EXPIRATION} \
+      architecture=$TARGETARCH \
+      platform=$TARGETPLATFORM \
+      os=$TARGETOS
 
 # For gathering data from nodes
-RUN dnf update -y && \
-    dnf install util-linux rsync -y && \
-    dnf clean all
+RUN microdnf update -y && \
+    microdnf install util-linux rsync -y && \
+    microdnf clean all
 
-COPY --from=builder /usr/bin/oc /usr/bin/oc
+COPY ./VERSION .
 
 # Copy all collection scripts to /usr/bin
 COPY collection-scripts/* /usr/bin/
