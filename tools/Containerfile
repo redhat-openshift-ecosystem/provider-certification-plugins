@@ -31,7 +31,8 @@ RUN microdnf install -y binutils \
     && tar xvf ${CAMGI_TAR} && rm ${CAMGI_TAR} \
     && chmod +x ${JQ_BIN} oc camgi \
     && strip oc && strip camgi \
-    && mv ${JQ_BIN} jq
+    && mv ${JQ_BIN} jq \
+    && microdnf clean all
 
 #
 ## Tools image
