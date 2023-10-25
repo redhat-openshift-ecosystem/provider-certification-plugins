@@ -351,6 +351,11 @@ collect_metrics() {
     ${UTIL_OC_BIN} adm must-gather --dest-dir=must-gather-metrics --image="${image}"
 
     # Create the tarball file removing the image name from the path of must-gather
+    test ! -d must-gather-metrics/*/monitoring/ && {
+        os_log_info "${msg_prefix} ERROR: must-gather not found, task collect_metrics done."
+        return
+    }
+
     os_log_info "${msg_prefix} Packing must-gather-metrics..."
     cp -v must-gather-metrics/timestamp must-gather-metrics/event-filter.html must-gather-metrics/*/monitoring/
     tar cfJ artifacts_must-gather-metrics.tar.xz -C must-gather-metrics/*/ monitoring/
