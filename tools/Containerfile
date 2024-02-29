@@ -6,11 +6,13 @@
 #
 ## Base image
 #
-FROM quay.io/fedora/fedora-minimal:38 as base
+FROM quay.io/fedora/fedora-minimal:39 as base
 
 # gcompat: allow to run glibc programs (oc and jq)
 # sononbuoy is already built with musl
-RUN microdnf install -y bash curl grep tar xz gzip && \
+RUN microdnf install -y bash curl grep tar xz gzip git diff util-linux python3-six && \
+    git config --system user.name test && \
+    git config --system user.email test@test.com && \
     microdnf clean all
 
 FROM base as clients

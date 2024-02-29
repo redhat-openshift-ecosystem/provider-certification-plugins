@@ -54,7 +54,7 @@ function build_tools() {
     camgi_archive="camgi-0.9.0-linux-x86_64.tar"
     camgi_url="https://github.com/elmiko/camgi.rs/releases/download/v0.9.0/${camgi_archive}"
 
-    ocp_version=4.13.3
+    ocp_version="stable-4.14"
     oc_archive="openshift-client-linux.tar.gz"
     oc_url="https://mirror.openshift.com/pub/openshift-v4/${TARGET_ARCH}/clients/ocp/${ocp_version}/${oc_archive}"
 
@@ -97,7 +97,7 @@ function build_plugin_tests() {
 }
 
 function build_mgm() {
-    
+
     build_root=$(dirname "$0")/must-gather-monitoring
 
     echo "${MGM_VERSION}" > "${build_root}"/VERSION
