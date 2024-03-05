@@ -1,31 +1,67 @@
 #!/usr/bin/env bash
 
-# Build OPCT plugin images.
+#
+# Build and push container images for openshift-tests-plugin and must-gather-monitoring.
+#
+# Usage examples:
+# $ ./build.sh build plugin-openshift-testslinux/amd64
+# $ ./build.sh build all linux/amd64,linux/arm64
+#
 
 set -o pipefail
 set -o nounset
 set -o errexit
 
+############
+# Input args
+#
+# Example: ./build.sh build plugin-openshift-tests linux/amd64
+#
+############
+
 COMMAND=${1}; shift
 BUILD_IMG=${1}; shift
 PLATFORMS=${1:-linux/amd64,linux/arm64};
 
-# shellcheck disable=SC1091
-source "$(dirname "$0")/build.env"
+########################
+# Version vars
+########################
+# # shellcheck disable=SC1091
+# source "$(dirname "$0")/build.env"
 
-function push_image() {
-    img_name=$1
-    if [[ $COMMAND == "push" ]]; then
-        podman push "${img_name}";
-    fi
-}
+# Current Versions
+export VERSION="${VERSION:-devel}"
+export IMAGE_EXPIRE_TIME="${EXPIRE:-12h}"
 
+export TOOLS_VERSION=${TOOLS_VERSION:-${VERSION}}
+export TOOLS_REPO=${TOOLS_REPO:-quay.io/opct/tools}
+export TOOLS_IMG=${TOOLS_REPO}:${TOOLS_VERSION}
+
+export PLUGIN_TESTS_VERSION=${PLUGIN_TESTS_VERSION:-$VERSION}
+export PLUGIN_TESTS_REPO=${PLUGIN_TESTS_REPO:-quay.io/opct/plugin-openshift-tests}
+export PLUGIN_TESTS_IMG=${PLUGIN_TESTS_REPO}:${PLUGIN_TESTS_VERSION}
+
+export MGM_VERSION=${MGM_VERSION:-$VERSION}
+export MGM_REPO=${MGM_REPO:-quay.io/opct/must-gather-monitoring}
+export MGM_IMG=${MGM_REPO}:${MGM_VERSION}
+
+export PLUGIN_COLLECTOR_REPO=${PLUGIN_COLLECTOR_REPO:-quay.io/opct/plugin-artifacts-collector}
+export PLUGIN_COLLECTOR_IMG=${PLUGIN_COLLECTOR_REPO}:${PLUGIN_TESTS_VERSION}
+
+########################
+# Build functions
+########################
+
+# Building quay.io/opct/tools image.
+# This image is built manually, and it's not part of the pipeline.
+# When bumping tools shipped in this image, remember to update the version
+# in the file tools/VERSION. The SemVer is used, in general we bump the minor (v0.y.0).
+# to trigger a new build, run: make build WHAT=tools COMMAND=push
 function build_tools() {
     local build_root
     build_root=$(dirname "$0")/tools
-    echo "${TOOLS_VERSION}" > "${build_root}"/VERSION
     img_name="${TOOLS_IMG}"
-    manifest="quay.io/opct/tools:${MGM_VERSION}"
+    manifest="${TOOLS_IMG}"
 
     echo "Removing manifest ${manifest} if exists..."
     podman manifest rm "${manifest}" || true
@@ -41,7 +77,8 @@ function build_tools() {
         BUILD_ARCH="$TARGET_OS-$TARGET_ARCH"
 
         jq_bin="jq-${BUILD_ARCH}"
-        jq_url="https://github.com/jqlang/jq/releases/download/jq-${JQ_VERSION}/${jq_bin}"
+        jq_version=1.7
+        jq_url="https://github.com/jqlang/jq/releases/download/jq-${jq_version}/${jq_bin}"
 
         # yq_bin="yq_${TARGET_OS}_${TARGET_ARCH}"
         # yq_url="https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/${yq_bin}"
@@ -64,7 +101,6 @@ function build_tools() {
             --build-arg=CAMGI_TAR="${camgi_archive}" \
             --build-arg=OC_TAR="${oc_archive}" \
             --build-arg=OC_URL="${oc_url}" \
-            --build-arg=SONOBUOY_VERSION="${SONOBUOY_VERSION}" \
             --build-arg=QUAY_EXPIRATION="${IMAGE_EXPIRE_TIME}" \
             --build-arg=TARGETPLATFORM="${platform}" \
             --build-arg=TARGETARCH="${TARGET_ARCH}" \
@@ -76,13 +112,63 @@ function build_tools() {
         echo -e "\n\tPushing manifest ${manifest}...\n\n"
         podman manifest push "${manifest}" "docker://${manifest}"
     fi
+
+    echo "#>>>>
+Images built for platforms: ${PLATFORMS}
+Manifest image: ${manifest}
+<<<#"
 }
 
+# build_plugin_tests builds and push the openshift-tests-plugin container image.
 function build_plugin_tests() {
-    build_root=$(dirname "$0")/openshift-tests-provider-cert
+    echo -e "\n\n\t>> Building openshift-tests-plugin image..."
+
+    build_root=$(dirname "$0")/openshift-tests-plugin
     echo "${PLUGIN_TESTS_VERSION}" > "${build_root}"/VERSION
     img_name="${PLUGIN_TESTS_IMG}"
-    manifest="quay.io/opct/plugin-openshift-tests:${MGM_VERSION}"
+    manifest="quay.io/opct/plugin-openshift-tests:${PLUGIN_TESTS_VERSION}"
+
+    echo -e "\n\t>> creating manifest for ${PLUGIN_TESTS_IMG}"
+
+    echo "Removing manifest ${manifest} and imags if exists..."
+    podman manifest rm "${manifest}" || true
+    podman rmi --force "${manifest}" || true
+
+    echo "Creating manifests..."
+    podman manifest create "${manifest}"
+
+    echo -e "\n\n\t>> Building ${manifest}\n"
+    podman build -f "${build_root}"/Containerfile \
+        --platform "${PLATFORMS}" \
+        --manifest "${manifest}" \
+        --build-arg=QUAY_EXPIRATION="${IMAGE_EXPIRE_TIME}" \
+        --build-arg=BUILD_VERSION="${PLUGIN_TESTS_VERSION}" \
+        -t "${img_name}-buildx" "${build_root}"
+
+    # Build to latest to be used in the artifacts collector (pipeline)
+    local_image=localhost/plugin-openshift-tests:latest
+    if [[ "${img_name}" != "${local_image}" ]]; then
+        podman tag "${img_name}-buildx" "${local_image}"
+    fi
+
+    if [[ "$COMMAND" == "push" ]]; then
+        echo -e "\n\tPushing manifest ${manifest}...\n\n"
+        podman manifest push "${manifest}" "docker://${manifest}"
+    fi
+
+    echo "#>>>>
+Images built for platforms: ${PLATFORMS}
+Manifest image: ${manifest}
+<<<#"
+}
+
+# build_collector builds and push the artifacts collector container image.
+function build_collector() {
+    build_root=$(dirname "$0")/artifacts-collector
+
+    echo "${PLUGIN_TESTS_VERSION}" > "${build_root}"/VERSION
+    img_name="${PLUGIN_COLLECTOR_IMG}"
+    manifest="${PLUGIN_COLLECTOR_IMG}"
 
     echo "Removing manifest ${manifest} if exists..."
     podman manifest rm "${manifest}" || true
@@ -95,14 +181,22 @@ function build_plugin_tests() {
         --platform "${PLATFORMS}" \
         --manifest "${manifest}" \
         --build-arg=QUAY_EXPIRATION="${IMAGE_EXPIRE_TIME}" \
+        --build-arg=BUILD_VERSION="${PLUGIN_TESTS_VERSION}" \
+        --build-arg=TOOLS_IMAGE="quay.io/opct/tools:${TOOLS_VERSION}" \
         -t "${img_name}-buildx" "${build_root}"
 
     if [[ "$COMMAND" == "push" ]]; then
         echo -e "\n\tPushing manifest ${manifest}...\n\n"
         podman manifest push "${manifest}" "docker://${manifest}"
     fi
+
+    echo "#>>>>
+Images built for platforms: ${PLATFORMS}
+Manifest image: ${manifest}
+<<<#"
 }
 
+# build_mgm builds and push the must-gather-monitoring container image.
 function build_mgm() {
     build_root=$(dirname "$0")/must-gather-monitoring
 
@@ -127,20 +221,33 @@ function build_mgm() {
         echo -e "\n\tPushing manifest ${manifest}...\n\n"
         podman manifest push "${manifest}" "docker://${manifest}"
     fi
+
+    echo "#>>>>
+Images built for platforms: ${PLATFORMS}
+Manifest image: ${manifest}
+<<<#"
+}
+
+function build_all() {
+    build_plugin_tests
+    build_collector
+    build_mgm
 }
 
 function help() {
     echo "WHAT/App not mapped to build: $BUILD_IMG";
     echo "Valid values:
 make build WHAT=tools COMMAND=build ARCH=linux-amd64
-make build WHAT=pugin-openshift-tests COMMAND=build ARCH=linux-amd64
+make build WHAT=plugin-openshift-tests COMMAND=build ARCH=linux-amd64
 make build WHAT=must-gather-monitoring COMMAND=build ARCH=linux-amd64"
     exit 1
 }
 
 case $BUILD_IMG in
-    "tools") build_tools;;
-    "plugin-openshift-tests") build_plugin_tests;;
-    "must-gather-monitoring") build_mgm;;
+    "tools") build_tools ;;
+    "plugin-openshift-tests") build_plugin_tests ;;
+    "plugin-artifacts-collector") build_collector ;;
+    "must-gather-monitoring") build_mgm ;;
+    "all") build_all ;;
     *) help;;
 esac
