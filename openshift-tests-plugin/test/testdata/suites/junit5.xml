@@ -1,0 +1,12 @@
+<testsuite name="openshift-tests" tests="52" skipped="0" failures="1" time="479">
+    <property name="TestVersion" value="4.16.0-202406260037.p0.gf546249.assembly.stream.el9-f546249"></property>
+    <testcase name="[Conformance][sig-sno][Serial] Cluster should allow a fast rollout of kube-apiserver with no pods restarts during API disruption [apigroup:config.openshift.io][apigroup:operator.openshift.io] [Suite:openshift/conformance/serial/minimal]" time="19.9"></testcase>
+    <testcase name="[Serial] [sig-auth][Feature:OAuthServer] [RequestHeaders] [IdP] test RequestHeaders IdP [apigroup:config.openshift.io][apigroup:user.openshift.io][apigroup:apps.openshift.io] [Suite:openshift/conformance/serial]" time="16.8"></testcase>
+    <testcase name="[sig-api-machinery] API data in etcd should be stored at the correct location and version for all resources [Serial] [Suite:openshift/conformance/serial]" time="35.8">
+	    <failure message="">fake forced failure to opct-plugin-tests</failure>
+    </testcase>
+    <testcase name="[sig-arch] External binary usage" time="0">
+        <failure message="">failed reading external test suites: unable to extract k8s-tests binary</failure>
+    </testcase>
+    <testcase name="[sig-undefined] unknown test - expect to not be included in the parsed failures list [mytag] [Suite:k8s]" time="15"></testcase>
+</testsuite>
