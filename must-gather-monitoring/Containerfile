@@ -1,20 +1,22 @@
-FROM quay.io/opct/tools:v0.4.0
 
+#
+## Base image for must-gather-monitoring plugin
+#
+FROM quay.io/opct/tools:v0.4.0 as tools
+
+FROM quay.io/fedora/fedora-minimal:40 as base
 ARG QUAY_EXPIRATION=never
-ARG TARGETARCH
-ARG TARGETPLATFORM
-ARG TARGETOS
 LABEL io.k8s.display-name="OPCT Must-Gather Monitoring" \
       io.k8s.description="Collect Prometheus raw metrics from OpenShift/OCP Clusters." \
       io.openshift.tags="openshift,monitoring,must-gather,opct" \
-      quay.expires-after=${QUAY_EXPIRATION} \
-      architecture=$TARGETARCH \
-      platform=$TARGETPLATFORM \
-      os=$TARGETOS
+      quay.expires-after=${QUAY_EXPIRATION}
 
-# For gathering data from nodes
-RUN microdnf install util-linux rsync -y && \
-    microdnf clean all
+WORKDIR /plugin
+RUN echo "fastestmirror=true" >> /etc/dnf/dnf.conf \
+    && microdnf install -y curl grep tar xz gzip rsync util-linux \
+    && microdnf clean all
+
+COPY --from=tools /usr/bin/oc /usr/bin/oc
 
 # Copy all collection scripts to /usr/bin
 COPY collection-scripts/* /usr/bin/

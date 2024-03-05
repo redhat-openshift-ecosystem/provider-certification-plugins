@@ -1,38 +1,44 @@
 ---
+# test-build-release is the main workflow which will trigger
+# linters, tests, and builds for the project for all events.
+# It will also trigger the release workflows when a tag is created
+# or when a push is made to the main branch.
 name: test-build-release
-on: 
+on:
   pull_request:
+    branches:
+      - main
+      - release-*
   push:
-    branches: [main]
-    tags: ['v*.*.*']
+    branches:
+      - main
+      - release-*
+    tags:
+      - 'v*.*.*'
 
 jobs:
+  # Pre jobs: Linter
   linters:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+    uses: ./.github/workflows/pre_linters.yaml
 
-      - name: Shellcheck - hack
-        uses: azohra/shell-linter@latest
-        with:
-          path: "hack/*.sh"
+  # Pre jobs: unit tests and integration tests
+  test-openshift-tests-plugin:
+    uses: ./.github/workflows/pre_test-openshift-tests-plugin.yaml
 
-      - name: Shellcheck - Plugin - openshift-tests
-        uses: azohra/shell-linter@latest
-        with:
-          path: './openshift-tests-provider-cert/plugin/*.sh'
+  # Pre jobs: reviewer using reviewdog
+  reviewer:
+    uses: ./.github/workflows/reviewer.yaml
 
-      - name: Shellcheck - Plugin - openshift-tests - hack
-        uses: azohra/shell-linter@latest
-        with:
-          path: './openshift-tests-provider-cert/hack/*.sh'
-
-
+  # build-container-amd64: triggered when a PR is made
   build-container-amd64:
     runs-on: ubuntu-latest
-    needs: [linters]
+    needs:
+      - linters
+      - test-openshift-tests-plugin
+      - reviewer
     env:
       VERSION: "v0.0.0-devel-pr.${{ github.event.pull_request.number }}"
+      VERSION_TOOLS: v0.4.0
       PLATFORMS: linux/amd64
       EXPIRATION: 1d
       PUSH: false
@@ -56,24 +62,51 @@ jobs:
           username: ${{ secrets.QUAY_USER }}
           password: ${{ secrets.QUAY_PASS }}
 
-      - name: Build and push - plugin
+      - name: "Build and push: plugin-openshift-tests"
         uses: docker/build-push-action@v6
         with:
           platforms: ${{ env.PLATFORMS }}
           push: ${{ env.PUSH }}
+          provenance: false
           labels: |
             quay.expires-after=${{ env.EXPIRATION }}
           build-args: |
             QUAY_EXPIRATION=${{ env.EXPIRATION }}
-          tags: quay.io/opct/plugin-openshift-tests:${{ env.VERSION }}
-          context: ./openshift-tests-provider-cert
-          file: ./openshift-tests-provider-cert/Containerfile
+            BUILD_VERSION=${{ env.VERSION }}
+          tags: "localhost/plugin-openshift-tests:latest"
+          outputs: |
+            type=image,name=localhost/plugin-openshift-tests:latest,push=false
+          load: true
+          context: ./openshift-tests-plugin
+          file: ./openshift-tests-plugin/Containerfile
 
-      - name: Build and push - must-gather-monitoring
+      - name: show images
+        run: docker images
+
+      # disable while not able to access the images previously built.
+      # Is it possible with cache-from/to?
+      # - name: "Build and push: plugin-artifacts-collector"
+      #   uses: docker/build-push-action@v6
+      #   with:
+      #     platforms: ${{ env.PLATFORMS }}
+      #     push: ${{ env.PUSH }}
+      #     labels: |
+      #       quay.expires-after=${{ env.EXPIRATION }}
+      #     build-args: |
+      #       QUAY_EXPIRATION=${{ env.EXPIRATION }}
+      #       TOOLS_VERSION=${{ env.VERSION_TOOLS }}
+      #     tags: quay.io/opct/plugin-artifacts-collector:${{ env.VERSION }}
+      #     context: ./artifacts-collector
+      #     file: ./artifacts-collector/Containerfile
+
+      - name: "Build and push: must-gather-monitoring"
         uses: docker/build-push-action@v6
+        env:
+          PLUGIN_IMAGE_OVERRIDE: "localhost/plugin-openshift-tests:latest"
         with:
           platforms: ${{ env.PLATFORMS }}
           push: ${{ env.PUSH }}
+          provenance: false
           labels: |
             quay.expires-after=${{ env.EXPIRATION }}
           build-args: |
@@ -82,9 +115,9 @@ jobs:
           context: ./must-gather-monitoring
           file: ./must-gather-monitoring/Containerfile
 
-#
-# Releasing: triggered when push to main
-#
+  #
+  # Releasing latest: triggered when push to main
+  #
   release-latest:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
@@ -111,24 +144,42 @@ jobs:
           username: ${{ secrets.QUAY_USER }}
           password: ${{ secrets.QUAY_PASS }}
 
-      - name: Build and push - plugin
+      - name: "Build and push: plugin-openshift-tests"
         uses: docker/build-push-action@v6
         with:
           platforms: ${{ env.PLATFORMS }}
           push: ${{ env.PUSH }}
+          provenance: false
           labels: |
             quay.expires-after=${{ env.EXPIRATION }}
           build-args: |
             QUAY_EXPIRATION=${{ env.EXPIRATION }}
+            BUILD_VERSION=${{ env.VERSION }}
           tags: quay.io/opct/plugin-openshift-tests:${{ env.VERSION }}
-          context: ./openshift-tests-provider-cert
-          file: ./openshift-tests-provider-cert/Containerfile
+          context: ./openshift-tests-plugin
+          file: ./openshift-tests-plugin/Containerfile
 
-      - name: Build and push - must-gather-monitoring
+      - name: "Build and push: plugin-artifacts-collector"
         uses: docker/build-push-action@v6
         with:
           platforms: ${{ env.PLATFORMS }}
           push: ${{ env.PUSH }}
+          provenance: false
+          labels: |
+            quay.expires-after=${{ env.EXPIRATION }}
+          build-args: |
+            QUAY_EXPIRATION=${{ env.EXPIRATION }}
+            TOOLS_VERSION=${{ env.VERSION_TOOLS }}
+          tags: quay.io/opct/plugin-artifacts-collector:${{ env.VERSION }}
+          context: ./artifacts-collector
+          file: ./artifacts-collector/Containerfile
+
+      - name: "Build and push: must-gather-monitoring"
+        uses: docker/build-push-action@v6
+        with:
+          platforms: ${{ env.PLATFORMS }}
+          push: ${{ env.PUSH }}
+          provenance: false
           labels: |
             quay.expires-after=${{ env.EXPIRATION }}
           build-args: |
@@ -137,10 +188,9 @@ jobs:
           context: ./must-gather-monitoring
           file: ./must-gather-monitoring/Containerfile
 
-
-#
-# Releasing: triggered when a tag is created
-#
+  #
+  # Releasing tag: triggered when a tag is created
+  #
   release-tag:
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
@@ -149,6 +199,7 @@ jobs:
       PLATFORMS: linux/amd64,linux/arm64
       EXPIRATION: never
       PUSH: true
+      PLUGIN_REPO: quay.io/opct/plugin-openshift-tests
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -172,28 +223,48 @@ jobs:
           username: ${{ secrets.QUAY_USER }}
           password: ${{ secrets.QUAY_PASS }}
 
-      - name: Build and push - plugin
+      - name: "Build and push: plugin-openshift-tests"
         uses: docker/build-push-action@v6
         env:
           VERSION: ${{ steps.vars.outputs.tag }}
         with:
           platforms: ${{ env.PLATFORMS }}
           push: ${{ env.PUSH }}
+          provenance: false
           labels: |
             quay.expires-after=${{ env.EXPIRATION }}
           build-args: |
             QUAY_EXPIRATION=${{ env.EXPIRATION }}
-          tags: quay.io/opct/plugin-openshift-tests:${{ env.VERSION }}
-          context: ./openshift-tests-provider-cert
-          file: ./openshift-tests-provider-cert/Containerfile
+            BUILD_VERSION=${{ env.VERSION }}
+          tags: ${{ env.PLUGIN_REPO }}:${{ env.VERSION }}
+          context: ./openshift-tests-plugin
+          file: ./openshift-tests-plugin/Containerfile
 
-      - name: Build and push - must-gather-monitoring
+      - name: "Build and push: plugin-artifacts-collector"
         uses: docker/build-push-action@v6
         env:
           VERSION: ${{ steps.vars.outputs.tag }}
         with:
           platforms: ${{ env.PLATFORMS }}
           push: ${{ env.PUSH }}
+          provenance: false
+          labels: |-
+            quay.expires-after=${{ env.EXPIRATION }}
+          build-args: |-
+            BUILD_VERSION=${{ env.VERSION }}
+            QUAY_EXPIRATION=${{ env.EXPIRATION }}
+          tags: quay.io/opct/plugin-artifacts-collector:${{ env.VERSION }}
+          context: ./artifacts-collector
+          file: ./artifacts-collector/Containerfile
+
+      - name: "Build and push: must-gather-monitoring"
+        uses: docker/build-push-action@v6
+        env:
+          VERSION: ${{ steps.vars.outputs.tag }}
+        with:
+          platforms: ${{ env.PLATFORMS }}
+          push: ${{ env.PUSH }}
+          provenance: false
           labels: |
             quay.expires-after=${{ env.EXPIRATION }}
           build-args: |
@@ -213,9 +284,11 @@ jobs:
       - name: Create Release on Github
         uses: softprops/action-gh-release@v0.1.15
         env:
-          RELEASE_VERSION: ${{ steps.vars.outputs.tag }}
+          VERSION: ${{ steps.vars.outputs.tag }}
+          REPO: quay.io/opct/plugin-openshift-tests
+          URL: https://quay.io/repository/opct/plugin-openshift-tests?tab=tags
         with:
           body: |
             ## Changelog
-            Image published to [quay.io/ocp-cert/openshift-tests-provider-cert:$RELEASE_VERSION](https://quay.io/repository/ocp-cert/openshift-tests-provider-cert?tab=tags)
+            Image published to [${REPO}:${VERSION}](${URL})
             ${{steps.github_release.outputs.changelog}}

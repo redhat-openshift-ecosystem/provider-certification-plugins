@@ -1,0 +1,85 @@
+---
+# pre-linter is a chain of jobs that must be called
+# by other workflows to ensure that the code is linted.
+name: linters
+
+on:
+  workflow_call: {}
+
+# golangci-lint-action requires those permissions to annotate issues in the PR.
+permissions:
+  # Required for analysis.
+  contents: read
+  # Used by `only-new-issues``.
+  pull-requests: read
+  # Allow access to checks to annotate code in the PR.
+  checks: write
+
+env:
+  GO_VERSION: 1.22
+  GOLANGCI_LINT_VERSION: v1.59
+
+jobs:
+  shell:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Shellcheck - must-gather-monitoring plugin - entrypoint
+        uses: azohra/shell-linter@latest
+        with:
+          path: './build.sh'
+
+      - name: Shellcheck - openshift-tests-plugin
+        uses: azohra/shell-linter@latest
+        with:
+          path: './openshift-tests-plugin/plugin/*.sh'
+
+      - name: Shellcheck - must-gather-monitoring plugin - entrypoint
+        uses: azohra/shell-linter@latest
+        with:
+          path: './must-gather-monitoring/runner_plugin'
+
+      - name: Shellcheck - must-gather-monitoring plugin - collection scripts
+        uses: azohra/shell-linter@latest
+        with:
+          path: './must-gather-monitoring/collection-scripts/*'
+
+      - name: Shellcheck - hack
+        uses: azohra/shell-linter@latest
+        with:
+          path: "hack/*.sh"
+
+  yaml:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install yamllint
+        run: pip install yamllint
+
+      - name: Lint YAML files
+        run: |
+          echo ">> Running YAML lint on data/templates/plugins/"
+          yamllint .github/workflows/*.yaml
+
+  go_plugin-tests:
+    name: "go / openshift-tests-plugin"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: openshift-tests-plugin/go.mod
+          cache-dependency-path: |
+             openshift-tests-plugin/go.sum
+
+      # https://github.com/golangci/golangci-lint-action
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          args: --timeout=10m
+          working-directory: openshift-tests-plugin
+          only-new-issues: true
