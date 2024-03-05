@@ -1,0 +1,2 @@
+"[sig-api-machinery] API data in etcd should be stored at the correct location and version for all resources [Serial] [Suite:openshift/conformance/serial]"
+"[sig-arch] External binary usage"
