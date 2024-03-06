@@ -1,6 +1,6 @@
 # Run openshigt-tests replay plugin
 
-Standalone plugin to replay custom e2e tests using `openshift-tests` using opct/sonobuoy plugin workflow.
+Standalone plugin to replay custom e2e tests using `openshift-tests` with opct/sonobuoy plugin workflow.
 
 Steps:
 

@@ -83,3 +83,17 @@ CERT_TEST_SUITE=""
 CERT_TEST_COUNT=0
 CERT_TEST_PARALLEL=${E2E_PARALLEL:-${E2E_PARALLEL_DEFAULT}}
 DEV_TESTS_COUNT="${DEV_MODE_COUNT:-0}"
+
+
+#
+# Replay plugin
+#
+declare -x REPLAY_RESULTS=/tmp/replay
+declare -x REPLAY_NAMESPACE=opct-temp
+declare -x REPLAY_CONFIG_MAP=openshift-tests-replay
+declare -x REPLAY_CONFIG_KEY=replay.list
+declare -x REPLAY_CONFIG_FILE="/tmp/${REPLAY_CONFIG_KEY}"
+declare -x REPLAY_SUITE=openshift/conformance
+declare -x REPLAY_MAX_PARALLEL_TESTS=1
+declare -x REPLAY_JUNIR_DIR=/tmp/replay-junits
+declare -x REPLAY_MONITOR_FOCUS=node-state-analyzer

@@ -7,17 +7,13 @@ PREFIX ?= v0.0.0-devel
 VERSION ?= $(PREFIX)-$(shell git rev-parse --short HEAD)
 
 ARCH ?= linux-amd64
+WHAT ?= plugin-openshift-tests
 EXPIRE ?= 1w
 COMMAND ?= build
 # To create production images: make target VERSION_PREFIX='' EXPIRE=never
 
-.PHONY: format
-format: shellcheck
-
-.PHONY: shellcheck
-shellcheck:
-	hack/shellcheck.sh
-
+.PHONY: all
+all: build-tools build-plugin-tests build-must-gather-monitoring
 
 #> Build app
 
@@ -136,3 +132,11 @@ remove-manifests:
 	podman manifest rm quay.io/opct/plugin-openshift-tests:$(PLUGIN_TESTS_VERSION) || true
 	podman manifest rm quay.io/opct/must-gather-monitoring:$(MGM_VERSION) || true
 
+##> Other targets
+
+.PHONY: format
+format: shellcheck
+
+.PHONY: shellcheck
+shellcheck:
+	hack/shellcheck.sh

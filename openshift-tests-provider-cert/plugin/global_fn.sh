@@ -416,3 +416,88 @@ preflight_check_upgrade_waiter() {
     os_log_info "[preflight_check][upgrade-waiter] finished!"
 }
 export -f preflight_check_upgrade_waiter
+
+
+#
+# Plugin replay
+#
+# Global vars starts with REPLAY_* and can be overriden by --plugin-env command line.
+#
+
+replay_extract_from_config() {
+    os_log_info "[openshift-tests-plugin][replay] Attemping to extract custom e2e tests to replay from namespace(${REPLAY_NAMESPACE}) config(${REPLAY_CONFIG}) key(${REPLAY_CONFIG_KEY})"
+    ${UTIL_OC_BIN} extract "configmap/${REPLAY_CONFIG}" \
+        -n "${REPLAY_NAMESPACE}" \
+        --to=/tmp --keys="${REPLAY_CONFIG_KEY}" || true
+
+    test -f "${REPLAY_CONFIG_FILE}" && cat "${REPLAY_CONFIG_FILE}"
+
+}
+export -f replay_extract_from_config
+
+replay_run_e2e() {
+    os_log_info "[openshift-tests-plugin][replay] Running e2e"
+    if [[ -f "${REPLAY_CONFIG_FILE}" ]]; then
+        os_log_info "[openshift-tests-plugin][replay] Running e2e from custom config ${REPLAY_CONFIG_FILE}"
+        ${UTIL_OTESTS_BIN} run "${REPLAY_SUITE}" \
+            -f "${REPLAY_CONFIG_FILE}" \
+            --max-parallel-tests "${REPLAY_MAX_PARALLEL_TESTS}" \
+            --junit-dir="${REPLAY_JUNIR_DIR}" \
+            --monitor "${REPLAY_MONITOR_FOCUS}"
+    else
+        os_log_info "[openshift-tests-plugin][replay] Running e2e from suite ${REPLAY_SUITE}"
+        ${UTIL_OTESTS_BIN} run "${REPLAY_SUITE}" \
+            --max-parallel-tests "${REPLAY_MAX_PARALLEL_TESTS}" \
+            --junit-dir="${REPLAY_JUNIR_DIR}" \
+            --monitor "${REPLAY_MONITOR_FOCUS}"
+    fi
+}
+export -f replay_run_e2e
+
+replay_save_results_e2e() {
+    os_log_info "[openshift-tests-plugin][replay] Saving e2e results..."
+    pushd "${REPLAY_JUNIR_DIR}" || return
+    tar cfz "${REPLAY_RESULTS}/e2e_raw_junits.tar.gz" -- *
+    popd || return
+}
+export -f replay_save_results_e2e
+
+replay_save_results() {
+    os_log_info "[openshift-tests-plugin][replay] Saving raw results..."
+    pushd "${REPLAY_RESULTS}" || return
+    tar cfz "${RESULTS_DIR}/replay-results.tar.gz" -- *
+    popd || return
+}
+export -f replay_save_results
+
+replay_save() {
+    os_log_info "[openshift-tests-plugin][replay] Saving results"
+    mkdir -vp "${REPLAY_RESULTS}"
+    cp -v "${REPLAY_CONFIG_FILE}" "${REPLAY_RESULTS}" || true
+    replay_save_results_e2e || true
+    replay_save_results
+    os_log_info "[openshift-tests-plugin][replay] Notifying Sonobuoy agent"
+    echo "${RESULTS_DIR}/replay-results.tar.gz" > /tmp/sonobuoy/results/done
+}
+export -f replay_save
+
+replay_plugin_run() {
+    os_log_info "[openshift-tests-plugin][replay] Starting plugin"
+    os_log_info "[openshift-tests-plugin][replay] Dumping config"
+    cat << EOF
+REPLAY_RESULTS=${REPLAY_RESULTS-}
+REPLAY_NAMESPACE=${REPLAY_NAMESPACE-}
+REPLAY_CONFIG_MAP=${REPLAY_CONFIG_MAP-}
+REPLAY_CONFIG_KEY=${REPLAY_CONFIG_KEY-}
+REPLAY_CONFIG_FILE=${REPLAY_CONFIG_FILE-}
+REPLAY_SUITE=${REPLAY_SUITE-}
+REPLAY_MAX_PARALLEL_TESTS=${REPLAY_MAX_PARALLEL_TESTS-}
+REPLAY_JUNIR_DIR=${REPLAY_JUNIR_DIR-}
+REPLAY_MONITOR_FOCUS=${REPLAY_MONITOR_FOCUS-}
+EOF
+    openshift_login
+    start_utils_extractor
+    replay_extract_from_config
+    replay_save
+}
+export -f replay_plugin_run
