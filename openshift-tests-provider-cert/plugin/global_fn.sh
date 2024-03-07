@@ -74,6 +74,12 @@ init_config() {
         CERT_TEST_SUITE="${OPENSHIFT_TESTS_SUITE_OPENSHIFT_CONFORMANCE}"
         PLUGIN_BLOCKED_BY+=("${PLUGIN_NAME_KUBE_CONFORMANCE}")
 
+    elif [[ "${PLUGIN_ID:-}" == "${PLUGIN_ID_TESTS_REPLAY}" ]]
+    then
+        PLUGIN_NAME="${PLUGIN_NAME_TESTS_REPLAY}"
+        CERT_TEST_SUITE="${OPENSHIFT_TESTS_SUITE_TESTS_REPLAY}"
+        PLUGIN_BLOCKED_BY+=("${PLUGIN_NAME_OPENSHIFT_CONFORMANCE}")
+
     elif [[ "${PLUGIN_ID:-}" == "${PLUGIN_ID_OPENSHIFT_ARTIFACTS_COLLECTOR}" ]]
     then
         PLUGIN_NAME="${PLUGIN_NAME_OPENSHIFT_ARTIFACTS_COLLECTOR}"
@@ -481,6 +487,7 @@ replay_save() {
 }
 export -f replay_save
 
+# Standalone
 replay_plugin_run() {
     os_log_info "[openshift-tests-plugin][replay] Starting plugin"
     os_log_info "[openshift-tests-plugin][replay] Dumping config"
@@ -498,6 +505,7 @@ EOF
     openshift_login
     start_utils_extractor
     replay_extract_from_config
+    replay_run_e2e
     replay_save
 }
 export -f replay_plugin_run

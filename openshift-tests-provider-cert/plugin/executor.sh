@@ -149,6 +149,25 @@ run_plugin_upgrade() {
 
 # Run Conformance Plugins calling openshift-tests, when success the JUnit will be
 # created, otherwise custom error is raised as custom result file (JUnits).
+run_plugins_conformance_replay_config() {
+    # Saving failures to replay
+    os_log_info "[executor][PluginID#${PLUGIN_ID}] creating failed replay file"
+    junit_file=$(ls ${RESULTS_DIR}/junit_e2e_*.xml)
+    if [[ -f "${junit_file}" ]]; then
+        os_log_info "[executor][PluginID#${PLUGIN_ID}] parsing junit file ${junit_file}"
+        yq -p=xml -o=json "${junit_file}" | jq '.testsuite.testcase[] | select(.failure != null) | .["+@name"]' | sort > "/tmp/failures-${PLUGIN_ID}.txt"
+
+        os_log_info "[executor][PluginID#${PLUGIN_ID}] dump failures ${junit_file}"
+        cat "/tmp/failures-${PLUGIN_ID}.txt"
+
+        failed_config="plugin-failures-${PLUGIN_ID}"
+        os_log_info "[executor][PluginID#${PLUGIN_ID}] saving failures to config map ${failed_config}"
+        ${UTIL_OC_BIN} create configmap -n "${ENV_POD_NAMESPACE:-sonobuoy}" "plugin-failures-${PLUGIN_ID}" --from-file=replay.list="/tmp/failures-${PLUGIN_ID}.txt"
+    else
+        os_log_info "[executor][PluginID#${PLUGIN_ID}]WARNING: unable to find junit file to create failed replay"
+    fi
+}
+
 run_plugins_conformance() {
 
     if [[ -z "${CERT_TEST_SUITE}" ]]; then
@@ -187,6 +206,7 @@ run_plugins_conformance() {
             | tee -a "${RESULTS_PIPE}" || true
 
         os_log_info "[executor][PluginID#${PLUGIN_ID}] openshift-tests finished[$?] (DEV Mode)"
+        run_plugins_conformance_replay_config
         return
     fi
 
@@ -200,6 +220,8 @@ run_plugins_conformance() {
         | tee -a "${RESULTS_PIPE}" || true
 
     os_log_info "[executor][PluginID#${PLUGIN_ID}] openshift-tests finished[$?]"
+    run_plugins_conformance_replay_config
+
     set +x
 }
 
@@ -398,6 +420,64 @@ run_plugin_collector() {
     popd || true;
 }
 
+run_plugin_replay() {
+    # dump config
+    os_log_info "[openshift-tests-plugin][replay] Dumping config"
+    cat << EOF
+REPLAY_RESULTS=${REPLAY_RESULTS-}
+REPLAY_NAMESPACE=${REPLAY_NAMESPACE-}
+REPLAY_CONFIG_MAP=${REPLAY_CONFIG_MAP-}
+REPLAY_CONFIG_KEY=${REPLAY_CONFIG_KEY-}
+REPLAY_CONFIG_FILE=${REPLAY_CONFIG_FILE-}
+REPLAY_SUITE=${REPLAY_SUITE-}
+REPLAY_MAX_PARALLEL_TESTS=${REPLAY_MAX_PARALLEL_TESTS-}
+REPLAY_JUNIR_DIR=${REPLAY_JUNIR_DIR-}
+REPLAY_MONITOR_FOCUS=${REPLAY_MONITOR_FOCUS-}
+EOF
+
+    # extract failed from plugins each config
+    os_log_info "[openshift-tests-plugin][replay] Attemping to extract custom e2e tests to replay"
+    # kubernetes
+
+    ${UTIL_OC_BIN} extract -n "${ENV_POD_NAMESPACE:-sonobuoy}"  configmap/plugin-failures-10 --to=/tmp --keys="${REPLAY_CONFIG_KEY}" || true
+    if [[ -f "${REPLAY_CONFIG_FILE}" ]]; then
+        os_log_info "[openshift-tests-plugin][replay][10] Reading ${REPLAY_CONFIG_FILE}"
+        cat "${REPLAY_CONFIG_FILE}"
+
+        os_log_info "[openshift-tests-plugin][replay][20] Moving ${REPLAY_CONFIG_FILE}"
+        mv -v "${REPLAY_CONFIG_FILE}" /tmp/failures-plugin-10
+
+        os_log_info "[openshift-tests-plugin][replay][10] Removing ${REPLAY_CONFIG_FILE}"
+        rm -vf "${REPLAY_CONFIG_FILE}"
+    fi
+
+    ${UTIL_OC_BIN} extract -n "${ENV_POD_NAMESPACE:-sonobuoy}"  configmap/plugin-failures-20 --to=/tmp --keys="${REPLAY_CONFIG_KEY}" || true
+    if [[ -f "${REPLAY_CONFIG_FILE}" ]]; then
+        os_log_info "[openshift-tests-plugin][replay][20] Reading ${REPLAY_CONFIG_FILE}"
+        cat "${REPLAY_CONFIG_FILE}"
+
+        os_log_info "[openshift-tests-plugin][replay][20] Moving ${REPLAY_CONFIG_FILE}"
+        mv -v "${REPLAY_CONFIG_FILE}" /tmp/failures-plugin-20
+
+        os_log_info "[openshift-tests-plugin][replay][20] Removing ${REPLAY_CONFIG_FILE}"
+        rm -vf "${REPLAY_CONFIG_FILE}"
+    fi
+    os_log_info "[openshift-tests-plugin][replay][20] Consolidating /tmp/failures-plugin-*"
+    cat /tmp/failures-plugin-* "${REPLAY_CONFIG_FILE}"
+
+    if [[ -s "${REPLAY_CONFIG_FILE}" ]]; then
+        os_log_info "[openshift-tests-plugin][replay] Running e2e from custom config ${REPLAY_CONFIG_FILE}"
+        ${UTIL_OTESTS_BIN} run "${REPLAY_SUITE}" \
+            -f "${REPLAY_CONFIG_FILE}" \
+            --max-parallel-tests "${REPLAY_MAX_PARALLEL_TESTS}" \
+            --junit-dir="${REPLAY_JUNIR_DIR}" \
+            --monitor "${REPLAY_MONITOR_FOCUS}"
+        replay_save
+    else
+        os_log_info "[openshift-tests-plugin][replay] replay file not found or is empty, skipping execution: ${REPLAY_CONFIG_FILE}"
+    fi
+}
+
 #
 # Executor options
 #
@@ -416,6 +496,7 @@ os_log_info "[executor] Executor started. Choosing execution type based on envir
 case "${PLUGIN_ID}" in
     "${PLUGIN_ID_OPENSHIFT_UPGRADE}") run_plugin_upgrade ;;
     "${PLUGIN_ID_KUBE_CONFORMANCE}"|"${PLUGIN_ID_OPENSHIFT_CONFORMANCE}") run_plugins_conformance ;;
+    "${PLUGIN_ID_TESTS_REPLAY}") run_plugin_replay ;;
     "${PLUGIN_ID_OPENSHIFT_ARTIFACTS_COLLECTOR}") run_plugin_collector ;;
     *) os_log_info "[executor] PluginID." ;;
 esac

@@ -61,6 +61,11 @@ declare -grx PLUGIN_ID_OPENSHIFT_CONFORMANCE="20"
 declare -grx PLUGIN_NAME_OPENSHIFT_CONFORMANCE="${PLUGIN_ID_OPENSHIFT_CONFORMANCE}-openshift-conformance-validated"
 declare -grx OPENSHIFT_TESTS_SUITE_OPENSHIFT_CONFORMANCE="${PLUGIN_SUITE_OPENSHIFT_CONFORMANCE:-openshift/conformance}"
 
+## openshift-conformance-validated
+declare -grx PLUGIN_ID_TESTS_REPLAY="80"
+declare -grx PLUGIN_NAME_TESTS_REPLAY="${PLUGIN_ID_TESTS_REPLAY}-openshift-tests-replay"
+declare -grx OPENSHIFT_TESTS_SUITE_TESTS_REPLAY="${PLUGIN_SUITE_TESTS_REPLAY:-openshift/conformance}"
+
 ## openshift-artifacts-collector
 declare -grx PLUGIN_ID_OPENSHIFT_ARTIFACTS_COLLECTOR="99"
 declare -grx PLUGIN_NAME_OPENSHIFT_ARTIFACTS_COLLECTOR="${PLUGIN_ID_OPENSHIFT_ARTIFACTS_COLLECTOR}-openshift-artifacts-collector"
