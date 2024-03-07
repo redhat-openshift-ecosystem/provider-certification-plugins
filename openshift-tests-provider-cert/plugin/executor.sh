@@ -139,7 +139,7 @@ run_plugin_upgrade() {
 
     else
         os_log_info "[executor] Creating pass JUnit files due the execution mode != upgrade"
-        create_junit_with_msg "pass" "[opct][pass] ignoring upgrade mode on RUN_MODE=[${RUN_MODE-}]." "upgrade"
+        create_junit_with_msg "skipped" "[opct] run plugin upgrade conformance RUN_MODE=[${RUN_MODE-}]." "upgrade"
     fi
 }
 
@@ -152,17 +152,27 @@ run_plugin_upgrade() {
 run_plugins_conformance_replay_config() {
     # Saving failures to replay
     os_log_info "[executor][PluginID#${PLUGIN_ID}] creating failed replay file"
-    junit_file=$(ls ${RESULTS_DIR}/junit_e2e_*.xml)
+    junit_file="$(ls "${RESULTS_DIR}"/junit_e2e_*.xml)"
     if [[ -f "${junit_file}" ]]; then
         os_log_info "[executor][PluginID#${PLUGIN_ID}] parsing junit file ${junit_file}"
         yq -p=xml -o=json "${junit_file}" | jq '.testsuite.testcase[] | select(.failure != null) | .["+@name"]' | sort > "/tmp/failures-${PLUGIN_ID}.txt"
 
-        os_log_info "[executor][PluginID#${PLUGIN_ID}] dump failures ${junit_file}"
+        os_log_info "[executor][PluginID#${PLUGIN_ID}] dump failures from ${junit_file}"
         cat "/tmp/failures-${PLUGIN_ID}.txt"
+
+        # filter for valid tests only (removing 'monitor' and others not included in the suite)
+        os_log_info "[executor][PluginID#${PLUGIN_ID}] filter failures for suite only"
+        while read -r line; do
+            grep ${line} "${RESULTS_DIR}/suite-${CERT_TEST_SUITE/\/}.list" >> "/tmp/failures-${PLUGIN_ID}-suite.txt" || true
+        done < "/tmp/failures-${PLUGIN_ID}.txt"
+
+        os_log_info "[executor][PluginID#${PLUGIN_ID}] dump filtered failures"
+        cat "/tmp/failures-${PLUGIN_ID}-suite.txt"
 
         failed_config="plugin-failures-${PLUGIN_ID}"
         os_log_info "[executor][PluginID#${PLUGIN_ID}] saving failures to config map ${failed_config}"
-        ${UTIL_OC_BIN} create configmap -n "${ENV_POD_NAMESPACE:-sonobuoy}" "plugin-failures-${PLUGIN_ID}" --from-file=replay.list="/tmp/failures-${PLUGIN_ID}.txt"
+        ${UTIL_OC_BIN} create configmap -n "${ENV_POD_NAMESPACE:-sonobuoy}" "plugin-failures-${PLUGIN_ID}" --from-file=replay.list="/tmp/failures-${PLUGIN_ID}-suite.txt" || true
+
     else
         os_log_info "[executor][PluginID#${PLUGIN_ID}]WARNING: unable to find junit file to create failed replay"
     fi
@@ -463,7 +473,7 @@ EOF
         rm -vf "${REPLAY_CONFIG_FILE}"
     fi
     os_log_info "[openshift-tests-plugin][replay][20] Consolidating /tmp/failures-plugin-*"
-    cat /tmp/failures-plugin-* "${REPLAY_CONFIG_FILE}"
+    cat /tmp/failures-plugin-* | sort > "${REPLAY_CONFIG_FILE}"
 
     if [[ -s "${REPLAY_CONFIG_FILE}" ]]; then
         os_log_info "[openshift-tests-plugin][replay] Running e2e from custom config ${REPLAY_CONFIG_FILE}"
@@ -475,6 +485,7 @@ EOF
         replay_save
     else
         os_log_info "[openshift-tests-plugin][replay] replay file not found or is empty, skipping execution: ${REPLAY_CONFIG_FILE}"
+        create_junit_with_msg "skipped" "[opct] run plugin openshift-tests-replay" "replay"
     fi
 }
 

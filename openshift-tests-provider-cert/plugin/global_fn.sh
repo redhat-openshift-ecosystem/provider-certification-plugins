@@ -79,11 +79,12 @@ init_config() {
         PLUGIN_NAME="${PLUGIN_NAME_TESTS_REPLAY}"
         CERT_TEST_SUITE="${OPENSHIFT_TESTS_SUITE_TESTS_REPLAY}"
         PLUGIN_BLOCKED_BY+=("${PLUGIN_NAME_OPENSHIFT_CONFORMANCE}")
+        export CERT_TEST_COUNT_OVERRIDE=0
 
     elif [[ "${PLUGIN_ID:-}" == "${PLUGIN_ID_OPENSHIFT_ARTIFACTS_COLLECTOR}" ]]
     then
         PLUGIN_NAME="${PLUGIN_NAME_OPENSHIFT_ARTIFACTS_COLLECTOR}"
-        PLUGIN_BLOCKED_BY+=("${PLUGIN_NAME_OPENSHIFT_CONFORMANCE}")
+        PLUGIN_BLOCKED_BY+=("${PLUGIN_NAME_TESTS_REPLAY}")
 
     else
         err="[init_config] Unknown value for PLUGIN_ID=[${PLUGIN_ID:-}]"
@@ -136,6 +137,15 @@ update_config() {
     then
         CERT_TEST_COUNT="$(${UTIL_OTESTS_BIN} run --dry-run "${CERT_TEST_SUITE}" | wc -l)"
     fi
+    # Counter override
+    if [[ -n "${CERT_TEST_COUNT_OVERRIDE-}" ]]; then
+        os_log_info "[update_config] Overriding test count from [${CERT_TEST_COUNT}] to [${CERT_TEST_COUNT_OVERRIDE}]"
+        CERT_TEST_COUNT=${CERT_TEST_COUNT_OVERRIDE}
+    fi
+    if [[ ${DEV_TESTS_COUNT-} -ne 0 ]]; then
+        os_log_info "[update_config] Overriding test count from [${CERT_TEST_COUNT}] to [${DEV_TESTS_COUNT}]"
+        CERT_TEST_COUNT=${DEV_TESTS_COUNT}
+    fi
     os_log_info "[update_config] Total tests found: [${CERT_TEST_COUNT}]"
 }
 
@@ -172,24 +182,29 @@ create_junit_with_msg() {
     local failures_count
     local junit_file
     local junit_file_type
-    local faliures_payload
+    local test_payload
 
     msg_type="$1"; shift
     msg="$1"; shift
     junit_file_type="${1:-e2e}"
     failures_count=0
+    skipped_count=0
 
     if [[ "${msg_type}" == "failed" ]]; then
         failures_count=1
-        faliures_payload="<failure message=\"\">plugin runtime failed</failure><system-out></system-out>"
+        test_payload="<failure message=\"\">OPCT Plugin runtime: unexpected execution failure. Review the plugin logs.</failure><system-out></system-out>"
+    fi
+    if [[ "${msg_type}" == "skipped" ]]; then
+        skipped_count=1
+        test_payload="<skipped message=\"OPCT Plugin Runtime: test skipped. Review the plugin logs for details.\"/>"
     fi
     junit_file="${RESULTS_DIR}/junit_${junit_file_type}_${msg_type}_$(date +%Y%m%d-%H%M%S).xml"
 
     os_log_info "Creating ${msg_type} JUnit result file [${junit_file}]"
     cat << EOF > "${junit_file}"
-<testsuite name="openshift-tests" tests="1" skipped="0" failures="${failures_count}" time="1.0">
+<testsuite name="openshift-tests" tests="1" skipped="${skipped_count}" failures="${failures_count}" time="1.0">
  <property name="TestVersion" value="v4.1.0"></property>
- <testcase name="${msg}" time="0"> ${faliures_payload:-''}
+ <testcase name="${msg}" time="0"> ${test_payload:-''}
 </testcase>
 </testsuite>
 EOF
