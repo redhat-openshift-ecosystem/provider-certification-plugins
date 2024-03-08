@@ -1,0 +1,1 @@
+"[sig-api-machinery] CustomResourceDefinition Watch [Privileged:ClusterAdmin] CustomResourceDefinition Watch watch on custom resource definition objects [Conformance] [Suite:openshift/conformance/parallel/minimal] [Suite:k8s]"

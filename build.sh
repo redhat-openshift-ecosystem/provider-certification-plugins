@@ -73,6 +73,7 @@ function build_tools() {
         --build-arg=CAMGI_TAR="${camgi_archive}" \
         --build-arg=OC_TAR="${oc_archive}" \
         --build-arg=OC_URL="${oc_url}" \
+        --build-arg=OPCT_PLUGIN_OTESTS_VERSION="${OPCT_PLUGIN_OTESTS_VERSION}" \
         --build-arg=SONOBUOY_VERSION="${SONOBUOY_VERSION}" \
         --build-arg=QUAY_EXPIRATION="${IMAGE_EXPIRE_TIME}" \
         --build-arg=TARGETPLATFORM="${BUILD_PLATFORMS[$BUILD_ARCH]}" \
