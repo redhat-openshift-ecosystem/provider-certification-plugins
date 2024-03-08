@@ -1,0 +1,38 @@
+config-map:
+  replay-runner.sh: |
+    declare -gxr SERVICE_NAME="plugin"
+    # shellcheck disable=SC1091
+    source ./global_env.sh
+    # shellcheck disable=SC1091
+    source ./global_fn.sh
+
+    replay_plugin_run
+sonobuoy-config:
+  driver: Job
+  plugin-name: openshift-tests-replay
+  result-format: junit
+  source_url: https://raw.githubusercontent.com/redhat-ecosystem/provider-certification-plugins/main/openshift-tests-replay/plugin.yaml
+  description: Replay custom tests using openshift-tests on OpenShift/OKD clusters.
+spec:
+  name: plugin
+  image: quay.io/opct/plugin-openshift-tests:v0.0.0-devel-aa26440
+  imagePullPolicy: Always
+  command:
+  - bash
+  - /tmp/sonobuoy/config/replay-runner.sh
+  env:
+  - name: RESULTS_PATH
+    value: /tmp/sonobuoy/results
+  resources:
+    requests:
+      memory: "4096Mi"
+  nodeSelector: 
+    node-role.kubernetes.io/tests: ""
+  tolerations: 
+    - key: "node-role.kubernetes.io/tests"
+      operator: "Equal"
+      value: ""
+      effect: "NoSchedule"
+  volumeMounts:
+  - mountPath: /tmp/sonobuoy/results
+    name: results

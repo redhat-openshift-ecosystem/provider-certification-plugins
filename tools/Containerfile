@@ -6,11 +6,13 @@
 #
 ## Base image
 #
-FROM quay.io/fedora/fedora-minimal:38 as base
+FROM quay.io/fedora/fedora-minimal:39 as base
 
 # gcompat: allow to run glibc programs (oc and jq)
 # sononbuoy is already built with musl
-RUN microdnf install -y bash curl grep tar xz gzip && \
+RUN microdnf install -y bash curl grep tar xz gzip git diff util-linux python3-six && \
+    git config --system user.name opct && \
+    git config --system user.email opct@test.dev && \
     microdnf clean all
 
 FROM base as clients
@@ -21,17 +23,21 @@ ARG CAMGI_URL=TBD
 ARG CAMGI_TAR=TBD
 ARG OC_URL=TBD
 ARG OC_TAR=TBD
+ARG YQ_URL=TBD
+ARG YQ_BIN=TBD
 
 ADD ${OC_URL} ./
 ADD ${JQ_URL} ./
+ADD ${YQ_URL} ./
 ADD ${CAMGI_URL} ./
 RUN microdnf install -y binutils \
     && tar xvfz ${OC_TAR} \
     && rm -f ${OC_TAR} kubectl README.md \
     && tar xvf ${CAMGI_TAR} && rm ${CAMGI_TAR} \
-    && chmod +x ${JQ_BIN} oc camgi \
+    && chmod +x ${JQ_BIN} ${YQ_BIN} oc camgi \
     && strip oc && strip camgi \
     && mv ${JQ_BIN} jq \
+    && mv ${YQ_BIN} yq \
     && microdnf clean all
 
 #
@@ -55,6 +61,7 @@ ARG SONOBUOY_VERSION=TBD
 COPY --from=quay.io/opct/sonobuoy:${SONOBUOY_VERSION} /sonobuoy /usr/bin/
 COPY --from=clients /clients/oc /usr/bin/
 COPY --from=clients /clients/jq /usr/bin/jq
+COPY --from=clients /clients/yq /usr/bin/yq
 COPY --from=clients /clients/camgi /usr/bin/camgi
 
 COPY ./VERSION .

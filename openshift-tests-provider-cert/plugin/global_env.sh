@@ -61,6 +61,11 @@ declare -grx PLUGIN_ID_OPENSHIFT_CONFORMANCE="20"
 declare -grx PLUGIN_NAME_OPENSHIFT_CONFORMANCE="${PLUGIN_ID_OPENSHIFT_CONFORMANCE}-openshift-conformance-validated"
 declare -grx OPENSHIFT_TESTS_SUITE_OPENSHIFT_CONFORMANCE="${PLUGIN_SUITE_OPENSHIFT_CONFORMANCE:-openshift/conformance}"
 
+## openshift-conformance-validated
+declare -grx PLUGIN_ID_TESTS_REPLAY="80"
+declare -grx PLUGIN_NAME_TESTS_REPLAY="${PLUGIN_ID_TESTS_REPLAY}-openshift-tests-replay"
+declare -grx OPENSHIFT_TESTS_SUITE_TESTS_REPLAY="${PLUGIN_SUITE_TESTS_REPLAY:-openshift/conformance}"
+
 ## openshift-artifacts-collector
 declare -grx PLUGIN_ID_OPENSHIFT_ARTIFACTS_COLLECTOR="99"
 declare -grx PLUGIN_NAME_OPENSHIFT_ARTIFACTS_COLLECTOR="${PLUGIN_ID_OPENSHIFT_ARTIFACTS_COLLECTOR}-openshift-artifacts-collector"
@@ -83,3 +88,17 @@ CERT_TEST_SUITE=""
 CERT_TEST_COUNT=0
 CERT_TEST_PARALLEL=${E2E_PARALLEL:-${E2E_PARALLEL_DEFAULT}}
 DEV_TESTS_COUNT="${DEV_MODE_COUNT:-0}"
+
+
+#
+# Replay plugin
+#
+declare -x REPLAY_RESULTS=/tmp/replay
+declare -x REPLAY_NAMESPACE=opct-temp
+declare -x REPLAY_CONFIG_MAP=openshift-tests-replay
+declare -x REPLAY_CONFIG_KEY=replay.list
+declare -x REPLAY_CONFIG_FILE="/tmp/${REPLAY_CONFIG_KEY}"
+declare -x REPLAY_SUITE=openshift/conformance
+declare -x REPLAY_MAX_PARALLEL_TESTS=1
+declare -x REPLAY_JUNIR_DIR=/tmp/replay-junits
+declare -x REPLAY_MONITOR_FOCUS=node-state-analyzer
