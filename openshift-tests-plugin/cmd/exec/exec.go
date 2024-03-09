@@ -20,6 +20,8 @@ var execCmd = &cobra.Command{
 func init() {
 	execCmd.AddCommand(NewCmdWaitForPlugin())
 	execCmd.AddCommand(NewCmdParserFailres())
+	execCmd.AddCommand(NewCmdProgressReport())
+
 }
 
 func NewCmdExec() *cobra.Command {

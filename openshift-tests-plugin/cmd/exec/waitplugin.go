@@ -38,6 +38,7 @@ type StatusInput struct {
 }
 
 type OptionsWaitForPlugin struct {
+	Namespace     string
 	PluginName    string
 	BlockerPlugin string
 }
@@ -58,6 +59,7 @@ func NewCmdWaitForPlugin() *cobra.Command {
 		},
 	}
 
+	cmd.Flags().StringVar(&opts.Namespace, "namespace", "", "Name of current namespace")
 	cmd.Flags().StringVar(&opts.PluginName, "plugin", "", "Name of current plugin")
 	cmd.Flags().StringVar(&opts.BlockerPlugin, "blocker", "", "Blocker Plugin")
 
@@ -65,6 +67,7 @@ func NewCmdWaitForPlugin() *cobra.Command {
 }
 
 type PluginConfig struct {
+	Namespace      string
 	Name           string
 	BlockerPlugins []*PluginConfig
 }
@@ -92,11 +95,14 @@ type PluginConfig struct {
 func StartWaitForPlugin(opts *OptionsWaitForPlugin) error {
 
 	plugin := PluginConfig{
-		Name: opts.PluginName,
+		Namespace: opts.Namespace,
+		Name:      opts.PluginName,
 		BlockerPlugins: []*PluginConfig{
-			&PluginConfig{Name: opts.PluginName},
+			&PluginConfig{Name: opts.BlockerPlugin},
 		},
 	}
+
+	log.Printf("> Starting waiter for plugin %s w/ blockers: %s", plugin.Name, plugin.BlockerPlugins[0].Name)
 
 	s := status.NewStatusOptions(false)
 	// Client setup
@@ -130,7 +136,7 @@ func StartWaitForPlugin(opts *OptionsWaitForPlugin) error {
 
 	// Wait for blocker readyness
 	for _, blockerPlugin := range plugin.BlockerPlugins {
-		err = WaitForPodRunningOrComplete(kcli, blockerPlugin.Name)
+		err = WaitForPodRunningOrComplete(kcli, &plugin, blockerPlugin.Name)
 		if err != nil {
 			log.WithError(err).Error("error waiting for sonobuoy pods to become ready")
 			// return err
@@ -139,8 +145,11 @@ func StartWaitForPlugin(opts *OptionsWaitForPlugin) error {
 
 	// TEMP start status report for plugin
 	// Wait for blocker execution complete
+	log.Printf("WaitForPodRunningOrComplete() done")
+
 	for _, blockerPlugin := range plugin.BlockerPlugins {
-		err = WaitForPluginExecution(sbcli, kcli, plugin.Name, blockerPlugin.Name)
+		log.Printf("Starting WaitForPluginExecution() for plugin %s", blockerPlugin.Name)
+		err = WaitForPluginExecution(sbcli, kcli, &plugin, blockerPlugin.Name)
 		if err != nil {
 			log.WithError(err).Error("error waiting for sonobuoy pods to become ready")
 			// return err
@@ -150,10 +159,10 @@ func StartWaitForPlugin(opts *OptionsWaitForPlugin) error {
 	return nil
 }
 
-func WaitForPluginExecution(sbcli sbclient.Interface, kclient kubernetes.Interface, plugin string, pluginBlocker string) error {
+func WaitForPluginExecution(sbcli sbclient.Interface, kclient kubernetes.Interface, plugin *PluginConfig, pluginBlocker string) error {
 
 	// loop blocker check
-	log.Println("Plugin %s waiting 'completed' condition for pod: %s", plugin, pluginBlocker)
+	log.Printf("Plugin %s waiting 'completed' condition for pod: %s", plugin.Name, pluginBlocker)
 
 	currentCheckCount := 0
 	limitCheckCount := 1080
@@ -163,14 +172,14 @@ func WaitForPluginExecution(sbcli sbclient.Interface, kclient kubernetes.Interfa
 	for {
 
 		// get plugin API status
-		sstatus, err := sbcli.GetStatus(&sbclient.StatusConfig{Namespace: "sonobuoy"})
+		sstatus, err := sbcli.GetStatus(&sbclient.StatusConfig{Namespace: plugin.Namespace})
 		if err != nil {
 			return err
 		}
 		var pStatusBlocker sbaggregation.PluginStatus
 		var pStatusCurrent sbaggregation.PluginStatus
 		for _, ps := range sstatus.Plugins {
-			if ps.Plugin == plugin {
+			if ps.Plugin == plugin.Name {
 				pStatusCurrent = ps
 			}
 			if ps.Plugin == pluginBlocker {
@@ -178,7 +187,7 @@ func WaitForPluginExecution(sbcli sbclient.Interface, kclient kubernetes.Interfa
 			}
 		}
 		fmt.Println(sstatus)
-		pod, _ := getPluginPod(kclient, pluginBlocker)
+		pod, _ := getPluginPod(kclient, plugin.Namespace, pluginBlocker)
 		podPhase := getPodStatusString(pod)
 
 		// parse fields to status api
@@ -210,7 +219,7 @@ func WaitForPluginExecution(sbcli sbclient.Interface, kclient kubernetes.Interfa
 			time.Sleep(sleepIntervalSeconds)
 			continue
 		}
-		if pStatusBlocker.Progress != nil &&
+		if pStatusBlocker.Progress != nil && pStatusCurrent.Progress != nil &&
 			strings.HasPrefix(pStatusBlocker.Progress.Message, "status=waiting-for") &&
 			strings.HasPrefix(pStatusCurrent.Progress.Message, "status=blocked-by") {
 			currentCheckCount = 0
@@ -239,18 +248,19 @@ func WaitForPluginExecution(sbcli sbclient.Interface, kclient kubernetes.Interfa
 
 // WaitForPodRunningOrComplete will wait for the sonobuoy pod in the sonobuoy namespace to go into
 // a Running/Ready state and then return nil.
-func WaitForPodRunningOrComplete(kclient kubernetes.Interface, pluginName string) error {
+func WaitForPodRunningOrComplete(kclient kubernetes.Interface, plugin *PluginConfig, pluginName string) error {
 	var obj kruntime.Object
 
 	restClient := kclient.CoreV1().RESTClient()
 
 	selector := fmt.Sprintf("component=sonobuoy,sonobuoy-plugin=%s", pluginName)
-	lw := kcache.NewFilteredListWatchFromClient(restClient, "pods", "sonobuoy", func(options *kmmetav1.ListOptions) {
+	log.Printf("WaitForPodRunningOrComplete() Getting pod with labels: %v\n", selector)
+	lw := kcache.NewFilteredListWatchFromClient(restClient, "pods", plugin.Namespace, func(options *kmmetav1.ListOptions) {
 		options.LabelSelector = selector
 	})
 
 	// Wait for Sonobuoy Pods to become Ready
-	fmt.Printf("WaitForPodRunningOrComplete() \n")
+	log.Printf("WaitForPodRunningOrComplete() waiting...\n")
 	latestPhase := "TBD"
 	ctx, cancel := context.WithTimeout(context.TODO(), time.Minute*3)
 	defer cancel()
@@ -273,7 +283,7 @@ func WaitForPodRunningOrComplete(kclient kubernetes.Interface, pluginName string
 			return true, nil
 		}
 
-		log.Debugf(" Waiting for plugin pod [%s] to be scheduled. Phase(%s)\n", pluginName, latestPhase)
+		log.Printf(" Waiting for plugin pod [%s] to be scheduled. Phase(%s)\n", pluginName, latestPhase)
 
 		return false, nil
 	})
@@ -285,37 +295,15 @@ func WaitForPodRunningOrComplete(kclient kubernetes.Interface, pluginName string
 	return nil
 }
 
-// func podIsReady(pod *kcorev1.Pod) bool {
-// 	for _, cond := range pod.Status.Conditions {
-// 		if cond.Type == kcorev1.PodReady && cond.Status == kcorev1.ConditionTrue {
-// 			return true
-// 		}
-// 	}
-// 	return false
-// }
-
-// func podIsCompleted(pod *kcorev1.Pod) bool {
-// 	if pod == nil {
-// 		return false
-// 	}
-// 	for _, cond := range pod.Status.Conditions {
-// 		if cond.Type == kcorev1.PodReady &&
-// 			cond.Status == "False" &&
-// 			cond.Reason == "PodCompleted" {
-// 			return true
-// 		}
-// 	}
-// 	return false
-// }
-
-func getPluginPod(kclient kubernetes.Interface, pluginName string) (*kcorev1.Pod, error) {
+func getPluginPod(kclient kubernetes.Interface, namespace string, plugin string) (*kcorev1.Pod, error) {
 	// selector := fmt.Sprintf("component=sonobuoy,sonobuoy-plugin=%s", pluginName)
 	// pods := kclient.CoreV1().ListOptions().Pod()
 
-	namespace := "sonobuoy"
+	// namespace := "sonobuoy"
 	// ctx, cancel := context.WithTimeout(context.TODO(), time.Minute*3)
 	// defer cancel()
-	labelSelector := kmmetav1.LabelSelector{MatchLabels: map[string]string{"component": "sonobuoy", "sonobuoy-plugin": pluginName}}
+	labelSelector := kmmetav1.LabelSelector{MatchLabels: map[string]string{"component": "sonobuoy", "sonobuoy-plugin": plugin}}
+	log.Printf("Getting pod with labels: %v\n", labelSelector)
 	listOptions := kmmetav1.ListOptions{
 		LabelSelector: klabels.Set(labelSelector.MatchLabels).String(),
 	}
