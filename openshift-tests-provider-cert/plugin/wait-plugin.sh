@@ -19,6 +19,7 @@ if [[ ${#PLUGIN_BLOCKED_BY[@]} -ge 1 ]]; then
 
         os_log_info_local "Waiting for pod running with label: ${pod_label}"
          openshift-tests-plugin exec wait-for-plugin \
+            --namespace "${ENV_POD_NAMESPACE}" \
             --plugin "${PLUGIN_NAME}" \
             --blocker "${pod_label}"
     done

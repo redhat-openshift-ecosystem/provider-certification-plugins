@@ -187,73 +187,9 @@ watch_dependency_done() {
 # to worker progress endpoint until the piple file is closed and Done file is created
 # by plugin container.
 report_progress() {
-    local has_update
-    has_update=0
-    while true
-    do
-        # Watch sonobuoy done file
-        if [[ -f "${PLUGIN_DONE_NOTIFY}" ]]
-        then
-            echo "[report_progress] Done file detected"
-            break
-        fi
-
-        while read -r line;
-        do
-            # Example 'started' line (4.11-):
-            # started: (14/3468/3476) "<test_name>"
-            # Example 'started' line (4.12+):
-            # started: 14/3468/3476 "<test_name>"
-            if [[ $line == started:* ]]; then
-                has_update=1;
-                COUNTER_STARTED=$(( COUNTER_STARTED + 1 ))
-
-            elif [[ $line == passed:* ]]; then
-                has_update=1;
-                COUNTER_PASSED=$(( COUNTER_PASSED + 1 ))
-
-            elif [[ $line == skipped:* ]]; then
-                has_update=1;
-                COUNTER_SKIPPED=$(( COUNTER_SKIPPED + 1 ))
-
-            elif [[ $line == failed:* ]]; then
-                COUNTER_FAILED=$(( COUNTER_FAILED + 1 ))
-                if [ -z "${PROGRESS["failures"]}" ]; then
-                    PROGRESS["failures"]=\"$(echo "$line" | cut -d"\"" -f2)\"
-                else
-                    # Trucanting the 'failures' from payload:
-                    # https://issues.redhat.com/browse/OPCT-24
-                    # Stop flooding the aggregator API with long error messages, when
-                    # there are many errors on the cluster. Note: this will not affect
-                    # the final results, it's just the progress API.
-                    if [[ ${COUNTER_FAILED} -gt 30 ]]; then
-                        PROGRESS["failures"]+=,\"$(echo "$line" | cut -d"\"" -f2)\"
-                    else
-                        sig_err=$(echo "$line" | cut -d"\"" -f2 | grep -Po '^(\[sig-[a-zA-Z-]*\])')
-                        err_msg="${sig_err} ERR#${COUNTER_FAILED}"
-                        PROGRESS["failures"]+=,\"${err_msg}\"
-                    fi
-                fi
-                has_update=1;
-            fi
-            COUNTER_COMPLETED=$(( COUNTER_PASSED + COUNTER_SKIPPED + COUNTER_FAILED ))
-            PROGRESS["completed"]=${COUNTER_COMPLETED}
-
-            # The COUNTER_TOTAL knows e2e tests defined on the suite (not including monitoring
-            # tests).
-            # TODO: Is there any way to find the total counter including all tests before the execution?
-            if [[ ${COUNTER_COMPLETED} -ge ${COUNTER_TOTAL} ]]; then
-                PROGRESS["total"]=${COUNTER_COMPLETED}
-            fi
-
-            if [[ $has_update -eq 1 ]] && [[ "${PLUGIN_ID}" != "${PLUGIN_ID_OPENSHIFT_UPGRADE}" ]]; then
-                msg_st="T/C/P/F/S=${PROGRESS["total"]}/${COUNTER_COMPLETED}/${COUNTER_PASSED}/${COUNTER_FAILED}/${COUNTER_SKIPPED}"
-                update_progress "updater" "status=running=${msg_st}";
-                has_update=0;
-            fi
-
-        done <"${RESULTS_PIPE}"
-    done
+    openshift-tests-plugin exec progress-report \
+        --input "${RESULTS_PIPE}" \
+        --done "${PLUGIN_DONE_NOTIFY}"
 }
 
 #
