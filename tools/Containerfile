@@ -63,7 +63,7 @@ WORKDIR /tools
 ARG SONOBUOY_VERSION=TBD
 ARG OPCT_PLUGIN_OTESTS_VERSION=latest
 COPY --from=quay.io/opct/sonobuoy:${SONOBUOY_VERSION} /sonobuoy /usr/bin/
-COPY --from=quay.io/opct/openshift-tests-plugin:${OPCT_PLUGIN_OTESTS_VERSION} /openshift-tests-plugin /usr/bin/
+COPY --from=quay.io/opct/openshift-tests-plugin:${OPCT_PLUGIN_OTESTS_VERSION} /usr/bin/openshift-tests-plugin /usr/bin/
 COPY --from=clients /clients/oc /usr/bin/
 COPY --from=clients /clients/jq /usr/bin/jq
 COPY --from=clients /clients/yq /usr/bin/yq

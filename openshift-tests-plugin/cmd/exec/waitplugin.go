@@ -37,7 +37,14 @@ type StatusInput struct {
 	IntervalSeconds int
 }
 
+type OptionsWaitForPlugin struct {
+	PluginName    string
+	BlockerPlugin string
+}
+
 func NewCmdWaitForPlugin() *cobra.Command {
+
+	opts := OptionsWaitForPlugin{}
 
 	cmd := &cobra.Command{
 		Use:   "wait-for-plugin",
@@ -46,16 +53,13 @@ func NewCmdWaitForPlugin() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 
 			fmt.Println(">>> starting")
-			StartWaitForPlugin()
+			StartWaitForPlugin(&opts)
 
 		},
 	}
 
-	// cmd.PersistentFlags().BoolVarP(&o.watch, "watch", "w", false, "Keep watch status after running")
-	// cmd.Flags().IntVarP(&o.watchInterval, "watch-interval", "", DefaultStatusIntervalSeconds, "Interval to watch the status and print in the stdout")
-	// if o.watchInterval != DefaultStatusIntervalSeconds {
-	// 	o.waitInterval = time.Duration(o.watchInterval) * time.Second
-	// }
+	cmd.Flags().StringVar(&opts.PluginName, "plugin", "", "Name of current plugin")
+	cmd.Flags().StringVar(&opts.BlockerPlugin, "blocker", "", "Blocker Plugin")
 
 	return cmd
 }
@@ -85,12 +89,12 @@ type PluginConfig struct {
 // 	Containers            []*ContainerStatus
 // }
 
-func StartWaitForPlugin() error {
+func StartWaitForPlugin(opts *OptionsWaitForPlugin) error {
 
 	plugin := PluginConfig{
-		Name: "openshift-tests-replay2",
+		Name: opts.PluginName,
 		BlockerPlugins: []*PluginConfig{
-			&PluginConfig{Name: "openshift-tests-replay"},
+			&PluginConfig{Name: opts.PluginName},
 		},
 	}
 

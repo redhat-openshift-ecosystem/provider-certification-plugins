@@ -159,12 +159,10 @@ run_plugins_conformance_replay_config() {
 
         os_log_info "[executor][PluginID#${PLUGIN_ID}] dump failures from ${junit_file}"
         cat "/tmp/failures-${PLUGIN_ID}.txt"
-
-        # filter for valid tests only (removing 'monitor' and others not included in the suite)
-        os_log_info "[executor][PluginID#${PLUGIN_ID}] filter failures for suite only"
-        while read -r line; do
-            grep ${line} "${RESULTS_DIR}/suite-${CERT_TEST_SUITE/\/}.list" >> "/tmp/failures-${PLUGIN_ID}-suite.txt" || true
-        done < "/tmp/failures-${PLUGIN_ID}.txt"
+        openshift-tests-plugin exec parser-failures-suite \
+            --suite "${RESULTS_DIR}/suite-${CERT_TEST_SUITE/\/}.list" \
+            --failures "/tmp/failures-${PLUGIN_ID}.txt" \
+            --output "/tmp/failures-${PLUGIN_ID}-suite.txt"
 
         os_log_info "[executor][PluginID#${PLUGIN_ID}] dump filtered failures"
         cat "/tmp/failures-${PLUGIN_ID}-suite.txt"
