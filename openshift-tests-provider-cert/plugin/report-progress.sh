@@ -41,20 +41,6 @@ wait_progress_api() {
     os_log_info "sonobuoy-worker progress api[${PROGRESS_URL}] is ready."
 }
 
-# update_progress sends updates to the progress report API (worker).
-update_progress() {
-    # Reporting progress to sonobuoy progress API
-    component_caller="${1:-"update_progress"}"; shift
-    msg="${1:-"N/D"}"; shift || true
-    body="{
-        \"completed\":${PROGRESS["completed"]},
-        \"total\":${PROGRESS["total"]},
-        \"failures\":[${PROGRESS["failures"]}],
-        \"msg\":\"${msg}\"
-    }"
-    os_log_info "Sending report payload [${component_caller}]: ${body}"
-    curl -s "${PROGRESS_URL}" -d "${body}" || true
-}
 
 # wait_pipe_exists wait until the pipe file is created by plugin.
 wait_pipe_exists() {
@@ -144,7 +130,7 @@ COUNTER_COMPLETED=0
 wait_status_file
 
 wait_progress_api
-update_progress "init" "status=initializing";
+openshift-tests-plugin exec progress-msg --message "status=initializing";
 
 wait_pipe_exists
 
@@ -165,6 +151,6 @@ report_progress
 os_log_info "Waiting for PIDs [finalizer]: ${PIDS_LOCAL[*]}"
 wait "${PIDS_LOCAL[@]}"
 
-update_progress "finalizer" "status=report-progress-finished";
+openshift-tests-plugin exec progress-msg --message "status=report-progress-finished"
 
 os_log_info "all done"
