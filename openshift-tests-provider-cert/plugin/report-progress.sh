@@ -111,74 +111,14 @@ watch_dependency_done() {
     os_log_info "[watch_dependency] Starting dependency check..."
     for plugin_name in "${PLUGIN_BLOCKED_BY[@]}"; do
         os_log_info "waiting for plugin [${plugin_name}]"
-        timeout_checks=0
-        timeout_count=${PLUGIN_WAIT_TIMEOUT_COUNT}
-        last_count=0
-        while true;
-        do
-            if [[ -f "${PLUGIN_DONE_NOTIFY}" ]]
-            then
-                echo "[watch_dependency] Done file detected" |tee -a "${RESULTS_PIPE}"
-                return
-            fi
+        
+        openshift-tests-plugin exec wait-updater \
+            --input-total=${PROGRESS["total"]} \
+            --namespace "${ENV_POD_NAMESPACE}" \
+            --plugin "${PLUGIN_NAME}" \
+            --blocker "${plugin_name}" \
+            --done "${PLUGIN_DONE_NOTIFY}"
 
-            plugin_status=$(jq -r ".plugins[] | select (.plugin == \"${plugin_name}\" ) |.status // \"\"" "${STATUS_FILE}")
-            if [[ "${plugin_status}" == "${SONOBUOY_PLUGIN_STATUS_COMPLETE}" ]] || [[ "${plugin_status}" == "${SONOBUOY_PLUGIN_STATUS_FAILED}" ]]; then
-                os_log_info "Plugin[${plugin_name}] with status[${plugin_status}] is finished!"
-                break
-            fi
-            count=$(jq -r ".plugins[] | select (.plugin == \"${plugin_name}\" ) |.progress.completed // 0" "${STATUS_FILE}")
-            total=$(jq -r ".plugins[] | select (.plugin == \"${plugin_name}\" ) |.progress.total // \"0\"" "${STATUS_FILE}")
-            remaining=$(( total - count ))
-            test $remaining -ge 0 && remaining=$(( (total - count) * (-1) ))
-
-            blocker_msg=$(jq -r ".plugins[] | select (.plugin == \"${plugin_name}\" ) |.progress.msg // \"\"" "${STATUS_FILE}")
-            # Dependency plugin is also waiting
-            if [[ "${blocker_msg}" =~ "status=waiting-for" ]]; then
-                state_blocking="blocked-by"
-            # Dependency plugin is also blocked
-            elif [[ "${blocker_msg}" =~ "status=blocked-by" ]]; then
-                state_blocking="blocked-by"
-            else
-                state_blocking="waiting-for"
-            fi
-
-            # Reporting progress to sonobuoy progress API
-            msg="status=${state_blocking}=${plugin_name}=(0/${remaining}/0)=[${timeout_checks}/${timeout_count}]"
-            update_progress "dep-checker" "${msg}";
-
-            # Timeout checker
-            ## 1. Dont block by long running plugins (only non-updated)
-            ## Timeout checks will increase only when previous jobs got stuck,
-            ## otherwise it will be reset. It can avoid the plugin run infinitely,
-            ## also avoid to set low timeouts for 'unknown' exec time on dependencies.
-            if [[ ${count} -gt ${last_count} ]]; then
-                last_count=${count}
-                timeout_checks=0
-                sleep "${PLUGIN_WAIT_TIMEOUT_INTERVAL}"
-                continue
-            fi
-            # dont run timeouts for blockers plugins
-            if [[ "${blocker_msg}" =~ "status=blocked-by" ]]; then
-                timeout_checks=0
-                sleep "${PLUGIN_WAIT_TIMEOUT_INTERVAL}"
-                continue
-            fi
-            # dont run timeouts for if blocker is waiting
-            if [[ "${blocker_msg}" =~ "status=waiting-for" ]] && [[ "${state_blocking}" =~ "blocked-by" ]]; then
-                timeout_checks=0
-                sleep "${PLUGIN_WAIT_TIMEOUT_INTERVAL}"
-                continue
-            fi
-            last_count=${count}
-            timeout_checks=$(( timeout_checks + 1 ))
-            if [[ ${timeout_checks} -eq ${timeout_count} ]]; then
-                echo "Timeout waiting condition 'complete' for plugin[${plugin_name}]."
-                exit 1
-            fi
-            sleep "${PLUGIN_WAIT_TIMEOUT_INTERVAL}"
-        done
-        os_log_info "plugin [${plugin_name}] finished!"
     done
     os_log_info "[plugin dependencies] Finished!"
 }
@@ -188,8 +128,12 @@ watch_dependency_done() {
 # by plugin container.
 report_progress() {
     openshift-tests-plugin exec progress-report \
+        --input-total=${PROGRESS["total"]} \
         --input "${RESULTS_PIPE}" \
-        --done "${PLUGIN_DONE_NOTIFY}"
+        --done "${PLUGIN_DONE_NOTIFY}" \
+        --show-rank \
+        --rank-reverse \
+        --show-limit=20
 }
 
 #

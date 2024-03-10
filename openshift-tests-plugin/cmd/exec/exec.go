@@ -21,6 +21,7 @@ func init() {
 	execCmd.AddCommand(NewCmdWaitForPlugin())
 	execCmd.AddCommand(NewCmdParserFailres())
 	execCmd.AddCommand(NewCmdProgressReport())
+	execCmd.AddCommand(NewCmdWaitUpdater())
 
 }
 

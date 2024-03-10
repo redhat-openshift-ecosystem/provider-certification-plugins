@@ -159,6 +159,33 @@ func StartWaitForPlugin(opts *OptionsWaitForPlugin) error {
 	return nil
 }
 
+type BlockerPluginsInput struct {
+	KubeClient        kubernetes.Interface
+	SonobClient       sbclient.Interface
+	PluginConfig      *PluginConfig
+	PluginBlockerName string
+}
+
+// get sonobuoy plugins (current and blocker) status
+func getPluginsBlocker(in *BlockerPluginsInput) (*sbaggregation.PluginStatus, *sbaggregation.PluginStatus, error) {
+	sstatus, err := in.SonobClient.GetStatus(&sbclient.StatusConfig{Namespace: in.PluginConfig.Namespace})
+	if err != nil {
+		return nil, nil, err
+	}
+	var pStatusBlocker sbaggregation.PluginStatus
+	var pStatusCurrent sbaggregation.PluginStatus
+	for _, ps := range sstatus.Plugins {
+		if ps.Plugin == in.PluginConfig.Name {
+			pStatusCurrent = ps
+		}
+		if ps.Plugin == in.PluginBlockerName {
+			pStatusBlocker = ps
+		}
+	}
+
+	return &pStatusCurrent, &pStatusBlocker, nil
+}
+
 func WaitForPluginExecution(sbcli sbclient.Interface, kclient kubernetes.Interface, plugin *PluginConfig, pluginBlocker string) error {
 
 	// loop blocker check
@@ -170,23 +197,32 @@ func WaitForPluginExecution(sbcli sbclient.Interface, kclient kubernetes.Interfa
 	sleepIntervalSeconds := 10 * time.Second
 
 	for {
-
 		// get plugin API status
-		sstatus, err := sbcli.GetStatus(&sbclient.StatusConfig{Namespace: plugin.Namespace})
+		// sstatus, err := sbcli.GetStatus(&sbclient.StatusConfig{Namespace: plugin.Namespace})
+		// if err != nil {
+		// 	return err
+		// }
+		// var pStatusBlocker sbaggregation.PluginStatus
+		// var pStatusCurrent sbaggregation.PluginStatus
+		// for _, ps := range sstatus.Plugins {
+		// 	if ps.Plugin == plugin.Name {
+		// 		pStatusCurrent = ps
+		// 	}
+		// 	if ps.Plugin == pluginBlocker {
+		// 		pStatusBlocker = ps
+		// 	}
+		// }
+		pStatusBlocker, pStatusCurrent, err := getPluginsBlocker(&BlockerPluginsInput{
+			SonobClient:       sbcli,
+			PluginConfig:      plugin,
+			PluginBlockerName: pluginBlocker,
+		})
 		if err != nil {
-			return err
+			log.Errorf("Error getting Sonobuoy Aggregator API info")
+			time.Sleep(1 * time.Second)
+			break
 		}
-		var pStatusBlocker sbaggregation.PluginStatus
-		var pStatusCurrent sbaggregation.PluginStatus
-		for _, ps := range sstatus.Plugins {
-			if ps.Plugin == plugin.Name {
-				pStatusCurrent = ps
-			}
-			if ps.Plugin == pluginBlocker {
-				pStatusBlocker = ps
-			}
-		}
-		fmt.Println(sstatus)
+		// fmt.Println(sstatus)
 		pod, _ := getPluginPod(kclient, plugin.Namespace, pluginBlocker)
 		podPhase := getPodStatusString(pod)
 
@@ -267,9 +303,9 @@ func WaitForPodRunningOrComplete(kclient kubernetes.Interface, plugin *PluginCon
 	_, err := kwatchtools.UntilWithSync(ctx, lw, obj, nil, func(event kwatch.Event) (bool, error) {
 		switch event.Type {
 		case kwatch.Error:
-			return false, fmt.Errorf("error waiting for sonobuoy to start: %w", event.Object.(error))
+			return false, fmt.Errorf("error waiting to start: %w", event.Object.(error))
 		case kwatch.Deleted:
-			return false, errors.New("sonobuoy pod deleted while waiting to become ready")
+			return false, errors.New("pod deleted while waiting to become ready")
 		}
 
 		pod, isPod := event.Object.(*kcorev1.Pod)
