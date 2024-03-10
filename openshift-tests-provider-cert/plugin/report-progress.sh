@@ -84,25 +84,8 @@ watch_plugin_done() {
 # update_pogress_upgrade report the progress when the plugin instance is upgrade.
 # The message will be the progress message from ClusterVersion object.
 update_pogress_upgrade() {
-    local progress_st
-    local progress_message
-    while true; do
-        if [[ -f "${PLUGIN_DONE_NOTIFY}" ]]
-        then
-            echo "[report_progress] Done file detected"
-            break
-        fi
-        progress_st=$(oc get -o jsonpath='{.status.conditions[?(@.type == "Progressing")].status}' clusterversion version)
-        progress_message="upgrade-progressing-${progress_st}"
-        if [[ "$progress_st" == "True" ]]; then
-            progress_message=$(oc get -o jsonpath='{.status.conditions[?(@.type == "Progressing")].message}' clusterversion version)
-        else
-            desired_version=$(oc get -o jsonpath='{.status.desired.version}' clusterversion version)
-            progress_message="${desired_version}=${progress_message}"
-        fi
-        update_progress "updater" "status=${progress_message}";
-        sleep 10
-    done
+    openshift-tests-plugin exec progress-upgrade \
+        --done "${PLUGIN_DONE_NOTIFY}"
 }
 
 # watch_dependency_done watches aggregator API (status) to

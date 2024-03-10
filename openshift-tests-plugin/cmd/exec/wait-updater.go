@@ -105,6 +105,8 @@ func StartWaitUpdater(opts *OptionsWaitUpdate) error {
 	}
 
 	// watch done
+	updaterControl := make(chan bool)
+	doneControl := false
 	doneChan := make(chan bool)
 	go startWatchForFile(doneChan, opts.DoneControl)
 
@@ -117,100 +119,108 @@ func StartWaitUpdater(opts *OptionsWaitUpdate) error {
 	lastCheckCount := int64(0)
 	sleepIntervalSeconds := 10 * time.Second
 
-	for {
-		// scrap SB API
-		pStatusBlocker, _, err := getPluginsBlocker(&BlockerPluginsInput{
-			SonobClient:       sbcli,
-			PluginConfig:      &plugin,
-			PluginBlockerName: pluginBlocker,
-		})
-		if err != nil {
-			log.Errorf("Error getting Sonobuoy Aggregator API info")
-			time.Sleep(1 * time.Second)
-			break
-		}
+	go func() {
+		for {
+			if doneControl {
+				updaterControl <- true
+				break
+			}
 
-		pod, _ := getPluginPod(kcli, plugin.Namespace, pluginBlocker)
-		podPhase := getPodStatusString(pod)
+			// scrap SB API
+			pStatusBlocker, _, err := getPluginsBlocker(&BlockerPluginsInput{
+				SonobClient:       sbcli,
+				PluginConfig:      &plugin,
+				PluginBlockerName: pluginBlocker,
+			})
+			if err != nil {
+				log.Errorf("Error getting Sonobuoy Aggregator API info")
+				time.Sleep(1 * time.Second)
+				break
+			}
 
-		// parse fields to status api
-		// check .status: is completed? is failed? then return success
-		fmt.Printf("blockerStatus name(%s) pluginStatus/podStatus: %s/%s\n", pStatusBlocker.Plugin, pStatusBlocker.Status, podPhase)
-		if pStatusBlocker.Status == "complete" || pStatusBlocker.Status == "failed" {
-			log.Printf("Plugin[%s] with status[%s] is in unblocker condition!", pluginBlocker, pStatusBlocker.Status)
-			break
-		}
+			pod, _ := getPluginPod(kcli, plugin.Namespace, pluginBlocker)
+			podPhase := getPodStatusString(pod)
 
-		// parse blocker counters
-		// Condition 1) check freeze timeout, reset threshold if plugin progress the execution and wait
-		// TODO ${count} -gt ${last_count}
-		blockerProgressCount := int64(0)
-		if pStatusBlocker.Progress != nil {
-			blockerProgressCount = pStatusBlocker.Progress.Completed
-		}
-		blockerProgressTotal := int64(0)
-		if pStatusBlocker.Progress != nil {
-			blockerProgressTotal = pStatusBlocker.Progress.Total
-		}
-		remaining := (blockerProgressTotal - blockerProgressCount) * (-1)
+			// parse fields to status api
+			// check .status: is completed? is failed? then return success
+			fmt.Printf("blockerStatus name(%s) pluginStatus/podStatus: %s/%s\n", pStatusBlocker.Plugin, pStatusBlocker.Status, podPhase)
+			if pStatusBlocker.Status == "complete" || pStatusBlocker.Status == "failed" {
+				log.Printf("Plugin[%s] with status[%s] is in unblocker condition!", pluginBlocker, pStatusBlocker.Status)
+				break
+			}
 
-		pluginMessageState := "TBD"
-		// Condition 2) check blocker is also blocked. If blocker plugins is also blocked, reset freeze timeout and wait
-		// TODO plugin has status=blocked-by
-		if pStatusBlocker.Progress != nil &&
-			strings.HasPrefix(pStatusBlocker.Progress.Message, "status=waiting-for") {
-			pluginMessageState = "blocked-by"
-		} else if pStatusBlocker.Progress != nil &&
-			strings.HasPrefix(pStatusBlocker.Progress.Message, "status=blocked-by") {
-			pluginMessageState = "blocked-by"
-		} else {
-			pluginMessageState = "waiting-for"
-		}
+			// parse blocker counters
+			// Condition 1) check freeze timeout, reset threshold if plugin progress the execution and wait
+			// TODO ${count} -gt ${last_count}
+			blockerProgressCount := int64(0)
+			if pStatusBlocker.Progress != nil {
+				blockerProgressCount = pStatusBlocker.Progress.Completed
+			}
+			blockerProgressTotal := int64(0)
+			if pStatusBlocker.Progress != nil {
+				blockerProgressTotal = pStatusBlocker.Progress.Total
+			}
+			remaining := (blockerProgressTotal - blockerProgressCount) * (-1)
 
-		// parse blocker msg
-		// mount the plugin message and update API
-		msg := fmt.Sprintf("status=%s=%s=(0/%d/0)=[%d/%d]", pluginMessageState, pluginBlocker, remaining, currentCheckCount, limitCheckCount)
-		progressReportSendUpdate(&ProgressReport{TotalCount: opts.InitTotal}, msg)
+			pluginMessageState := "TBD"
+			// Condition 2) check blocker is also blocked. If blocker plugins is also blocked, reset freeze timeout and wait
+			// TODO plugin has status=blocked-by
+			if pStatusBlocker.Progress != nil &&
+				strings.HasPrefix(pStatusBlocker.Progress.Message, "status=waiting-for") {
+				pluginMessageState = "blocked-by"
+			} else if pStatusBlocker.Progress != nil &&
+				strings.HasPrefix(pStatusBlocker.Progress.Message, "status=blocked-by") {
+				pluginMessageState = "blocked-by"
+			} else {
+				pluginMessageState = "waiting-for"
+			}
 
-		if pStatusBlocker.Progress != nil && pStatusBlocker.Progress.Completed >= lastCheckCount {
+			// parse blocker msg
+			// mount the plugin message and update API
+			msg := fmt.Sprintf("status=%s=%s=(0/%d/0)=[%d/%d]", pluginMessageState, pluginBlocker, remaining, currentCheckCount, limitCheckCount)
+			progressReportSendUpdate(&ProgressReport{TotalCount: opts.InitTotal}, msg)
+
+			if pStatusBlocker.Progress != nil && pStatusBlocker.Progress.Completed >= lastCheckCount {
+				lastCheckCount = blockerProgressCount
+				currentCheckCount = 0
+				time.Sleep(sleepIntervalSeconds)
+				continue
+			}
+
+			// ignore timeout when blocker is progressing
+			if pStatusBlocker.Progress != nil &&
+				strings.HasPrefix(pStatusBlocker.Progress.Message, "status=blocked-by") {
+				currentCheckCount = 0
+				time.Sleep(sleepIntervalSeconds)
+				continue
+			}
+
+			// ignore timeout when blocker is also blocked
+			if pStatusBlocker.Progress != nil &&
+				strings.HasPrefix(pStatusBlocker.Progress.Message, "status=blocked-by") &&
+				strings.HasPrefix(pluginMessageState, "status=blocked-by") {
+				currentCheckCount = 0
+				time.Sleep(sleepIntervalSeconds)
+				continue
+			}
+
+			// ignore timeout when blocker is the next in the queue,
+			// and current plugin state is blocked
+			// increment timeout counter and wait
 			lastCheckCount = blockerProgressCount
-			currentCheckCount = 0
+			currentCheckCount += 1
+			if currentCheckCount >= limitCheckCount {
+				log.Errorf("Timeout waiting condition 'complete' for plugin[%s].", plugin.Name)
+				// TODO send update message
+				os.Exit(1)
+			}
 			time.Sleep(sleepIntervalSeconds)
-			continue
 		}
-
-		// ignore timeout when blocker is progressing
-		if pStatusBlocker.Progress != nil &&
-			strings.HasPrefix(pStatusBlocker.Progress.Message, "status=blocked-by") {
-			currentCheckCount = 0
-			time.Sleep(sleepIntervalSeconds)
-			continue
-		}
-
-		// ignore timeout when blocker is also blocked
-		if pStatusBlocker.Progress != nil &&
-			strings.HasPrefix(pStatusBlocker.Progress.Message, "status=blocked-by") &&
-			strings.HasPrefix(pluginMessageState, "status=blocked-by") {
-			currentCheckCount = 0
-			time.Sleep(sleepIntervalSeconds)
-			continue
-		}
-
-		// ignore timeout when blocker is the next in the queue,
-		// and current plugin state is blocked
-		// increment timeout counter and wait
-		lastCheckCount = blockerProgressCount
-		currentCheckCount += 1
-		if currentCheckCount >= limitCheckCount {
-			log.Errorf("Timeout waiting condition 'complete' for plugin[%s].", plugin.Name)
-			// TODO send update message
-			os.Exit(1)
-		}
-		time.Sleep(sleepIntervalSeconds)
-	}
+	}()
 
 	log.Infof("Waiting for Done notify.")
 	<-doneChan
+	doneControl = true
 	log.Infof("Flow unlocked.")
 	return nil
 }

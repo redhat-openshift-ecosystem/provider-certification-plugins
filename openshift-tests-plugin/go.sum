@@ -223,6 +223,10 @@ github.com/onsi/ginkgo/v2 v2.13.0 h1:0jY9lJquiL8fcf3M4LAXN5aMlS/b2BV86HFFPCPMgE4
 github.com/onsi/ginkgo/v2 v2.13.0/go.mod h1:TE309ZR8s5FsKKpuB1YAQYBzCaAfUgatB/xlT/ETL/o=
 github.com/onsi/gomega v1.29.0 h1:KIA/t2t5UBzoirT4H9tsML45GEbo3ouUnBHsCfD2tVg=
 github.com/onsi/gomega v1.29.0/go.mod h1:9sxs+SwGrKI0+PWe4Fxa9tFQQBG5xSsSbMXOI8PPpoQ=
+github.com/openshift/api v0.0.0-20230330150608-05635858d40f h1:mGpCtfoehMcvmg/sSYLiv6nCbTl04cmtkUfYzP7H1AQ=
+github.com/openshift/api v0.0.0-20230330150608-05635858d40f/go.mod h1:ctXNyWanKEjGj8sss1KjjHQ3ENKFm33FFnS5BKaIPh4=
+github.com/openshift/client-go v0.0.0-20230120202327-72f107311084 h1:66uaqNwA+qYyQDwsMWUfjjau8ezmg1dzCqub13KZOcE=
+github.com/openshift/client-go v0.0.0-20230120202327-72f107311084/go.mod h1:M3h9m001PWac3eAudGG3isUud6yBjr5XpzLYLLTlHKo=
 github.com/pelletier/go-toml v1.9.5 h1:4yBQzkHv+7BHq2PQUZF3Mx0IYxG7LsP222s7Agd3ve8=
 github.com/pelletier/go-toml v1.9.5/go.mod h1:u1nR/EPcESfeI/szUZKdtJ0xRNbUoANCkoOuaOx1Y+c=
 github.com/pelletier/go-toml/v2 v2.0.6 h1:nrzqCb7j9cDFj2coyLNLaZuJTLjWjlaz6nvTvIwycIU=

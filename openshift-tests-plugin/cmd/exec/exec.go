@@ -22,6 +22,7 @@ func init() {
 	execCmd.AddCommand(NewCmdParserFailres())
 	execCmd.AddCommand(NewCmdProgressReport())
 	execCmd.AddCommand(NewCmdWaitUpdater())
+	execCmd.AddCommand(NewCmdProgressUpgrade())
 
 }
 
