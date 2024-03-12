@@ -9,6 +9,7 @@ import (
 	"github.com/redhat-openshift-ecosystem/provider-certification-tool/pkg/client"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"k8s.io/utils/ptr"
 )
 
 // plugin1 -> this.plugin -> plugin2
@@ -37,7 +38,7 @@ func NewCmdWaitUpdater() *cobra.Command {
 
 			fmt.Println(">>> starting")
 			StartWaitUpdater(&opts)
-
+			os.Exit(0)
 		},
 	}
 
@@ -72,8 +73,9 @@ func watchForFile(filePath string) error {
 	return nil
 }
 
-func startWatchForFile(doneChan chan bool, filePath string) {
+func startWatchForFile(doneChan chan bool, filePath string, doneController *bool) {
 	defer func() {
+		doneController = ptr.To(true)
 		doneChan <- true
 	}()
 
@@ -108,119 +110,146 @@ func StartWaitUpdater(opts *OptionsWaitUpdate) error {
 	updaterControl := make(chan bool)
 	doneControl := false
 	doneChan := make(chan bool)
-	go startWatchForFile(doneChan, opts.DoneControl)
+	go startWatchForFile(doneChan, opts.DoneControl, &doneControl)
 
 	// TODO add for each blocker plugin
 	// TODO be safe!
 	pluginBlocker := plugin.BlockerPlugins[0].Name
 
-	currentCheckCount := 0
-	limitCheckCount := 1080
+	currentCheckCount := int64(0)
+	limitCheckCount := int64(1080)
 	lastCheckCount := int64(0)
 	sleepIntervalSeconds := 10 * time.Second
 
-	go func() {
-		for {
-			if doneControl {
-				updaterControl <- true
-				break
-			}
+	log.Println("StartWaitUpdater() starting watcher")
+	// go func() {
+	for {
+		log.Println("StartWaitUpdater() Plugin waiter started")
+		if doneControl {
+			go func() { updaterControl <- true }()
+			log.Println("StartWaitUpdater() BREAK 0...")
+			break
+		}
 
-			// scrap SB API
-			pStatusBlocker, _, err := getPluginsBlocker(&BlockerPluginsInput{
-				SonobClient:       sbcli,
-				PluginConfig:      &plugin,
-				PluginBlockerName: pluginBlocker,
-			})
-			if err != nil {
-				log.Errorf("Error getting Sonobuoy Aggregator API info")
-				time.Sleep(1 * time.Second)
-				break
-			}
+		// scrap SB API
+		_, pStatusBlocker, err := getPluginsBlocker(&BlockerPluginsInput{
+			SonobClient:       sbcli,
+			PluginConfig:      &plugin,
+			PluginBlockerName: pluginBlocker,
+		})
+		if err != nil {
+			log.Errorf("Error getting Sonobuoy Aggregator API info")
+			time.Sleep(1 * time.Second)
+			log.Println("StartWaitUpdater() WARNING SKIP 0...")
+			continue
+		}
 
-			pod, _ := getPluginPod(kcli, plugin.Namespace, pluginBlocker)
-			podPhase := getPodStatusString(pod)
+		pod, _ := getPluginPod(kcli, plugin.Namespace, pluginBlocker)
+		podPhase := getPodStatusString(pod)
 
-			// parse fields to status api
-			// check .status: is completed? is failed? then return success
-			fmt.Printf("blockerStatus name(%s) pluginStatus/podStatus: %s/%s\n", pStatusBlocker.Plugin, pStatusBlocker.Status, podPhase)
-			if pStatusBlocker.Status == "complete" || pStatusBlocker.Status == "failed" {
-				log.Printf("Plugin[%s] with status[%s] is in unblocker condition!", pluginBlocker, pStatusBlocker.Status)
-				break
-			}
+		log.Printf("StartWaitUpdater() podPhase=%s", podPhase)
+		log.Printf(">> [%d] blockerStatus name(%s) pluginStatus/podStatus: %s/%s\n", currentCheckCount, pStatusBlocker.Plugin, pStatusBlocker.Status, podPhase)
+		// parse fields to status api
+		// check .status: is completed? is failed? then return success
 
-			// parse blocker counters
-			// Condition 1) check freeze timeout, reset threshold if plugin progress the execution and wait
-			// TODO ${count} -gt ${last_count}
-			blockerProgressCount := int64(0)
-			if pStatusBlocker.Progress != nil {
-				blockerProgressCount = pStatusBlocker.Progress.Completed
-			}
-			blockerProgressTotal := int64(0)
-			if pStatusBlocker.Progress != nil {
-				blockerProgressTotal = pStatusBlocker.Progress.Total
-			}
-			remaining := (blockerProgressTotal - blockerProgressCount) * (-1)
+		// parse blocker counters
+		// Condition 1) check freeze timeout, reset threshold if plugin progress the execution and wait
+		// TODO ${count} -gt ${last_count}
+		blockerProgressCount := int64(0)
+		if pStatusBlocker.Progress != nil {
+			blockerProgressCount = pStatusBlocker.Progress.Completed
+		}
+		blockerProgressTotal := int64(0)
+		if pStatusBlocker.Progress != nil {
+			blockerProgressTotal = pStatusBlocker.Progress.Total
+		}
+		remaining := (blockerProgressTotal - blockerProgressCount) * (-1)
 
-			pluginMessageState := "TBD"
-			// Condition 2) check blocker is also blocked. If blocker plugins is also blocked, reset freeze timeout and wait
-			// TODO plugin has status=blocked-by
-			if pStatusBlocker.Progress != nil &&
-				strings.HasPrefix(pStatusBlocker.Progress.Message, "status=waiting-for") {
-				pluginMessageState = "blocked-by"
-			} else if pStatusBlocker.Progress != nil &&
-				strings.HasPrefix(pStatusBlocker.Progress.Message, "status=blocked-by") {
-				pluginMessageState = "blocked-by"
-			} else {
-				pluginMessageState = "waiting-for"
-			}
+		pluginMessageState := "TBD"
+		// Condition 2) check blocker is also blocked. If blocker plugins is also blocked, reset freeze timeout and wait
+		// TODO plugin has status=blocked-by
+		if pStatusBlocker.Progress != nil &&
+			strings.HasPrefix(pStatusBlocker.Progress.Message, "status=waiting-for") {
+			pluginMessageState = "blocked-by"
+		} else if pStatusBlocker.Progress != nil &&
+			strings.HasPrefix(pStatusBlocker.Progress.Message, "status=blocked-by") {
+			pluginMessageState = "blocked-by"
+		} else {
+			pluginMessageState = "waiting-for"
+		}
+		msg := fmt.Sprintf("status=%s=%s=(0/%d/0)=[%d/%d]", pluginMessageState, pluginBlocker, remaining, currentCheckCount, limitCheckCount)
+		progressReportSendUpdate(&ProgressReport{TotalCount: opts.InitTotal}, msg)
 
-			// parse blocker msg
-			// mount the plugin message and update API
-			msg := fmt.Sprintf("status=%s=%s=(0/%d/0)=[%d/%d]", pluginMessageState, pluginBlocker, remaining, currentCheckCount, limitCheckCount)
-			progressReportSendUpdate(&ProgressReport{TotalCount: opts.InitTotal}, msg)
+		log.Printf("StartWaitUpdater() pluginMessageState=%s", pluginMessageState)
+		if pStatusBlocker.Status == "complete" || pStatusBlocker.Status == "failed" {
+			log.Printf("Plugin[%s] with status[%s] is in unblocker condition!", pluginBlocker, pStatusBlocker.Status)
+			go func() { updaterControl <- true }()
+			break
+		}
+		// parse blocker msg
+		// mount the plugin message and update API
+		progressReportSendUpdate(&ProgressReport{TotalCount: opts.InitTotal}, msg)
 
-			if pStatusBlocker.Progress != nil && pStatusBlocker.Progress.Completed >= lastCheckCount {
-				lastCheckCount = blockerProgressCount
-				currentCheckCount = 0
-				time.Sleep(sleepIntervalSeconds)
-				continue
-			}
-
-			// ignore timeout when blocker is progressing
-			if pStatusBlocker.Progress != nil &&
-				strings.HasPrefix(pStatusBlocker.Progress.Message, "status=blocked-by") {
-				currentCheckCount = 0
-				time.Sleep(sleepIntervalSeconds)
-				continue
-			}
-
-			// ignore timeout when blocker is also blocked
-			if pStatusBlocker.Progress != nil &&
-				strings.HasPrefix(pStatusBlocker.Progress.Message, "status=blocked-by") &&
-				strings.HasPrefix(pluginMessageState, "status=blocked-by") {
-				currentCheckCount = 0
-				time.Sleep(sleepIntervalSeconds)
-				continue
-			}
-
-			// ignore timeout when blocker is the next in the queue,
-			// and current plugin state is blocked
-			// increment timeout counter and wait
+		// TODO review this tate: pod failed or completed
+		if podPhase == "Failed" || podPhase == "NotReady" {
 			lastCheckCount = blockerProgressCount
 			currentCheckCount += 1
-			if currentCheckCount >= limitCheckCount {
-				log.Errorf("Timeout waiting condition 'complete' for plugin[%s].", plugin.Name)
-				// TODO send update message
-				os.Exit(1)
+			if currentCheckCount >= 10 {
+				log.Printf("Pod[%s] is in failied state or returned unxpected value (Phase==[%s]). Timeout...", pluginBlocker, podPhase)
+				go func() { updaterControl <- true }()
+				break
 			}
-			time.Sleep(sleepIntervalSeconds)
+			log.Printf("Pod[%s] is in failied state or returned unxpected value (Phase==[%s]). Starting timeout...", pluginBlocker, podPhase)
+			time.Sleep(5 * time.Second)
+			continue
 		}
-	}()
+		if pStatusBlocker.Progress != nil && pStatusBlocker.Progress.Completed > lastCheckCount {
+			lastCheckCount = blockerProgressCount
+			currentCheckCount = 0
+			log.Printf("StartWaitUpdater() WARNING SKIP 1: %d/%d...", lastCheckCount, currentCheckCount)
+			time.Sleep(sleepIntervalSeconds)
+			continue
+		}
+
+		// ignore timeout when blocker is progressing
+		if pStatusBlocker.Progress != nil &&
+			strings.HasPrefix(pStatusBlocker.Progress.Message, "status=blocked-by") {
+			currentCheckCount = 0
+			time.Sleep(sleepIntervalSeconds)
+			log.Println("StartWaitUpdater() WARNING SKIP 2...")
+			continue
+		}
+
+		// ignore timeout when blocker is also blocked
+		if pStatusBlocker.Progress != nil &&
+			strings.HasPrefix(pStatusBlocker.Progress.Message, "status=blocked-by") &&
+			strings.HasPrefix(pluginMessageState, "status=blocked-by") {
+			currentCheckCount = 0
+			time.Sleep(sleepIntervalSeconds)
+			log.Println("StartWaitUpdater() WARNING SKIP 3...")
+			continue
+		}
+
+		// ignore timeout when blocker is the next in the queue,
+		// and current plugin state is blocked
+		// increment timeout counter and wait
+		lastCheckCount = blockerProgressCount
+		currentCheckCount += 1
+		if currentCheckCount >= limitCheckCount {
+			log.Errorf("Timeout waiting condition 'complete' for plugin[%s].", plugin.Name)
+			// TODO send update message
+			go func() { updaterControl <- true }()
+			os.Exit(1)
+		}
+		log.Println("StartWaitUpdater() Plugin waiter waiting...")
+		time.Sleep(sleepIntervalSeconds)
+	}
+	// }()
 
 	log.Infof("Waiting for Done notify.")
-	<-doneChan
-	doneControl = true
+	// <-doneChan
+	<-updaterControl
 	log.Infof("Flow unlocked.")
+
 	return nil
 }

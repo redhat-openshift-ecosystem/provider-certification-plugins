@@ -212,7 +212,7 @@ func WaitForPluginExecution(sbcli sbclient.Interface, kclient kubernetes.Interfa
 		// 		pStatusBlocker = ps
 		// 	}
 		// }
-		pStatusBlocker, pStatusCurrent, err := getPluginsBlocker(&BlockerPluginsInput{
+		pStatusCurrent, pStatusBlocker, err := getPluginsBlocker(&BlockerPluginsInput{
 			SonobClient:       sbcli,
 			PluginConfig:      plugin,
 			PluginBlockerName: pluginBlocker,
@@ -228,10 +228,17 @@ func WaitForPluginExecution(sbcli sbclient.Interface, kclient kubernetes.Interfa
 
 		// parse fields to status api
 		// check .status: is completed? is failed? then return success
-		fmt.Printf("blockerStatus name(%s) pluginStatus/podStatus: %s/%s\n", pStatusBlocker.Plugin, pStatusBlocker.Status, podPhase)
+		fmt.Printf("blockerStatus name(%s) pluginStatus/podStatus: %s/%s\n", pluginBlocker, pStatusBlocker.Status, podPhase)
 		if pStatusBlocker.Status == "complete" || pStatusBlocker.Status == "failed" {
 			log.Printf("Plugin[%s] with status[%s] is in unblocker condition!", pluginBlocker, pStatusBlocker.Status)
 			break
+		}
+		// TMP
+		if currentCheckCount >= 10 {
+			if podPhase == "NotReady" {
+				log.Printf("Plugin[%s] with status[%s] is in NotReady phase for long time. Exiting...", pluginBlocker, pStatusBlocker.Status)
+				break
+			}
 		}
 
 		// Condition 1) check freeze timeout, reset threshold if plugin progress the execution and wait
@@ -276,6 +283,7 @@ func WaitForPluginExecution(sbcli sbclient.Interface, kclient kubernetes.Interfa
 		}
 
 		// sleep until next check
+		log.Println("Wating next check...")
 		time.Sleep(sleepIntervalSeconds)
 	}
 
@@ -315,7 +323,7 @@ func WaitForPodRunningOrComplete(kclient kubernetes.Interface, plugin *PluginCon
 
 		podStatus := getPodStatusString(pod)
 		latestPhase = podStatus
-		if podStatus == "Running" || podStatus == "Complete" {
+		if podStatus == "Running" || podStatus == "Complete" || podStatus == "Completed" {
 			return true, nil
 		}
 

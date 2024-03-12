@@ -82,7 +82,7 @@ watch_dependency_done() {
         os_log_info "waiting for plugin [${plugin_name}]"
         
         openshift-tests-plugin exec wait-updater \
-            --input-total=${PROGRESS["total"]} \
+            --init-total=${PROGRESS["total"]:-0} \
             --namespace "${ENV_POD_NAMESPACE}" \
             --plugin "${PLUGIN_NAME}" \
             --blocker "${plugin_name}" \
@@ -90,6 +90,7 @@ watch_dependency_done() {
 
     done
     os_log_info "[plugin dependencies] Finished!"
+    return
 }
 
 # report_progress reads the pipe file, parses the progress counters and reports it
@@ -127,30 +128,47 @@ COUNTER_PASSED=0
 COUNTER_SKIPPED=0
 COUNTER_COMPLETED=0
 
+echo ">>> wait_status_file"
 wait_status_file
 
+echo ">>> wait_progress_api"
 wait_progress_api
+
+echo ">>> update msg initializing"
 openshift-tests-plugin exec progress-msg --message "status=initializing";
 
+echo ">>> wait_pipe_exists"
 wait_pipe_exists
 
-watch_plugin_done &
-PIDS_LOCAL+=($!)
+#echo ">>> watch_plugin_done &"
+#watch_plugin_done &
+#PIDS_LOCAL+=($!)
+#echo ">>> PIDS 1=${PIDS_LOCAL[*]}"
 
-watch_dependency_done &
-PIDS_LOCAL+=($!)
+echo ">>> watch_dependency_done &"
+watch_dependency_done
+#PIDS_LOCAL+=($!)
+echo ">>> PIDS 2=${PIDS_LOCAL[*]}"
 
 # upgrade plugin
 if [[ "${PLUGIN_ID}" == "${PLUGIN_ID_OPENSHIFT_UPGRADE}" ]]; then
+    echo ">>> update_pogress_upgrade"
     update_pogress_upgrade &
     PIDS_LOCAL+=($!)
 fi
 
+echo ">>> report_progress"
+openshift-tests-plugin exec progress-msg --message "status=running";
 report_progress
+echo ">>> report_progress DONE"
+echo ">>> PIDS 3=${PIDS_LOCAL[*]}"
 
 os_log_info "Waiting for PIDs [finalizer]: ${PIDS_LOCAL[*]}"
 wait "${PIDS_LOCAL[@]}"
+echo ">>> PIDS 4=${PIDS_LOCAL[*]}"
 
+echo ">>> UNBLOCKED. Sending final message"
 openshift-tests-plugin exec progress-msg --message "status=report-progress-finished"
+echo ">>> PIDS 5=${PIDS_LOCAL[*]}"
 
 os_log_info "all done"

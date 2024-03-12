@@ -248,12 +248,12 @@ collect_must_gather() {
 
     # extracting msg from etcd logs: request latency apply took too long (attl)
     os_log_info "[executor][PluginID#${PLUGIN_ID}] Collecting etcd log filters"
-    cat must-gather-opct/*/namespaces/openshift-etcd/pods/*/etcd/etcd/logs/current.log \
-        | ocp-etcd-log-filters \
-        > artifacts_must-gather_parser-etcd-attl-all.txt
-    cat must-gather-opct/*/namespaces/openshift-etcd/pods/*/etcd/etcd/logs/current.log \
-        | ocp-etcd-log-filters -aggregator hour \
-        > artifacts_must-gather_parser-etcd-attl-hour.txt
+    #cat must-gather-opct/*/namespaces/openshift-etcd/pods/*/etcd/etcd/logs/current.log \
+    #    | ocp-etcd-log-filters \
+    #    > artifacts_must-gather_parser-etcd-attl-all.txt
+    #cat must-gather-opct/*/namespaces/openshift-etcd/pods/*/etcd/etcd/logs/current.log \
+    #    | ocp-etcd-log-filters -aggregator hour \
+    #    > artifacts_must-gather_parser-etcd-attl-hour.txt
 
     # generate camgi report
     os_log_info "[executor][PluginID#${PLUGIN_ID}] Generating camgi report"
@@ -317,6 +317,7 @@ collect_performance_etcdfio() {
     node_role="controlplane"
     for node in $(${UTIL_OC_BIN} get nodes -l 'node-role.kubernetes.io/master' -o jsonpath='{.items[*].metadata.name}'); do
         os_log_info "[executor][PluginID#${PLUGIN_ID}][performance][etcdfio] ${node_role}#${idx}: ${node}"
+        openshift-tests-plugin exec progress-msg --message "status=running=collecting performance data=fio=${node_role}[${idx}]=${node}";
 
         result_file="./artifacts_performance_etcdfio_${node_role}-${idx}.txt"
         oc debug node/"${node}" -- chroot /host /bin/bash -c "podman run --volume /var/lib/etcd:/var/lib/etcd:Z ${image}" > "${result_file}";
@@ -331,6 +332,7 @@ collect_performance_etcdfio() {
     node_role="worker"
     for node in $(${UTIL_OC_BIN} get nodes -l '!node-role.kubernetes.io/master' -o jsonpath='{.items[*].metadata.name}'); do
         os_log_info "[executor][PluginID#${PLUGIN_ID}][performance][etcdfio] ${node_role}#${idx}: ${node}"
+        openshift-tests-plugin exec progress-msg --message "status=running=collecting performance data=fio=${node_role}[${idx}]=${node}";
 
         result_file="./artifacts_performance_etcdfio_${node_role}-${idx}.txt"
         oc debug node/"${node}" -- chroot /host /bin/bash -c "mkdir /var/cache/opct; podman run --volume /var/cache/opct:/var/lib/etcd:Z ${image}" > "${result_file}";
@@ -402,29 +404,36 @@ run_plugin_collector() {
     pushd "${RESULTS_DIR}" || true
 
     # Collecting must-gather
+    openshift-tests-plugin exec progress-msg --message "status=running=collecting must-gather";
     collect_must_gather || true
 
     # Experimental: Collect performance data
     # running after must-gather to prevent impacting in etcd logs when testing etcdfio.
+    openshift-tests-plugin exec progress-msg --message "status=running=collecting performance data";
     collect_performance || true
 
     # Experimental: Collect metrics
+    openshift-tests-plugin exec progress-msg --message "status=running=collecting metrics";
     collect_metrics || true
 
     # Collecting e2e list for Kubernetes Conformance
+    openshift-tests-plugin exec progress-msg --message "status=running=collecting e2e=${OPENSHIFT_TESTS_SUITE_KUBE_CONFORMANCE}";
     collect_tests_conformance "${OPENSHIFT_TESTS_SUITE_KUBE_CONFORMANCE}" "./artifacts_e2e-tests_kubernetes-conformance.txt"  || true
 
     # Collecting e2e list for OpenShift Conformance
+    openshift-tests-plugin exec progress-msg --message "status=running=collecting e2e=${OPENSHIFT_TESTS_SUITE_OPENSHIFT_CONFORMANCE}";
     collect_tests_conformance "${OPENSHIFT_TESTS_SUITE_OPENSHIFT_CONFORMANCE}" "./artifacts_e2e-tests_openshift-conformance.txt"  || true
 
     # Collecting e2e list for OpenShift Upgrade (when mode=upgrade)
+    openshift-tests-plugin exec progress-msg --message "status=running=collecting e2e=upgrade";
     collect_tests_upgrade  || true
 
     # Creating Result file used to publish to sonobuoy. (last step)
+    openshift-tests-plugin exec progress-msg --message "status=running=saving artifacts";
     os_log_info "[executor][PluginID#${PLUGIN_ID}] Packing all results..."
     ls -sh ./artifacts_*
     tar cfz raw-results.tar.gz ./artifacts_*
-
+    openshift-tests-plugin exec progress-msg --message "status=done";
     popd || true;
 }
 

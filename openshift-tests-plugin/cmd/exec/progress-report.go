@@ -16,6 +16,8 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+
+	"github.com/davecgh/go-spew/spew"
 )
 
 // TODO Progress Status Report
@@ -85,30 +87,36 @@ type ProgressReport struct {
 }
 
 type ResponseBody struct {
-	Completed string   `json:"completed"`
-	Total     string   `json:"total"`
-	Failures  []string `json:"failures"`
-	Message   string   `json:"msg"`
+	Completed int64    `json:"completed,omitempty"`
+	Total     int64    `json:"total,omitempty"`
+	Failures  []string `json:"failures,omitempty"`
+	Message   string   `json:"msg,omitempty"`
 }
 
 func progressReportSendUpdate(report *ProgressReport, msg string) {
 	url := "http://127.0.0.1:8099/progress"
-	fmt.Println("URL:>", url)
-
 	payload := ResponseBody{
-		Completed: fmt.Sprintf("%d", report.CompleteCount),
-		Total:     fmt.Sprintf("%d", report.TotalCount),
-		Failures:  report.FailedList,
-		Message:   msg,
+		Message: msg,
+	}
+	if report.CompleteCount > 0 {
+		payload.Completed = report.CompleteCount
+	}
+	if report.CompleteCount > 0 {
+		payload.Total = report.TotalCount
+	}
+	if len(report.FailedList) > 0 {
+		payload.Failures = report.FailedList
 	}
 	marshalled, err := json.Marshal(payload)
 	if err != nil {
-		log.Fatalf("impossible to marshall teacher: %s", err)
+		spew.Dump(payload)
+		log.WithError(err).Error("impossible to marshall")
+		return
 	}
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(marshalled))
 	if err != nil {
-		// panic(err)
+		spew.Dump(payload)
 		log.WithError(err).Error("error creating request")
 		return
 	}
@@ -118,19 +126,23 @@ func progressReportSendUpdate(report *ProgressReport, msg string) {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		// panic(err)
+		spew.Dump(payload)
 		log.WithError(err).Error("error sending request update")
 		return
 	}
 	defer resp.Body.Close()
 
-	fmt.Println("response Status:", resp.Status)
-	fmt.Println("response Headers:", resp.Header)
-	body, _ := io.ReadAll(resp.Body)
-	fmt.Println("response Body:", string(body))
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		spew.Dump(payload)
+		fmt.Println("URL:>", url)
+		fmt.Println("response Status:", resp.Status)
+		fmt.Println("response Headers:", resp.Header)
+		body, _ := io.ReadAll(resp.Body)
+		fmt.Println("response Body:", string(body))
+	}
 }
 
-func parserOpenShiftTestsOutput(report *ProgressReport, line string) (skip bool, err error) {
+func parserOpenShiftTestsOutputLine(report *ProgressReport, line string) (skip bool, err error) {
 	switch {
 	case strings.HasPrefix(line, "started:"):
 		report.StartedCount += 1
@@ -253,20 +265,23 @@ func StartProgressReport(opt *OptionProgressReport) {
 	go func() {
 		for {
 			if doneNotify {
-				fmt.Println("Detected done. Stopping reader")
+				log.Println("Detected done. Stopping reader")
 				break
 			}
 			suiteFile, err := os.Open(opt.Input)
 			if err != nil {
-				log.WithError(err).Error("error reading the suite list")
-				log.Fatal(err)
+				log.WithError(err).Error("error reading the input stream")
+				// log.Fatal(err)
+				// waiting 2 for the next check
+				time.Sleep(1 * time.Second)
+				continue
 			}
 			defer suiteFile.Close()
 			scanner := bufio.NewScanner(suiteFile)
-
+			log.Println("Consuming data from stream %s", opt.Input)
 			for scanner.Scan() {
 				line := scanner.Text()
-				skip, err := parserOpenShiftTestsOutput(&report, line)
+				skip, err := parserOpenShiftTestsOutputLine(&report, line)
 				if err != nil {
 					log.WithError(err).Error("line parser error")
 					// or return/break??
@@ -281,29 +296,29 @@ func StartProgressReport(opt *OptionProgressReport) {
 				if report.CompleteCount >= report.TotalCount {
 					report.TotalCount = report.CompleteCount
 				}
-
+				if !opt.SkipUpdate {
+					msg := fmt.Sprintf("status=running=T/C/P/F/S=%d/%d/%d/%d/%d",
+						report.TotalCount, report.CompleteCount, report.PassedCount,
+						report.FailedCount, report.SkippedCount)
+					progressReportSendUpdate(&report, msg)
+				}
 			}
 
-			fmt.Printf("\n>> Summary: T/C/P/F/S=%d/%d/%d/%d/%d\n", report.TotalCount, report.CompleteCount, report.PassedCount, report.FailedCount, report.SkippedCount)
-
-			if !opt.SkipUpdate {
-				msg := fmt.Sprintf("status=running=T/C/P/F/S=%s/%s/%s/%s/%s",
-					report.TotalCount, report.CompleteCount, report.PassedCount,
-					report.FailedCount, report.SkippedCount)
-				progressReportSendUpdate(&report, msg)
-			}
+			log.Printf("\n>> Summary: T/C/P/F/S=%d/%d/%d/%d/%d\n", report.TotalCount, report.CompleteCount, report.PassedCount, report.FailedCount, report.SkippedCount)
 		}
 	}()
 
-	fmt.Println("Waiting to consume data from input...")
+	log.Println("Consuming data from stream. Waiting until is finished...")
 	<-done
+
+	// Raw results
 	// for e2e := range report.TestMap {
 	// 	fmt.Printf("%s (%.3f) %s\n", report.TestMap[e2e].Result, report.TestMap[e2e].TimeTookSeconds, e2e)
 	// }
 
 	// Rank by slower first
-
 	if opt.ShowRank {
+		log.Println("Showing summary by rank of slower test")
 		for idx, e2e := range rankByTestField(report.TestMap, "TimeTookSeconds", opt.RankReverse) {
 			fmt.Printf("%s (%.3f) %s\n", e2e.Result, e2e.TimeTookSeconds, e2e.TestName)
 			if opt.ShowLimit != 0 && int64(idx) >= opt.ShowLimit {
