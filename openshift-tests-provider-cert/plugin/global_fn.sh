@@ -135,7 +135,7 @@ update_config() {
     fi
     if [[ "${CERT_TEST_SUITE:-}" != "" ]]
     then
-        CERT_TEST_COUNT="$(${UTIL_OTESTS_BIN} run --dry-run "${CERT_TEST_SUITE}" | wc -l)"
+        CERT_TEST_COUNT="$(cat /tmp/shared/suite.list | wc -l)"
     fi
     # Counter override
     if [[ -n "${CERT_TEST_COUNT_OVERRIDE-}" ]]; then
@@ -227,6 +227,8 @@ start_utils_extractor() {
     local registry_args
     registry_host="image-registry.openshift-image-registry.svc:5000"
 
+    openshift-tests-plugin exec progress-msg --message "status=init=extractor";
+
     os_log_info "[extractor_login] setting image-puller arguments to use service-account's token"
     registry_args="--auth-basic=image-puller:$(cat "${SA_TOKEN_PATH}")"
 
@@ -255,16 +257,20 @@ start_utils_extractor() {
         registry_args+=" --registry=${registry_host}"
     fi
 
+    openshift-tests-plugin exec progress-msg --message "status=init=extractor=registry-login";
     os_log_info "[extractor_login] initiating registry login at ${registry_host}"
     ${UTIL_OC_BIN} registry login "${registry_args}"
 
     # Extracting oc (from tests image)
     local util_oc="./oc"
     os_log_info "[extractor][oc] upgrading 'oc' from ${registry_host}/openshift/tests:latest"
+    openshift-tests-plugin exec progress-msg --message "status=init=extractor=oc=extracting";
     ${UTIL_OC_BIN} image extract \
         "${registry_host}"/openshift/tests:latest \
         --insecure=true \
         --file="/usr/bin/oc"
+
+    openshift-tests-plugin exec progress-msg --message "status=init=extractor=oc=done";
 
     os_log_info "[extractor][oc] check if it was downloaded"
     if [[ ! -f ${util_oc} ]]; then
@@ -293,11 +299,13 @@ start_utils_extractor() {
     # Extracting openshift-tests
     local util_otests="./openshift-tests"
     os_log_info "[extractor][openshift-tests] extracting ${registry_host}/openshift/tests:latest"
+    openshift-tests-plugin exec progress-msg --message "status=init=extractor=openshift-tests=extracting";
     ${UTIL_OC_BIN} image extract \
         "${registry_host}"/openshift/tests:latest \
         --insecure=true \
         --file="/usr/bin/openshift-tests"
 
+    openshift-tests-plugin exec progress-msg --message "status=init=extractor=openshift-tests=done";
     os_log_info "[extractor][openshift-tests] check if it was downloaded"
     if [[ ! -f ${util_otests} ]]; then
         create_junit_with_msg "failed" "[opct][preflight][openshift-tests] unable to extract utility. Check if image-registry is present."
@@ -327,6 +335,8 @@ start_utils_extractor() {
 
     os_log_info "[extractor][openshift-tests] unlocking extractor"
     touch "${UTIL_OTESTS_READY}"
+
+    openshift-tests-plugin exec progress-msg --message "status=init=extractor=done";
 }
 export -f start_utils_extractor
 
@@ -373,17 +383,17 @@ export -f start_status_collector
 
 # wait_status_file waits for STATUS_FILE be created by start_status_collector()
 # blocking the execution until this file is created.
-wait_status_file() {
-    os_log_info "[status_file] Starting"
-    while true;
-    do
-        os_log_info "[status_file] Check file exists=[${STATUS_FILE}]"
-        test -f "${STATUS_FILE}" && break
-        sleep "${STATUS_UPDATE_INTERVAL_SEC}"
-    done
-    os_log_info "[status_file] Status file found!"
-}
-export -f wait_status_file
+# wait_status_file() {
+#     os_log_info "[status_file] Starting"
+#     while true;
+#     do
+#         os_log_info "[status_file] Check file exists=[${STATUS_FILE}]"
+#         test -f "${STATUS_FILE}" && break
+#         sleep "${STATUS_UPDATE_INTERVAL_SEC}"
+#     done
+#     os_log_info "[status_file] Status file found!"
+# }
+# export -f wait_status_file
 
 #
 # Cluster 'Upgrade' feature
@@ -524,3 +534,25 @@ EOF
     replay_save
 }
 export -f replay_plugin_run
+
+
+
+#
+# TMP from report-progress
+#
+# wait_progress_api waits for sonobuoy worker is listening.
+wait_progress_api() {
+    local addr_ip
+    local addr_port
+    addr_ip=$(echo "${PROGRESS_URL}" |grep -Po '(\d+.\d+.\d+.\d+)')
+    addr_port=$(echo "${PROGRESS_URL}" |grep -Po '\d{4}')
+
+    os_log_info "waiting for sonobuoy-worker service is ready..."
+    while true
+    do
+        test "$(echo '' | curl telnet://"${addr_ip}":"${addr_port}" >/dev/null 2>&1; echo $?)" -eq 0 && break
+        sleep 1
+    done
+    os_log_info "sonobuoy-worker progress api[${PROGRESS_URL}] is ready."
+}
+export -f wait_progress_api

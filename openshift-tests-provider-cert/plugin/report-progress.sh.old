@@ -25,22 +25,6 @@ source "$(dirname "$0")"/global_env.sh
 # shellcheck disable=SC1091
 source "$(dirname "$0")"/global_fn.sh
 
-# wait_progress_api waits for sonobuoy worker is listening.
-wait_progress_api() {
-    local addr_ip
-    local addr_port
-    addr_ip=$(echo "${PROGRESS_URL}" |grep -Po '(\d+.\d+.\d+.\d+)')
-    addr_port=$(echo "${PROGRESS_URL}" |grep -Po '\d{4}')
-
-    os_log_info "waiting for sonobuoy-worker service is ready..."
-    while true
-    do
-        test "$(echo '' | curl telnet://"${addr_ip}":"${addr_port}" >/dev/null 2>&1; echo $?)" -eq 0 && break
-        sleep 1
-    done
-    os_log_info "sonobuoy-worker progress api[${PROGRESS_URL}] is ready."
-}
-
 
 # wait_pipe_exists wait until the pipe file is created by plugin.
 wait_pipe_exists() {

@@ -76,12 +76,18 @@ sig_handler_save_results() {
     touch "${PLUGIN_DONE_NOTIFY}"
 
     os_log_info "Sending sonobuoy worker the result file path"
+    openshift-tests-plugin exec progress-msg --message "status=runner=done"
     echo "${RESULTS_DIR}/${junit_output}" > "${RESULTS_DONE_NOTIFY}"
 
     popd || true;
     os_log_info "Results saved at ${RESULTS_DONE_NOTIFY}=[${RESULTS_DIR}/${junit_output}]";
 }
 trap sig_handler_save_results EXIT
+
+# TODO add flag to "wait-for worker API ready"
+echo ">>> wait_progress_api"
+wait_progress_api
+openshift-tests-plugin exec progress-msg --message "status=initializing";
 
 os_log_info "logging to the cluster..."
 openshift_login
@@ -93,21 +99,80 @@ os_log_info "starting sonobuoy status scraper..."
 start_status_collector &
 
 os_log_info "starting utilities extractor..."
-start_utils_extractor &
+if [[ "${PLUGIN_ID}" == "${PLUGIN_ID_KUBE_CONFORMANCE}" ]] || [[ "${PLUGIN_ID}" == "${PLUGIN_ID_OPENSHIFT_CONFORMANCE}" ]]; then
+    os_log_info "starting utilities extractor...(skip)"
+else
+    start_utils_extractor &
+fi
 
 os_log_info "initializing plugin config..."
 init_config
 show_config
 
 os_log_info "check and wait for dependencies..."
-wait_status_file
-wait_utils_extractor
+#wait_status_file
+os_log_info "check and wait for dependencies..."
+if [[ "${PLUGIN_ID}" == "${PLUGIN_ID_KUBE_CONFORMANCE}" ]] ||
+    [[ "${PLUGIN_ID}" == "${PLUGIN_ID_OPENSHIFT_CONFORMANCE}" ]] ||
+    [[ "${PLUGIN_ID}" == "${PLUGIN_ID_OPENSHIFT_UPGRADE}" ]]; then
+    os_log_info "check and wait for dependencies...(skip)"
+else
+    wait_utils_extractor
+fi
 
 os_log_info "updating runtime configuration..."
 update_config
 
-os_log_info "starting waiter..."
-"$(dirname "$0")"/wait-plugin.sh
+#
+# Replace wait-plugin for progress reporter
+#
+#os_log_info "starting waiter..."
+#"$(dirname "$0")"/wait-plugin.sh
+PIDS_LOCAL=()
+PROGRESS=( ["completed"]=0 ["total"]=${CERT_TEST_COUNT} ["failures"]="" ["msg"]="starting..." )
+COUNTER_TOTAL=${CERT_TEST_COUNT}
+COUNTER_STARTED=0
+COUNTER_FAILED=0
+COUNTER_PASSED=0
+COUNTER_SKIPPED=0
+COUNTER_COMPLETED=0
+watch_dependency_done() {
+    os_log_info "[watch_dependency] Starting dependency check..."
+    for plugin_name in "${PLUGIN_BLOCKED_BY[@]}"; do
+        os_log_info "waiting for plugin [${plugin_name}]"
+
+        openshift-tests-plugin exec wait-updater \
+            --init-total=${PROGRESS["total"]:-0} \
+            --namespace "${ENV_POD_NAMESPACE}" \
+            --plugin "${PLUGIN_NAME}" \
+            --blocker "${plugin_name}" \
+            --done "${PLUGIN_DONE_NOTIFY}"
+
+    done
+    os_log_info "[plugin dependencies] Finished!"
+    return
+}
+watch_dependency_done
+
+# report_progress reads the pipe file, parses the progress counters and reports it
+# to worker progress endpoint until the piple file is closed and Done file is created
+# by plugin container.
+report_progress() {
+    openshift-tests-plugin exec progress-report \
+        --input-total=${PROGRESS["total"]} \
+        --input "${RESULTS_PIPE}" \
+        --done "${PLUGIN_DONE_NOTIFY}" \
+        --show-rank \
+        --rank-reverse \
+        --show-limit=20
+}
+
+echo ">>> report_progress"
+openshift-tests-plugin exec progress-msg --message "status=running";
+report_progress &
+PIDS_LOCAL+=($!)
+echo ">>> report_progress DONE"
+echo ">>> PIDS 3=${PIDS_LOCAL[*]}"
 
 # Force to update the utilities after cluster upgrades.
 # It's mandatory to avoid running clusters with old e2e binaries.
@@ -116,16 +181,25 @@ if [[ "${RUN_MODE:-''}" == "${PLUGIN_RUN_MODE_UPGRADE}" ]]; then
         os_log_info "starting utilities extractor updater..."
         start_utils_extractor
     else
-        os_log_info "ignoring extractor updater: ${PLUGIN_ID:-''}==${PLUGIN_ID_OPENSHIFT_UPGRADE}"
+        os_log_info "skiping extractor updater: ${PLUGIN_ID:-''}==${PLUGIN_ID_OPENSHIFT_UPGRADE}"
     fi
 else
-    os_log_info "ignoring extractor updater: ${RUN_MODE:-''}!=${PLUGIN_RUN_MODE_UPGRADE}"
+    os_log_info "skiping extractor updater: ${RUN_MODE:-''}!=${PLUGIN_RUN_MODE_UPGRADE}"
 fi
 
 os_log_info "starting executor..."
 "$(dirname "$0")"/executor.sh #| tee -a ${results_script_dir}/executor.log
 
+os_log_info "Waiting for PIDs [finalizer]: ${PIDS_LOCAL[*]}"
+#wait "${PIDS_LOCAL[@]}"
+echo ">>> PIDS 4=${PIDS_LOCAL[*]}"
+
+# echo ">>> UNBLOCKED. Sending final message"
+# openshift-tests-plugin exec progress-msg --message "status=report-progress-finished"
+# echo ">>> PIDS 5=${PIDS_LOCAL[*]}"
+
 # TODO(report): add a post processor of JUnit to identify flakes
 # https://github.com/mtulio/openshift-provider-certification/issues/14
 
-os_log_info "Plugin finished. Result[$?]";
+openshift-tests-plugin exec progress-msg --message "status=runner=preparing results"
+os_log_info "Plugin finished.";

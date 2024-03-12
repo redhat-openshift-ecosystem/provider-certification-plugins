@@ -23,7 +23,8 @@ declare -grx E2E_PARALLEL_DEFAULT=0
 declare -grx RESULTS_DIR="${RESULTS_DIR:-/tmp/sonobuoy/results}"
 declare -grx RESULTS_DONE_NOTIFY="${RESULTS_DIR}/done"
 declare -grx PLUGIN_DONE_NOTIFY="${SHARED_DIR}/plugin.done"
-declare -grx RESULTS_PIPE="${SHARED_DIR}/status_pipe"
+#declare -grx RESULTS_PIPE="${SHARED_DIR}/status_pipe"
+declare -grx RESULTS_PIPE="/tmp/shared/fifo"
 declare -grx RESULTS_SCRIPTS="${SHARED_DIR}/plugin-scripts"
 
 declare -grx KUBECONFIG="${SHARED_DIR}/kubeconfig"
@@ -101,4 +102,4 @@ declare -x REPLAY_CONFIG_FILE="/tmp/${REPLAY_CONFIG_KEY}"
 declare -x REPLAY_SUITE=openshift/conformance
 declare -x REPLAY_MAX_PARALLEL_TESTS=1
 declare -x REPLAY_JUNIR_DIR=/tmp/replay-junits
-declare -x REPLAY_MONITOR_FOCUS=node-state-analyzer
+declare -x REPLAY_MONITOR_FOCUS=etcd-log-analyzer
