@@ -28,7 +28,7 @@ var pluginConfigFile string
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "openshift-tests-plugin",
-	Short: "A brief description of your application",
+	Short: "Sonobuoy-based plugin for openshift-tests utility.",
 	Long: `A longer description that spans multiple lines and likely contains
 examples and usage of using your application. For example:
 
@@ -78,5 +78,5 @@ func init() {
 
 	// rootCmd.AddCommand(status.NewCmdStatus())
 	rootCmd.AddCommand(exec.NewCmdExec())
-
+	rootCmd.AddCommand(NewCmdRun())
 }
