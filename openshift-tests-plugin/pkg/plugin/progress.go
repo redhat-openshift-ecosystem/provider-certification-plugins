@@ -9,7 +9,6 @@ import (
 	"regexp"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/davecgh/go-spew/spew"
 	log "github.com/sirupsen/logrus"
@@ -118,6 +117,9 @@ func (ps *PluginProgress) UpdateTotalCounters() {
 	if ps.TotalCount != nil {
 		total = *ps.TotalCount
 	}
+	// There are some inconsistency in the counters provided by openshift-tests output,
+	// so the "Completed" (counter maintained by OPCT parsing from output) is
+	// taking precedence from 'total' (provided by openshift-tests).
 	ps.CompleteCount = ptr.To(pass + skip + failed)
 	completed = *ps.CompleteCount
 	if completed >= total {
@@ -168,11 +170,6 @@ func (ps *PluginProgress) ParserOpenShiftTestsOutputLine(line string) (skip bool
 	switch {
 	case strings.HasPrefix(line, "started:"):
 		ps.Inc(&PluginProgress{StartedCount: ptr.To(int64(1))})
-		// if ps.StartedCount == nil {
-		// 	ps.StartedCount = ptr.To(int64(1))
-		// } else {
-		// 	ps.StartedCount = ptr.To(1 + *ps.StartedCount)
-		// }
 
 		re := regexp.MustCompile(`^started\:\s(?P<Counter>\d+\/\d+\/\d+)\s(?P<TestName>.*)`)
 		match := re.FindStringSubmatch(line)
@@ -180,7 +177,6 @@ func (ps *PluginProgress) ParserOpenShiftTestsOutputLine(line string) (skip bool
 			log.Error("Unexpected results: %v", match)
 			return true, nil
 		}
-		// status := strings.Split(match[1], "/")
 		testName := match[2]
 
 		ps.TestMap[testName] = &TestProgress{
@@ -190,88 +186,49 @@ func (ps *PluginProgress) ParserOpenShiftTestsOutputLine(line string) (skip bool
 
 	case strings.HasPrefix(line, "passed:"), strings.HasPrefix(line, "passed ("):
 		ps.Inc(&PluginProgress{PassedCount: ptr.To(int64(1))})
-		var testName, timeTaken, endAt, errMessage string
-		errParser := false
 
-		// Format 1) passed: (TimeTaken) Timestamp TestName
-		re1 := regexp.MustCompile(`^passed\:\s\((?P<Time>.*)\)\s(?P<Timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})\s(?P<TestName>.*)`)
-		if match1 := re1.FindStringSubmatch(line); len(match1) == 4 {
-			testName = match1[3]
-			timeTaken = match1[1]
-			endAt = match1[2]
-		} else {
-			errParser = true
-		}
-
-		// Format 2) passed (TimeTaken) TestName
-		re2 := regexp.MustCompile(`^passed\s\((?P<Time>.*)\)\s(?P<TestName>.*)`)
-		if match2 := re2.FindStringSubmatch(line); len(match2) == 3 {
-			testName = match2[2]
-			timeTaken = match2[1]
-			errParser = false
-		} else {
-			errParser = true
-		}
-
-		if errParser {
-			log.Errorf(errMessage)
+		res := &resultLineParser{ParserName: "passed"}
+		err := res.ExtractTestTimeFromLine(line)
+		if err != nil {
+			log.Errorf("%s parser: error extracting results: %v", res.ParserName, err)
 			return true, nil
 		}
-		if _, ok := ps.TestMap[testName]; !ok {
-			ps.TestMap[testName] = &TestProgress{
-				TestName: testName,
-			}
+
+		if err := res.CalculateFields(ps.TestMap); err != nil {
+			log.Errorf("%s parser: error extracting results: %v", res.ParserName, err)
+			return true, nil
 		}
 
-		// Save
-		ps.TestMap[testName].Result = "passed"
-		ps.TestMap[testName].TimeTook = timeTaken
-		d, _ := time.ParseDuration(ps.TestMap[testName].TimeTook)
-		ps.TestMap[testName].TimeTookSeconds = d.Seconds()
-		ps.TestMap[testName].EndAt = endAt
-
-	case strings.HasPrefix(line, "skipped:"):
-		// ps.SkippedCount += 1
+	case strings.HasPrefix(line, "skipped:"), strings.HasPrefix(line, "skipped ("):
 		ps.Inc(&PluginProgress{SkippedCount: ptr.To(int64(1))})
-		// todo parse started
-		re := regexp.MustCompile(`^skipped\:\s\((?P<Time>.*)\)\s(?P<Timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})\s(?P<TestName>.*)`)
-		match := re.FindStringSubmatch(line)
-		if len(match) != 4 {
-			log.Errorf("skipped Unexpected results: %v", match)
-			return true, nil
-		}
-		// status := strings.Split(match[1], "/")
-		testName := match[3]
-		if _, ok := ps.TestMap[testName]; !ok {
-			log.Errorf("skipped test not mapped: %v", testName)
-			return true, nil
-		}
-		ps.TestMap[testName].Result = "skipped"
-		ps.TestMap[testName].TimeTook = match[1]
-		d, _ := time.ParseDuration(ps.TestMap[testName].TimeTook)
-		ps.TestMap[testName].TimeTookSeconds = d.Seconds()
-		ps.TestMap[testName].EndAt = match[2]
 
-	case strings.HasPrefix(line, "failed:"):
-		// ps.FailedCount += 1
+		res := &resultLineParser{ParserName: "skipped"}
+		err := res.ExtractTestTimeFromLine(line)
+		if err != nil {
+			log.Errorf("%s parser: error extracting results: %v", res.ParserName, err)
+			return true, nil
+		}
+
+		if err := res.CalculateFields(ps.TestMap); err != nil {
+			log.Errorf("%s parser: error extracting results: %v", res.ParserName, err)
+			return true, nil
+		}
+
+	case strings.HasPrefix(line, "failed:"), strings.HasPrefix(line, "failed ("):
 		ps.Inc(&PluginProgress{FailedCount: ptr.To(int64(1))})
-		re := regexp.MustCompile(`^failed\:\s\((?P<Time>.*)\)\s(?P<Timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})\s(?P<TestName>.*)`)
-		match := re.FindStringSubmatch(line)
-		if len(match) != 4 {
-			log.Errorf("failed Unexpected results: %v", match)
+
+		res := &resultLineParser{ParserName: "failed"}
+		err := res.ExtractTestTimeFromLine(line)
+		if err != nil {
+			log.Errorf("%s parser: error extracting results: %v", res.ParserName, err)
 			return true, nil
 		}
-		// status := strings.Split(match[1], "/")
-		testName := match[3]
-		if _, ok := ps.TestMap[testName]; !ok {
-			log.Errorf("failed test not mapped: %v", testName)
+
+		if err := res.CalculateFields(ps.TestMap); err != nil {
+			log.Errorf("%s parser: error extracting results: %v", res.ParserName, err)
 			return true, nil
 		}
-		ps.TestMap[testName].Result = "failed"
-		ps.TestMap[testName].TimeTook = match[1]
-		d, _ := time.ParseDuration(ps.TestMap[testName].TimeTook)
-		ps.TestMap[testName].TimeTookSeconds = d.Seconds()
-		ps.TestMap[testName].EndAt = match[2]
+
 	default:
 		return true, nil
 	}

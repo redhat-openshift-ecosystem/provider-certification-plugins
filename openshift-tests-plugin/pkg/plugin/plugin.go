@@ -187,11 +187,11 @@ func (p *Plugin) Run() error {
 		} else if errors.Is(err, os.ErrNotExist) {
 			time.Sleep(1 * time.Second)
 			if threshold >= WaitThresholdLimit {
-				return fmt.Errorf("timeout while waitinf for done file %s", OpenShiftTestsDoneFile)
+				return fmt.Errorf("timeout while waiting for done file %s", OpenShiftTestsDoneFile)
 			}
 			// every 5 minutes emit the waiting message
 			if (threshold % WaitThresholdNotify) == 0 {
-				log.Infof("waiting for done file %s", OpenShiftTestsDoneFile)
+				log.Debugf("waiting for done file %s", OpenShiftTestsDoneFile)
 			}
 			threshold++
 			continue
