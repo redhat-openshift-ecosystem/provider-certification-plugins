@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/redhat-openshift-ecosystem/provider-certification-plugins/openshift-tests-plugin/pkg/plugin"
 	log "github.com/sirupsen/logrus"
@@ -30,9 +31,13 @@ func NewCmdRun() *cobra.Command {
 		Long:  ``,
 		Run: func(cmd *cobra.Command, args []string) {
 
-			fmt.Println(">>> starting")
-			StartRun(&opts)
-
+			// fmt.Println(">>> starting")
+			err := StartRun(&opts)
+			if err != nil {
+				// TODO create JUnit err
+				log.Errorf("command finished with errors: %v", err)
+				os.Exit(1)
+			}
 		},
 	}
 
@@ -64,40 +69,36 @@ func NewCmdRun() *cobra.Command {
 // Save:
 // - gather XML results
 // - save failures to replay
-func StartRun(opt *OptionsRun) {
+func StartRun(opt *OptionsRun) error {
 
 	if opt.Name == "" {
-		log.Error("--name must be specified")
-		os.Exit(1)
+		return fmt.Errorf("--name must be specified")
 	}
 
 	pl, err := plugin.NewPlugin(opt.Name)
 	if err != nil {
-		log.Errorf("unable to initialize plugin name: %w", err)
-		os.Exit(1)
+		return fmt.Errorf("unable to initialize plugin name: %w", err)
 	}
 	defer pl.Done()
 
-	// err = pl.Initialize()
-	// if err != nil {
-	// 	log.Errorf("unable to initialize plugin name: %w", err)
-	// 	os.Exit(1)
-	// }
+	go pl.WatchForDone()
 
-	// go pl.RunReportProgress()
+	err = pl.Initialize()
+	if err != nil {
+		return fmt.Errorf("unable to initialize plugin name: %w", err)
+	}
 
-	// err = pl.RunDependencyWaiter()
-	// if err != nil {
-	// 	log.Errorf("unable to initialize plugin name: %w", err)
-	// 	// TODO create JUnit err
-	// 	os.Exit(1)
-	// }
+	go pl.RunReportProgress()
+
+	err = pl.RunDependencyWaiter()
+	if err != nil {
+		return fmt.Errorf("unable to initialize plugin name: %w", err)
+
+	}
 
 	err = pl.Run()
 	if err != nil {
-		log.Errorf("unable to initialize plugin name: %w", err)
-		// TODO create JUnit err
-		os.Exit(1)
+		return fmt.Errorf("unable to initialize plugin name: %w", err)
 	}
 
 	// err = pl.Save()
@@ -106,6 +107,16 @@ func StartRun(opt *OptionsRun) {
 	// 	// TODO create JUnit err
 	// 	os.Exit(1)
 	// }
+	pl.Summary()
 
-	// return pl.Summary()
+	log.Println("Waiting for done controller in the main flow...")
+	for {
+		if pl.DoneControl {
+			log.Printf("\n OK %v\n", pl.DoneControl)
+			break
+		}
+		log.Printf("\nWaiting %v\n", pl.DoneControl)
+		time.Sleep(1 * time.Second)
+	}
+	return nil
 }
