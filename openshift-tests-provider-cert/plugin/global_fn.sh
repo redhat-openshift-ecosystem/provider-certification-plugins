@@ -74,10 +74,17 @@ init_config() {
         CERT_TEST_SUITE="${OPENSHIFT_TESTS_SUITE_OPENSHIFT_CONFORMANCE}"
         PLUGIN_BLOCKED_BY+=("${PLUGIN_NAME_KUBE_CONFORMANCE}")
 
+    elif [[ "${PLUGIN_ID:-}" == "${PLUGIN_ID_TESTS_REPLAY}" ]]
+    then
+        PLUGIN_NAME="${PLUGIN_NAME_TESTS_REPLAY}"
+        CERT_TEST_SUITE="${OPENSHIFT_TESTS_SUITE_TESTS_REPLAY}"
+        PLUGIN_BLOCKED_BY+=("${PLUGIN_NAME_OPENSHIFT_CONFORMANCE}")
+        export CERT_TEST_COUNT_OVERRIDE=0
+
     elif [[ "${PLUGIN_ID:-}" == "${PLUGIN_ID_OPENSHIFT_ARTIFACTS_COLLECTOR}" ]]
     then
         PLUGIN_NAME="${PLUGIN_NAME_OPENSHIFT_ARTIFACTS_COLLECTOR}"
-        PLUGIN_BLOCKED_BY+=("${PLUGIN_NAME_OPENSHIFT_CONFORMANCE}")
+        PLUGIN_BLOCKED_BY+=("${PLUGIN_NAME_TESTS_REPLAY}")
 
     else
         err="[init_config] Unknown value for PLUGIN_ID=[${PLUGIN_ID:-}]"
@@ -128,7 +135,16 @@ update_config() {
     fi
     if [[ "${CERT_TEST_SUITE:-}" != "" ]]
     then
-        CERT_TEST_COUNT="$(${UTIL_OTESTS_BIN} run --dry-run "${CERT_TEST_SUITE}" | wc -l)"
+        CERT_TEST_COUNT="$(cat /tmp/shared/suite.list | wc -l)"
+    fi
+    # Counter override
+    if [[ -n "${CERT_TEST_COUNT_OVERRIDE-}" ]]; then
+        os_log_info "[update_config] Overriding test count from [${CERT_TEST_COUNT}] to [${CERT_TEST_COUNT_OVERRIDE}]"
+        CERT_TEST_COUNT=${CERT_TEST_COUNT_OVERRIDE}
+    fi
+    if [[ ${DEV_TESTS_COUNT-} -ne 0 ]]; then
+        os_log_info "[update_config] Overriding test count from [${CERT_TEST_COUNT}] to [${DEV_TESTS_COUNT}]"
+        CERT_TEST_COUNT=${DEV_TESTS_COUNT}
     fi
     os_log_info "[update_config] Total tests found: [${CERT_TEST_COUNT}]"
 }
@@ -166,24 +182,29 @@ create_junit_with_msg() {
     local failures_count
     local junit_file
     local junit_file_type
-    local faliures_payload
+    local test_payload
 
     msg_type="$1"; shift
     msg="$1"; shift
     junit_file_type="${1:-e2e}"
     failures_count=0
+    skipped_count=0
 
     if [[ "${msg_type}" == "failed" ]]; then
         failures_count=1
-        faliures_payload="<failure message=\"\">plugin runtime failed</failure><system-out></system-out>"
+        test_payload="<failure message=\"\">OPCT Plugin runtime: unexpected execution failure. Review the plugin logs.</failure><system-out></system-out>"
+    fi
+    if [[ "${msg_type}" == "skipped" ]]; then
+        skipped_count=1
+        test_payload="<skipped message=\"OPCT Plugin Runtime: test skipped. Review the plugin logs for details.\"/>"
     fi
     junit_file="${RESULTS_DIR}/junit_${junit_file_type}_${msg_type}_$(date +%Y%m%d-%H%M%S).xml"
 
     os_log_info "Creating ${msg_type} JUnit result file [${junit_file}]"
     cat << EOF > "${junit_file}"
-<testsuite name="openshift-tests" tests="1" skipped="0" failures="${failures_count}" time="1.0">
+<testsuite name="openshift-tests" tests="1" skipped="${skipped_count}" failures="${failures_count}" time="1.0">
  <property name="TestVersion" value="v4.1.0"></property>
- <testcase name="${msg}" time="0"> ${faliures_payload:-''}
+ <testcase name="${msg}" time="0"> ${test_payload:-''}
 </testcase>
 </testsuite>
 EOF
@@ -205,6 +226,8 @@ start_utils_extractor() {
     local registry_host_router
     local registry_args
     registry_host="image-registry.openshift-image-registry.svc:5000"
+
+    openshift-tests-plugin exec progress-msg --message "status=init=extractor";
 
     os_log_info "[extractor_login] setting image-puller arguments to use service-account's token"
     registry_args="--auth-basic=image-puller:$(cat "${SA_TOKEN_PATH}")"
@@ -234,16 +257,20 @@ start_utils_extractor() {
         registry_args+=" --registry=${registry_host}"
     fi
 
+    openshift-tests-plugin exec progress-msg --message "status=init=extractor=registry-login";
     os_log_info "[extractor_login] initiating registry login at ${registry_host}"
     ${UTIL_OC_BIN} registry login "${registry_args}"
 
     # Extracting oc (from tests image)
     local util_oc="./oc"
     os_log_info "[extractor][oc] upgrading 'oc' from ${registry_host}/openshift/tests:latest"
+    openshift-tests-plugin exec progress-msg --message "status=init=extractor=oc=extracting";
     ${UTIL_OC_BIN} image extract \
         "${registry_host}"/openshift/tests:latest \
         --insecure=true \
         --file="/usr/bin/oc"
+
+    openshift-tests-plugin exec progress-msg --message "status=init=extractor=oc=done";
 
     os_log_info "[extractor][oc] check if it was downloaded"
     if [[ ! -f ${util_oc} ]]; then
@@ -272,11 +299,13 @@ start_utils_extractor() {
     # Extracting openshift-tests
     local util_otests="./openshift-tests"
     os_log_info "[extractor][openshift-tests] extracting ${registry_host}/openshift/tests:latest"
+    openshift-tests-plugin exec progress-msg --message "status=init=extractor=openshift-tests=extracting";
     ${UTIL_OC_BIN} image extract \
         "${registry_host}"/openshift/tests:latest \
         --insecure=true \
         --file="/usr/bin/openshift-tests"
 
+    openshift-tests-plugin exec progress-msg --message "status=init=extractor=openshift-tests=done";
     os_log_info "[extractor][openshift-tests] check if it was downloaded"
     if [[ ! -f ${util_otests} ]]; then
         create_junit_with_msg "failed" "[opct][preflight][openshift-tests] unable to extract utility. Check if image-registry is present."
@@ -306,6 +335,8 @@ start_utils_extractor() {
 
     os_log_info "[extractor][openshift-tests] unlocking extractor"
     touch "${UTIL_OTESTS_READY}"
+
+    openshift-tests-plugin exec progress-msg --message "status=init=extractor=done";
 }
 export -f start_utils_extractor
 
@@ -352,17 +383,17 @@ export -f start_status_collector
 
 # wait_status_file waits for STATUS_FILE be created by start_status_collector()
 # blocking the execution until this file is created.
-wait_status_file() {
-    os_log_info "[status_file] Starting"
-    while true;
-    do
-        os_log_info "[status_file] Check file exists=[${STATUS_FILE}]"
-        test -f "${STATUS_FILE}" && break
-        sleep "${STATUS_UPDATE_INTERVAL_SEC}"
-    done
-    os_log_info "[status_file] Status file found!"
-}
-export -f wait_status_file
+# wait_status_file() {
+#     os_log_info "[status_file] Starting"
+#     while true;
+#     do
+#         os_log_info "[status_file] Check file exists=[${STATUS_FILE}]"
+#         test -f "${STATUS_FILE}" && break
+#         sleep "${STATUS_UPDATE_INTERVAL_SEC}"
+#     done
+#     os_log_info "[status_file] Status file found!"
+# }
+# export -f wait_status_file
 
 #
 # Cluster 'Upgrade' feature
@@ -416,3 +447,112 @@ preflight_check_upgrade_waiter() {
     os_log_info "[preflight_check][upgrade-waiter] finished!"
 }
 export -f preflight_check_upgrade_waiter
+
+
+#
+# Plugin replay
+#
+# Global vars starts with REPLAY_* and can be overriden by --plugin-env command line.
+#
+
+replay_extract_from_config() {
+    os_log_info "[openshift-tests-plugin][replay] Attemping to extract custom e2e tests to replay from namespace(${REPLAY_NAMESPACE}) config(${REPLAY_CONFIG}) key(${REPLAY_CONFIG_KEY})"
+    ${UTIL_OC_BIN} extract "configmap/${REPLAY_CONFIG}" \
+        -n "${REPLAY_NAMESPACE}" \
+        --to=/tmp --keys="${REPLAY_CONFIG_KEY}" || true
+
+    test -f "${REPLAY_CONFIG_FILE}" && cat "${REPLAY_CONFIG_FILE}"
+
+}
+export -f replay_extract_from_config
+
+replay_run_e2e() {
+    os_log_info "[openshift-tests-plugin][replay] Running e2e"
+    if [[ -f "${REPLAY_CONFIG_FILE}" ]]; then
+        os_log_info "[openshift-tests-plugin][replay] Running e2e from custom config ${REPLAY_CONFIG_FILE}"
+        ${UTIL_OTESTS_BIN} run "${REPLAY_SUITE}" \
+            -f "${REPLAY_CONFIG_FILE}" \
+            --max-parallel-tests "${REPLAY_MAX_PARALLEL_TESTS}" \
+            --junit-dir="${REPLAY_JUNIR_DIR}" \
+            --monitor "${REPLAY_MONITOR_FOCUS}"
+    else
+        os_log_info "[openshift-tests-plugin][replay] Running e2e from suite ${REPLAY_SUITE}"
+        ${UTIL_OTESTS_BIN} run "${REPLAY_SUITE}" \
+            --max-parallel-tests "${REPLAY_MAX_PARALLEL_TESTS}" \
+            --junit-dir="${REPLAY_JUNIR_DIR}" \
+            --monitor "${REPLAY_MONITOR_FOCUS}"
+    fi
+}
+export -f replay_run_e2e
+
+replay_save_results_e2e() {
+    os_log_info "[openshift-tests-plugin][replay] Saving e2e results..."
+    pushd "${REPLAY_JUNIR_DIR}" || return
+    tar cfz "${REPLAY_RESULTS}/e2e_raw_junits.tar.gz" -- *
+    popd || return
+}
+export -f replay_save_results_e2e
+
+replay_save_results() {
+    os_log_info "[openshift-tests-plugin][replay] Saving raw results..."
+    pushd "${REPLAY_RESULTS}" || return
+    tar cfz "${RESULTS_DIR}/replay-results.tar.gz" -- *
+    popd || return
+}
+export -f replay_save_results
+
+replay_save() {
+    os_log_info "[openshift-tests-plugin][replay] Saving results"
+    mkdir -vp "${REPLAY_RESULTS}"
+    cp -v "${REPLAY_CONFIG_FILE}" "${REPLAY_RESULTS}" || true
+    replay_save_results_e2e || true
+    replay_save_results
+    os_log_info "[openshift-tests-plugin][replay] Notifying Sonobuoy agent"
+    echo "${RESULTS_DIR}/replay-results.tar.gz" > /tmp/sonobuoy/results/done
+}
+export -f replay_save
+
+# Standalone
+replay_plugin_run() {
+    os_log_info "[openshift-tests-plugin][replay] Starting plugin"
+    os_log_info "[openshift-tests-plugin][replay] Dumping config"
+    cat << EOF
+REPLAY_RESULTS=${REPLAY_RESULTS-}
+REPLAY_NAMESPACE=${REPLAY_NAMESPACE-}
+REPLAY_CONFIG_MAP=${REPLAY_CONFIG_MAP-}
+REPLAY_CONFIG_KEY=${REPLAY_CONFIG_KEY-}
+REPLAY_CONFIG_FILE=${REPLAY_CONFIG_FILE-}
+REPLAY_SUITE=${REPLAY_SUITE-}
+REPLAY_MAX_PARALLEL_TESTS=${REPLAY_MAX_PARALLEL_TESTS-}
+REPLAY_JUNIR_DIR=${REPLAY_JUNIR_DIR-}
+REPLAY_MONITOR_FOCUS=${REPLAY_MONITOR_FOCUS-}
+EOF
+    openshift_login
+    start_utils_extractor
+    replay_extract_from_config
+    replay_run_e2e
+    replay_save
+}
+export -f replay_plugin_run
+
+
+
+#
+# TMP from report-progress
+#
+# wait_progress_api waits for sonobuoy worker is listening.
+wait_progress_api() {
+    local addr_ip
+    local addr_port
+    addr_ip=$(echo "${PROGRESS_URL}" |grep -Po '(\d+.\d+.\d+.\d+)')
+    addr_port=$(echo "${PROGRESS_URL}" |grep -Po '\d{4}')
+
+    os_log_info "waiting for sonobuoy-worker service is ready..."
+    while true
+    do
+        test "$(echo '' | curl telnet://"${addr_ip}":"${addr_port}" >/dev/null 2>&1; echo $?)" -eq 0 && break
+        sleep 1
+    done
+    os_log_info "sonobuoy-worker progress api[${PROGRESS_URL}] is ready."
+}
+export -f wait_progress_api

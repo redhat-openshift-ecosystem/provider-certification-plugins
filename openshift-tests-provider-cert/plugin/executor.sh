@@ -112,11 +112,28 @@ run_upgrade() {
     os_log_info "[executor] [upgrade] show current version:"
     ${UTIL_OC_BIN} get clusterversion
     # shellcheck disable=SC2086
-    ${UTIL_OTESTS_BIN} run-upgrade "${OPENSHIFT_TESTS_SUITE_UPGRADE}" ${OPENSHIFT_TESTS_EXTRA_ARGS} \
-        --to-image "${UPGRADE_RELEASES}" \
-        --options "${TEST_UPGRADE_OPTIONS-}" \
-        --junit-dir "${RESULTS_DIR}" \
-        | tee -a "${RESULTS_PIPE}"
+    # ${UTIL_OTESTS_BIN} run-upgrade "${OPENSHIFT_TESTS_SUITE_UPGRADE}" ${OPENSHIFT_TESTS_EXTRA_ARGS} \
+    #     --to-image "${UPGRADE_RELEASES}" \
+    #     --options "${TEST_UPGRADE_OPTIONS-}" \
+    #     --junit-dir "${RESULTS_DIR}" \
+    #     | tee -a "${RESULTS_PIPE}"
+    cat << EOF > /tmp/shared/start
+/usr/bin/openshift-tests run-upgrade "${OPENSHIFT_TESTS_SUITE_UPGRADE}" --dry-run -o /tmp/shared/suite.list
+/usr/bin/openshift-tests run-upgrade "${OPENSHIFT_TESTS_SUITE_UPGRADE}" \
+--monitor $MONITOR \
+--to-image "${UPGRADE_RELEASES}" \
+--options "${TEST_UPGRADE_OPTIONS-}" \
+--junit-dir /tmp/shared/junit \
+| tee -a /tmp/shared/fifo || true
+EOF
+
+    while true; do
+        if [[ -f /tmp/shared/done ]]; then break; fi
+        echo "$(date): Waiting for test run";
+        sleep 30
+    done
+    mv -v /tmp/shared/junit/*.xml /tmp/sonobuoy/results/ || true
+
     set +x
 }
 
@@ -138,8 +155,16 @@ run_plugin_upgrade() {
         os_log_info "[executor] Running Plugin_ID ${PLUGIN_ID}. finished... Cluster is progressing? ${PROGRESSING}"
 
     else
+        os_log_info "[executor] Skiping openshift-tests run"
+        echo "echo wontdo" > /tmp/shared/start
+        while true; do
+            if [[ -f /tmp/shared/done ]]; then break; fi
+            echo "$(date): Waiting for test run";
+            sleep 30
+        done
+
         os_log_info "[executor] Creating pass JUnit files due the execution mode != upgrade"
-        create_junit_with_msg "pass" "[opct][pass] ignoring upgrade mode on RUN_MODE=[${RUN_MODE-}]." "upgrade"
+        create_junit_with_msg "skipped" "[opct] run plugin upgrade conformance RUN_MODE=[${RUN_MODE-}]." "upgrade"
     fi
 }
 
@@ -149,6 +174,33 @@ run_plugin_upgrade() {
 
 # Run Conformance Plugins calling openshift-tests, when success the JUnit will be
 # created, otherwise custom error is raised as custom result file (JUnits).
+run_plugins_conformance_replay_config() {
+    # Saving failures to replay
+    os_log_info "[executor][PluginID#${PLUGIN_ID}] creating failed replay file"
+    junit_file="$(ls "${RESULTS_DIR}"/junit_e2e_*.xml)"
+    if [[ -f "${junit_file}" ]]; then
+        os_log_info "[executor][PluginID#${PLUGIN_ID}] parsing junit file ${junit_file}"
+        yq -p=xml -o=json "${junit_file}" | jq '.testsuite.testcase[] | select(.failure != null) | .["+@name"]' | sort > "/tmp/failures-${PLUGIN_ID}.txt"
+
+        os_log_info "[executor][PluginID#${PLUGIN_ID}] dump failures from ${junit_file}"
+        cat "/tmp/failures-${PLUGIN_ID}.txt"
+        openshift-tests-plugin exec parser-failures-suite \
+            --suite "/tmp/shared/suite.list" \
+            --failures "/tmp/failures-${PLUGIN_ID}.txt" \
+            --output "/tmp/failures-${PLUGIN_ID}-suite.txt"
+
+        os_log_info "[executor][PluginID#${PLUGIN_ID}] dump filtered failures"
+        cat "/tmp/failures-${PLUGIN_ID}-suite.txt"
+
+        failed_config="plugin-failures-${PLUGIN_ID}"
+        os_log_info "[executor][PluginID#${PLUGIN_ID}] saving failures to config map ${failed_config}"
+        ${UTIL_OC_BIN} create configmap -n "${ENV_POD_NAMESPACE:-sonobuoy}" "plugin-failures-${PLUGIN_ID}" --from-file=replay.list="/tmp/failures-${PLUGIN_ID}-suite.txt" || true
+
+    else
+        os_log_info "[executor][PluginID#${PLUGIN_ID}]WARNING: unable to find junit file to create failed replay"
+    fi
+}
+
 run_plugins_conformance() {
 
     if [[ -z "${CERT_TEST_SUITE}" ]]; then
@@ -160,46 +212,77 @@ run_plugins_conformance() {
 
     os_log_info "[executor][PluginID#${PLUGIN_ID}] Starting openshift-tests suite [${CERT_TEST_SUITE}] Provider Conformance executor..."
 
-    set -x
-    ${UTIL_OTESTS_BIN} run \
-        "${CERT_TEST_SUITE}" --dry-run \
-        > "${RESULTS_DIR}/suite-${CERT_TEST_SUITE/\/}.list"
+    # set -x
+    # ${UTIL_OTESTS_BIN} run \
+    #     "${CERT_TEST_SUITE}" --dry-run \
+    #     > "${RESULTS_DIR}/suite-${CERT_TEST_SUITE/\/}.list"
 
     os_log_info "Saving the test list on ${RESULTS_DIR}/suite-${CERT_TEST_SUITE/\/}.list"
-    wc -l "${RESULTS_DIR}/suite-${CERT_TEST_SUITE/\/}.list"
+    # wc -l "${RESULTS_DIR}/suite-${CERT_TEST_SUITE/\/}.list"
+    cat /tmp/shared/suite.name
+    wc -l /tmp/shared/suite.list
+
+    MONITOR=etcd-log-analyzer
 
     # "Dev Mode": limit the number of tests to run in development with CLI run option (--dev-count N)
     if [[ ${DEV_TESTS_COUNT} -gt 0 ]]; then
         os_log_info "DEV mode detected, applying filter to job count: [${DEV_TESTS_COUNT}]"
         shuf "${RESULTS_DIR}/suite-${CERT_TEST_SUITE/\/}.list" \
-            | head -n "${DEV_TESTS_COUNT}" \
-            > "${RESULTS_DIR}/suite-${CERT_TEST_SUITE/\/}-DEV.list"
+            # | head -n "${DEV_TESTS_COUNT}" \
+            # > "${RESULTS_DIR}/suite-${CERT_TEST_SUITE/\/}-DEV.list"
+        shuf /tmp/shared/suite.list | grep ^'"' | head -n "${DEV_TESTS_COUNT}"  > /tmp/shared/suite-DEV.list
 
         os_log_info "Saving the DEV test list on ${RESULTS_DIR}/suite-${CERT_TEST_SUITE/\/}-DEV.list"
-        wc -l "${RESULTS_DIR}/suite-${CERT_TEST_SUITE/\/}-DEV.list"
+        # wc -l "${RESULTS_DIR}/suite-${CERT_TEST_SUITE/\/}-DEV.list"
+        wc -l /tmp/shared/suite-DEV.list
 
         os_log_info "Running on DEV mode..."
         # shellcheck disable=SC2086
-        ${UTIL_OTESTS_BIN} run \
-            --max-parallel-tests "${CERT_TEST_PARALLEL}" ${OPENSHIFT_TESTS_EXTRA_ARGS} \
-            --junit-dir "${RESULTS_DIR}" \
-            -f "${RESULTS_DIR}/suite-${CERT_TEST_SUITE/\/}-DEV.list" \
-            | tee -a "${RESULTS_PIPE}" || true
-
+        # ${UTIL_OTESTS_BIN} run \
+        #     --max-parallel-tests "${CERT_TEST_PARALLEL}" ${OPENSHIFT_TESTS_EXTRA_ARGS} \
+        #     --junit-dir "${RESULTS_DIR}" \
+        #     -f "${RESULTS_DIR}/suite-${CERT_TEST_SUITE/\/}-DEV.list" \
+        #     | tee -a "${RESULTS_PIPE}" || true
+        cat << EOF > /tmp/shared/start
+/usr/bin/openshift-tests run --monitor $MONITOR --max-parallel-tests "${CERT_TEST_PARALLEL}" \
+--junit-dir /tmp/shared/junit -f /tmp/shared/suite-DEV.list \
+| tee -a /tmp/shared/fifo || true
+EOF
+        while true; do
+            if [[ -f /tmp/shared/done ]]; then break; fi
+            echo "$(date): Waiting for test run";
+            sleep 30
+        done
+        mv -v /tmp/shared/junit/*.xml /tmp/sonobuoy/results/ || true
         os_log_info "[executor][PluginID#${PLUGIN_ID}] openshift-tests finished[$?] (DEV Mode)"
+        run_plugins_conformance_replay_config
         return
     fi
 
     # Regular Conformance runner
     os_log_info "Running the test suite..."
     # shellcheck disable=SC2086
-    ${UTIL_OTESTS_BIN} run \
-        --max-parallel-tests "${CERT_TEST_PARALLEL}" ${OPENSHIFT_TESTS_EXTRA_ARGS} \
-        --junit-dir "${RESULTS_DIR}" \
-        "${CERT_TEST_SUITE}" \
-        | tee -a "${RESULTS_PIPE}" || true
+    # ${UTIL_OTESTS_BIN} run \
+    #     --max-parallel-tests "${CERT_TEST_PARALLEL}" ${OPENSHIFT_TESTS_EXTRA_ARGS} \
+    #     --junit-dir "${RESULTS_DIR}" \
+    #     "${CERT_TEST_SUITE}" \
+    #     | tee -a "${RESULTS_PIPE}" || true
+
+    cat << EOF > /tmp/shared/start
+/usr/bin/openshift-tests run --monitor $MONITOR  --max-parallel-tests "${CERT_TEST_PARALLEL}" \
+--junit-dir /tmp/shared/junit "${CERT_TEST_SUITE}" \
+| tee -a /tmp/shared/fifo || true
+EOF
+    while true; do
+        if [[ -f /tmp/shared/done ]]; then break; fi
+        echo "$(date): Waiting for test run";
+        sleep 30
+    done
+    mv -v /tmp/shared/junit/*.xml /tmp/sonobuoy/results/ || true
 
     os_log_info "[executor][PluginID#${PLUGIN_ID}] openshift-tests finished[$?]"
+    run_plugins_conformance_replay_config
+
     set +x
 }
 
@@ -218,12 +301,12 @@ collect_must_gather() {
 
     # extracting msg from etcd logs: request latency apply took too long (attl)
     os_log_info "[executor][PluginID#${PLUGIN_ID}] Collecting etcd log filters"
-    cat must-gather-opct/*/namespaces/openshift-etcd/pods/*/etcd/etcd/logs/current.log \
-        | ocp-etcd-log-filters \
-        > artifacts_must-gather_parser-etcd-attl-all.txt
-    cat must-gather-opct/*/namespaces/openshift-etcd/pods/*/etcd/etcd/logs/current.log \
-        | ocp-etcd-log-filters -aggregator hour \
-        > artifacts_must-gather_parser-etcd-attl-hour.txt
+    #cat must-gather-opct/*/namespaces/openshift-etcd/pods/*/etcd/etcd/logs/current.log \
+    #    | ocp-etcd-log-filters \
+    #    > artifacts_must-gather_parser-etcd-attl-all.txt
+    #cat must-gather-opct/*/namespaces/openshift-etcd/pods/*/etcd/etcd/logs/current.log \
+    #    | ocp-etcd-log-filters -aggregator hour \
+    #    > artifacts_must-gather_parser-etcd-attl-hour.txt
 
     # generate camgi report
     os_log_info "[executor][PluginID#${PLUGIN_ID}] Generating camgi report"
@@ -287,6 +370,7 @@ collect_performance_etcdfio() {
     node_role="controlplane"
     for node in $(${UTIL_OC_BIN} get nodes -l 'node-role.kubernetes.io/master' -o jsonpath='{.items[*].metadata.name}'); do
         os_log_info "[executor][PluginID#${PLUGIN_ID}][performance][etcdfio] ${node_role}#${idx}: ${node}"
+        openshift-tests-plugin exec progress-msg --message "status=running=collecting performance data=fio=${node_role}[${idx}]=${node}";
 
         result_file="./artifacts_performance_etcdfio_${node_role}-${idx}.txt"
         oc debug node/"${node}" -- chroot /host /bin/bash -c "podman run --volume /var/lib/etcd:/var/lib/etcd:Z ${image}" > "${result_file}";
@@ -301,6 +385,7 @@ collect_performance_etcdfio() {
     node_role="worker"
     for node in $(${UTIL_OC_BIN} get nodes -l '!node-role.kubernetes.io/master' -o jsonpath='{.items[*].metadata.name}'); do
         os_log_info "[executor][PluginID#${PLUGIN_ID}][performance][etcdfio] ${node_role}#${idx}: ${node}"
+        openshift-tests-plugin exec progress-msg --message "status=running=collecting performance data=fio=${node_role}[${idx}]=${node}";
 
         result_file="./artifacts_performance_etcdfio_${node_role}-${idx}.txt"
         oc debug node/"${node}" -- chroot /host /bin/bash -c "mkdir /var/cache/opct; podman run --volume /var/cache/opct:/var/lib/etcd:Z ${image}" > "${result_file}";
@@ -372,30 +457,113 @@ run_plugin_collector() {
     pushd "${RESULTS_DIR}" || true
 
     # Collecting must-gather
+    openshift-tests-plugin exec progress-msg --message "status=running=collecting must-gather";
     collect_must_gather || true
 
     # Experimental: Collect performance data
     # running after must-gather to prevent impacting in etcd logs when testing etcdfio.
+    openshift-tests-plugin exec progress-msg --message "status=running=collecting performance data";
     collect_performance || true
 
     # Experimental: Collect metrics
+    openshift-tests-plugin exec progress-msg --message "status=running=collecting metrics";
     collect_metrics || true
 
     # Collecting e2e list for Kubernetes Conformance
+    openshift-tests-plugin exec progress-msg --message "status=running=collecting e2e=${OPENSHIFT_TESTS_SUITE_KUBE_CONFORMANCE}";
     collect_tests_conformance "${OPENSHIFT_TESTS_SUITE_KUBE_CONFORMANCE}" "./artifacts_e2e-tests_kubernetes-conformance.txt"  || true
 
     # Collecting e2e list for OpenShift Conformance
+    openshift-tests-plugin exec progress-msg --message "status=running=collecting e2e=${OPENSHIFT_TESTS_SUITE_OPENSHIFT_CONFORMANCE}";
     collect_tests_conformance "${OPENSHIFT_TESTS_SUITE_OPENSHIFT_CONFORMANCE}" "./artifacts_e2e-tests_openshift-conformance.txt"  || true
 
     # Collecting e2e list for OpenShift Upgrade (when mode=upgrade)
+    openshift-tests-plugin exec progress-msg --message "status=running=collecting e2e=upgrade";
     collect_tests_upgrade  || true
 
     # Creating Result file used to publish to sonobuoy. (last step)
+    openshift-tests-plugin exec progress-msg --message "status=running=saving artifacts";
     os_log_info "[executor][PluginID#${PLUGIN_ID}] Packing all results..."
     ls -sh ./artifacts_*
     tar cfz raw-results.tar.gz ./artifacts_*
-
+    openshift-tests-plugin exec progress-msg --message "status=done";
     popd || true;
+}
+
+run_plugin_replay() {
+    # dump config
+    os_log_info "[openshift-tests-plugin][replay] Dumping config"
+    cat << EOF
+REPLAY_RESULTS=${REPLAY_RESULTS-}
+REPLAY_NAMESPACE=${REPLAY_NAMESPACE-}
+REPLAY_CONFIG_MAP=${REPLAY_CONFIG_MAP-}
+REPLAY_CONFIG_KEY=${REPLAY_CONFIG_KEY-}
+REPLAY_CONFIG_FILE=${REPLAY_CONFIG_FILE-}
+REPLAY_SUITE=${REPLAY_SUITE-}
+REPLAY_MAX_PARALLEL_TESTS=${REPLAY_MAX_PARALLEL_TESTS-}
+REPLAY_JUNIR_DIR=${REPLAY_JUNIR_DIR-}
+REPLAY_MONITOR_FOCUS=${REPLAY_MONITOR_FOCUS-}
+EOF
+
+    # extract failed from plugins each config
+    os_log_info "[openshift-tests-plugin][replay] Attemping to extract custom e2e tests to replay"
+    # kubernetes
+
+    ${UTIL_OC_BIN} extract -n "${ENV_POD_NAMESPACE:-sonobuoy}"  configmap/plugin-failures-10 --to=/tmp --keys="${REPLAY_CONFIG_KEY}" || true
+    if [[ -f "${REPLAY_CONFIG_FILE}" ]]; then
+        os_log_info "[openshift-tests-plugin][replay][10] Reading ${REPLAY_CONFIG_FILE}"
+        cat "${REPLAY_CONFIG_FILE}"
+
+        os_log_info "[openshift-tests-plugin][replay][20] Moving ${REPLAY_CONFIG_FILE}"
+        mv -v "${REPLAY_CONFIG_FILE}" /tmp/failures-plugin-10
+
+        os_log_info "[openshift-tests-plugin][replay][10] Removing ${REPLAY_CONFIG_FILE}"
+        rm -vf "${REPLAY_CONFIG_FILE}"
+    fi
+
+    ${UTIL_OC_BIN} extract -n "${ENV_POD_NAMESPACE:-sonobuoy}"  configmap/plugin-failures-20 --to=/tmp --keys="${REPLAY_CONFIG_KEY}" || true
+    if [[ -f "${REPLAY_CONFIG_FILE}" ]]; then
+        os_log_info "[openshift-tests-plugin][replay][20] Reading ${REPLAY_CONFIG_FILE}"
+        cat "${REPLAY_CONFIG_FILE}"
+
+        os_log_info "[openshift-tests-plugin][replay][20] Moving ${REPLAY_CONFIG_FILE}"
+        mv -v "${REPLAY_CONFIG_FILE}" /tmp/failures-plugin-20
+
+        os_log_info "[openshift-tests-plugin][replay][20] Removing ${REPLAY_CONFIG_FILE}"
+        rm -vf "${REPLAY_CONFIG_FILE}"
+    fi
+    os_log_info "[openshift-tests-plugin][replay][20] Consolidating /tmp/failures-plugin-*"
+    cat /tmp/failures-plugin-* | sort > "${REPLAY_CONFIG_FILE}"
+
+    if [[ -s "${REPLAY_CONFIG_FILE}" ]]; then
+        os_log_info "[openshift-tests-plugin][replay] Running e2e from custom config ${REPLAY_CONFIG_FILE}"
+        # ${UTIL_OTESTS_BIN} run "${REPLAY_SUITE}" \
+        #     -f "${REPLAY_CONFIG_FILE}" \
+        #     --max-parallel-tests "${REPLAY_MAX_PARALLEL_TESTS}" \
+        #     --junit-dir="${REPLAY_JUNIR_DIR}" \
+        #     --monitor "${REPLAY_MONITOR_FOCUS}"
+
+        cp "${REPLAY_CONFIG_FILE}" /tmp/shared/replay.list
+        cat << EOF > /tmp/shared/start
+/usr/bin/openshift-tests run "${REPLAY_SUITE}" \
+-f /tmp/shared/replay.list \
+--max-parallel-tests "${REPLAY_MAX_PARALLEL_TESTS}" \
+--monitor ${REPLAY_MONITOR_FOCUS} \
+--junit-dir /tmp/shared/junit \
+| tee -a /tmp/shared/fifo || true
+EOF
+        while true; do
+            if [[ -f /tmp/shared/done ]]; then break; fi
+            echo "$(date): Waiting for test run";
+            sleep 30
+        done
+        mv -v /tmp/shared/junit/*.xml /tmp/sonobuoy/results/ || true
+        #cp -rvf /tmp/shared/junit/* "${REPLAY_JUNIR_DIR}/"
+        #replay_save
+    else
+        os_log_info "[openshift-tests-plugin][replay] replay file not found or is empty, skipping execution: ${REPLAY_CONFIG_FILE}"
+        create_junit_with_msg "skipped" "[opct] run plugin openshift-tests-replay" "replay"
+    fi
 }
 
 #
@@ -404,9 +572,9 @@ run_plugin_collector() {
 
 # Setup integrated providers / credentials and extra params required to the test environment.
 case $PLATFORM_TYPE in
-    azure) setup_provider_azure ;;
-    aws)  setup_provider_aws ;;
-    vsphere)  setup_provider_vsphere ;;
+    azure)   setup_provider_azure ;;
+    aws)     setup_provider_aws ;;
+    vsphere) setup_provider_vsphere ;;
     none|external) echo "INFO: platform type [${PLATFORM_TYPE}] does not require credentials for tests." ;;
     *) echo "WARN: provider setup is ignored or not supported for platform type=[${PLATFORM_TYPE}]";;
 esac
@@ -416,6 +584,7 @@ os_log_info "[executor] Executor started. Choosing execution type based on envir
 case "${PLUGIN_ID}" in
     "${PLUGIN_ID_OPENSHIFT_UPGRADE}") run_plugin_upgrade ;;
     "${PLUGIN_ID_KUBE_CONFORMANCE}"|"${PLUGIN_ID_OPENSHIFT_CONFORMANCE}") run_plugins_conformance ;;
+    "${PLUGIN_ID_TESTS_REPLAY}") run_plugin_replay ;;
     "${PLUGIN_ID_OPENSHIFT_ARTIFACTS_COLLECTOR}") run_plugin_collector ;;
     *) os_log_info "[executor] PluginID." ;;
 esac
