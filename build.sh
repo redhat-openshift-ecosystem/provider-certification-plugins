@@ -49,12 +49,15 @@ function build_tools() {
     jq_bin="jq-${BUILD_ARCH}"
     jq_url="https://github.com/jqlang/jq/releases/download/jq-${JQ_VERSION}/${jq_bin}"
 
+    yq_bin="yq_${TARGET_OS}_${TARGET_ARCH}"
+    yq_url="https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/${yq_bin}"
+
     # TODO: build CAMGI in other supported arches.
     # https://issues.redhat.com/browse/OPCT-275
     camgi_archive="camgi-0.9.0-linux-x86_64.tar"
     camgi_url="https://github.com/elmiko/camgi.rs/releases/download/v0.9.0/${camgi_archive}"
 
-    ocp_version=4.13.3
+    ocp_version="stable-4.14"
     oc_archive="openshift-client-linux.tar.gz"
     oc_url="https://mirror.openshift.com/pub/openshift-v4/${TARGET_ARCH}/clients/ocp/${ocp_version}/${oc_archive}"
 
@@ -64,6 +67,8 @@ function build_tools() {
         -f "${build_root}"/Containerfile \
         --build-arg=JQ_URL="${jq_url}" \
         --build-arg=JQ_BIN="${jq_bin}" \
+        --build-arg=YQ_URL="${yq_url}" \
+        --build-arg=YQ_BIN="${yq_bin}" \
         --build-arg=CAMGI_URL="${camgi_url}" \
         --build-arg=CAMGI_TAR="${camgi_archive}" \
         --build-arg=OC_TAR="${oc_archive}" \
@@ -97,7 +102,7 @@ function build_plugin_tests() {
 }
 
 function build_mgm() {
-    
+
     build_root=$(dirname "$0")/must-gather-monitoring
 
     echo "${MGM_VERSION}" > "${build_root}"/VERSION
