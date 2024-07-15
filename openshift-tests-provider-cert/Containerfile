@@ -1,12 +1,4 @@
-# Code generated for package assets by build-image.sh. DO NOT EDIT.
-# sources:
-# hack/Containerfile.alp
-# hack/Containerfile.tools-alp
-
-# Plugin container image
-ARG TOOLS_IMG=quay.io/opct/tools:v0.2.0
-
-FROM ${TOOLS_IMG}
+FROM quay.io/opct/tools:v0.4.0
 
 ARG QUAY_EXPIRATION=never
 ARG TARGETARCH
@@ -16,15 +8,12 @@ ARG TARGETOS
 LABEL io.k8s.display-name="OPCT Plugin openshift-tests" \
       io.k8s.description="OPCT Plugin openshift-tests runs conformance tests using OpenShift e2e suites." \
       io.openshift.tags="opct,plugin,openshift,okd,tests,e2e" \
-      io.openshift.opct.versions="base=${TOOLS_IMG}" \
       quay.expires-after=${QUAY_EXPIRATION} \
       architecture=$TARGETARCH \
       platform=$TARGETPLATFORM \
       os=$TARGETOS
 
 WORKDIR /plugin
-
-COPY ./VERSION .
 COPY ./plugin/*.sh ./
 
 CMD ["./runner.sh"]

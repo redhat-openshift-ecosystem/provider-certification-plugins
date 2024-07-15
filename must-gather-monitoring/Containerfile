@@ -1,6 +1,4 @@
-
-ARG TOOLS_IMG=quay.io/opct/tools:v0.2.0
-FROM --platform=$TARGETPLATFORM ${TOOLS_IMG} AS build
+FROM quay.io/opct/tools:v0.4.0
 
 ARG QUAY_EXPIRATION=never
 ARG TARGETARCH
@@ -15,11 +13,8 @@ LABEL io.k8s.display-name="OPCT Must-Gather Monitoring" \
       os=$TARGETOS
 
 # For gathering data from nodes
-RUN microdnf update -y && \
-    microdnf install util-linux rsync -y && \
+RUN microdnf install util-linux rsync -y && \
     microdnf clean all
-
-COPY ./VERSION .
 
 # Copy all collection scripts to /usr/bin
 COPY collection-scripts/* /usr/bin/
