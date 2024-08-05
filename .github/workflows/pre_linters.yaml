@@ -8,11 +8,8 @@ on:
 
 # golangci-lint-action requires those permissions to annotate issues in the PR.
 permissions:
-  # Required for analysis.
   contents: read
-  # Used by `only-new-issues``.
   pull-requests: read
-  # Allow access to checks to annotate code in the PR.
   checks: write
 
 env:

@@ -1,0 +1,84 @@
+---
+name: reviewer
+
+on:
+  workflow_call: {}
+
+# golangci-lint-action requires those permissions to annotate issues in the PR.
+permissions:
+  contents: read
+  pull-requests: read
+  checks: write
+
+env:
+  GO_VERSION: 1.22
+  GOLANGCI_LINT_VERSION: v1.59
+
+jobs:
+  # https://github.com/reviewdog/reviewdog
+  # https://github.com/reviewdog/action-golangci-lint
+  reviewdog:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Checkout'
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - uses: reviewdog/action-setup@v1
+        with:
+          reviewdog_version: latest
+
+      # run staticcheck
+      - uses: reviewdog/action-staticcheck@v1
+        with:
+          github_token: ${{ github.token }}
+          # Change reviewdog reporter if you need
+          # [github-pr-check,github-check,github-pr-review].
+          reporter: github-pr-review
+          # Report all results.
+          filter_mode: nofilter
+          # Exit with 1 when it find at least one finding.
+          fail_on_error: true
+
+      - name: Run revive
+        run: go install github.com/mgechev/revive@latest
+
+      - name: Run golangci-lint
+        run: |-
+          go install \
+            github.com/golangci/golangci-lint/cmd/golangci-lint@v1.45.2
+
+      - name: Run misspell check spelling
+        run: go get -u github.com/client9/misspell/cmd/misspell
+
+      - name: Run unparam to check for unused params
+        run: go install mvdan.cc/unparam@latest
+
+      - name: Setup security linter
+        run: go install github.com/securego/gosec/v2/cmd/gosec@latest
+
+      - name: Run reviewdog github-check
+        continue-on-error: true
+        run: reviewdog -reporter=github-check
+
+      - name: Run reviewdog pr-review
+        continue-on-error: true
+        run: reviewdog -reporter=github-pr-review
+
+  misspell:
+    name: runner / misspell
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: reviewdog/action-misspell@v1
+        with:
+          github_token: ${{ secrets.github_token }}
+          reporter: github-check
+          level: warning
+          locale: "US"
