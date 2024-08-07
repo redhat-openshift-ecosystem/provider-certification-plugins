@@ -1,17 +1,9 @@
-# Code generated for package assets by build-image.sh. DO NOT EDIT.
-# Instead, edit the sources container files:
-# hack/Containerfile.alp
-# hack/Containerfile.tools-alp
-
 #
 ## Base image
 #
 FROM quay.io/fedora/fedora-minimal:40 as base
-
-# gcompat: allow to run glibc programs (oc and jq)
-# sononbuoy is already built with musl
 RUN echo "fastestmirror=true" >> /etc/dnf/dnf.conf && \
-    microdnf install -y bash curl grep tar xz gzip && \
+    microdnf install -y curl grep tar xz gzip && \
     microdnf clean all
 
 FROM base as clients
@@ -53,7 +45,6 @@ LABEL io.k8s.display-name="OPCT Tools" \
 
 WORKDIR /tools
 ARG SONOBUOY_VERSION=TBD
-COPY --from=quay.io/opct/sonobuoy:${SONOBUOY_VERSION} /sonobuoy /usr/bin/sonobuoy
 COPY --from=clients /clients/oc /usr/bin/oc
 COPY --from=clients /clients/jq /usr/bin/jq
 COPY --from=clients /clients/camgi /usr/bin/camgi

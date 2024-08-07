@@ -1,5 +1,17 @@
 # Plugin Hacking
 
+The monorepo/project (plugins) is used to host plugins/extensions images used by OPCT conformance workflow.
+
+The following images is hosted by this project:
+
+| Component | Image repo | Description |
+| -- | -- | -- |
+| openshift-tests-plugin | quay.io/opct/plugin-openshift-tests | Plugin/step used to orchestrate conformance tests using `openshift-tests` utility |
+| artifacts-collector-plugin | quay.io/opct/plugin-artifacts-collector | Plugin responsible to collect artifact as post step in the conformance workflow |
+| must-gather-monitoring | quay.io/opct/must-gather-monitoring | Standalone plugin responsible to collect metrics from Prometheus. Image is must-gather compatible used by artifactis collector |
+| tools | quay.io/opct/tools | Image responsible to standarize external tools used by projects |
+
+
 ## Build Instructions
 
 To build the project with multi-arch support, you must run the following steps:

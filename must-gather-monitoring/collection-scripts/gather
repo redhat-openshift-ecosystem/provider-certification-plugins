@@ -239,7 +239,6 @@ function set_env_from_config {
 
 # Handle configuration from CLI args (more precedence than CM)
 # function set_env_from_cli {
-
 #     echo "OPT_GATHER_QUERY=${!OPT_GATHER_QUERY[*]}"
 #     if [[ -n "${OPT_GATHER_QUERY}" ]]; then
 #         for name in "${!OPT_GATHER_QUERY[*]}"; do
@@ -290,7 +289,6 @@ function init_env {
 }
 
 function init {
-
     init_env
     mkdir -p "${MG_MONITORING_PATH}"
 
@@ -301,7 +299,7 @@ function init {
     # Cache default ingress CA
     get_ca_bundle
 
-    # Session token, overwriten by GATHER_MONIT_TOKEN
+    # Session token, overwritten by GATHER_MONIT_TOKEN
     declare -g SS_TOKEN
     SS_TOKEN="${GATHER_MONIT_TOKEN:-$("${OC_CLI[@]}" whoami -t)}"
 

@@ -1,0 +1,36 @@
+# Build artifacts collector image
+## buildx requires a FROM statement declaring a variable.
+
+ARG PLUGIN_IMAGE=localhost/plugin-openshift-tests:latest
+FROM ${PLUGIN_IMAGE} as plugin
+FROM quay.io/opct/tools:v0.4.0 as tools
+
+#
+## Base image for artifacts collector
+#
+FROM quay.io/fedora/fedora-minimal:40 as base
+ARG QUAY_EXPIRATION=never
+LABEL io.k8s.display-name="OPCT Clients" \
+        io.k8s.description="OPCT Clients is the base image for most of OPCT plugins." \
+        io.openshift.tags="openshift,tests,e2e,partner,conformance,tools" \
+        quay.expires-after=${QUAY_EXPIRATION}
+
+WORKDIR /plugin
+
+RUN echo "fastestmirror=true" >> /etc/dnf/dnf.conf \
+    && microdnf install -y curl grep tar xz gzip diff \
+    && microdnf clean all
+
+COPY --from=tools /usr/bin/oc /usr/bin/oc
+COPY --from=tools /usr/bin/jq /usr/bin/jq
+COPY --from=tools /usr/bin/camgi /usr/bin/camgi
+
+# plugin openshift-tests must be built first (dependency)
+COPY --from=plugin /usr/bin/openshift-tests-plugin /usr/bin/openshift-tests-plugin
+
+COPY ./*.sh ./
+COPY ./collector.sh ./
+
+RUN ln -svf /usr/bin/oc /usr/bin/kubectl
+
+ENTRYPOINT /plugin/entrypoint-collector.sh

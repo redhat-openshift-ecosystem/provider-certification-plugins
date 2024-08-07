@@ -1,0 +1,16 @@
+found 8081 tests for suite
+Attempting to pull tests from external binary...
+Falling back to built-in suite, failed reading external test suites: unable to extract k8s-tests binary: failed extracting "/usr/bin/k8s-tests" from "quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:5d72c407f86ce5c485d7dbf15362f5b9965d5d116e33e45c6a8ce5b30fe596bb": exit status 1
+found 8081 tests (incl externals)
+found 10 filtered tests
+"[Conformance][sig-api-machinery][Feature:APIServer] local kubeconfig \"lb-ext.kubeconfig\" should be present on all masters and work [Suite:openshift/conformance/parallel/minimal]"
+"[Conformance][sig-api-machinery][Feature:APIServer] local kubeconfig \"localhost-recovery.kubeconfig\" should be present on all masters and work [Suite:openshift/conformance/parallel/minimal]"
+"[Conformance][sig-sno][Serial] Cluster should allow a fast rollout of kube-apiserver with no pods restarts during API disruption [apigroup:config.openshift.io][apigroup:operator.openshift.io] [Suite:openshift/conformance/serial/minimal]"
+"[Serial] [sig-auth][Feature:OAuthServer] [RequestHeaders] [IdP] test RequestHeaders IdP [apigroup:config.openshift.io][apigroup:user.openshift.io][apigroup:apps.openshift.io] [Suite:openshift/conformance/serial]"
+"[sig-api-machinery] API data in etcd should be stored at the correct location and version for all resources [Serial] [Suite:openshift/conformance/serial]"
+"[sig-apps] DisruptionController should update/patch PodDisruptionBudget status [Conformance] [Suite:openshift/conformance/parallel/minimal] [Suite:k8s]"
+"[sig-apps] Job Using a pod failure policy to not count some failures towards the backoffLimit Ignore DisruptionTarget condition [Suite:openshift/conformance/parallel] [Suite:k8s]"
+"[sig-auth][Feature:ProjectAPI][Serial]  TestUnprivilegedNewProjectDenied [apigroup:authorization.openshift.io][apigroup:project.openshift.io] [Suite:openshift/conformance/serial]"
+"[sig-scheduling][Early] The openshift-apiserver pods [apigroup:apps.openshift.io][apigroup:authorization.openshift.io][apigroup:build.openshift.io][apigroup:image.openshift.io][apigroup:project.openshift.io][apigroup:quota.openshift.io][apigroup:route.openshift.io][apigroup:security.openshift.io][apigroup:template.openshift.io] should be scheduled on different nodes [Suite:openshift/conformance/parallel]"
+"[sig-storage] In-tree Volumes [Driver: azure-file] [Testpattern: Dynamic PV (default fs)] fsgroupchangepolicy (Always)[LinuxOnly], pod created with an initial fsgroup, volume contents ownership changed via chgrp in first pod, new pod with different fsgroup applied to the volume contents [Suite:openshift/conformance/parallel] [Suite:k8s]"
+No manifest filename passed

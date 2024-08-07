@@ -1,0 +1,38 @@
+#
+## Base image
+#
+FROM quay.io/fedora/fedora-minimal:40 as base
+RUN microdnf clean all
+
+#
+# Go Builder image: openshift-tests-plugin CLI
+#
+FROM docker.io/golang:1.22-alpine AS gobuilder
+ARG PROJ=github.com/redhat-openshift-ecosystem/provider-certification-plugins/openshift-tests-plugin
+ARG RELEASE_TAG
+RUN apk add --no-cache --update make git binutils
+WORKDIR /go/src/github.com/redhat-openshift-ecosystem/provider-certification-plugins/openshift-tests-plugin
+RUN rm ./openshift-tests-plugin || true
+COPY main.go go.* .
+COPY ./pkg ./pkg
+COPY ./cmd ./cmd
+RUN go build -ldflags '-s -w -X ${PROJ}/pkg/plugin/version.version=$(RELEASE_TAG)' .  \
+    && mv ./openshift-tests-plugin /openshift-tests-plugin \
+    && strip /openshift-tests-plugin
+
+
+#
+# Plugin image
+#
+FROM base
+ARG QUAY_EXPIRATION=never
+LABEL io.k8s.display-name="OPCT Plugin openshift-tests" \
+      io.k8s.description="OPCT Plugin openshift-tests runs conformance tests using OpenShift e2e suites." \
+      io.openshift.tags="opct,plugin,openshift,okd,tests,e2e" \
+      quay.expires-after=${QUAY_EXPIRATION}
+
+WORKDIR /plugin
+COPY ./plugin/*.sh ./
+COPY --from=gobuilder /openshift-tests-plugin /usr/bin/openshift-tests-plugin
+
+CMD ["/bin/sh", "-c", "/usr/bin/openshift-tests-plugin run --name ${PLUGIN_NAME}"]
