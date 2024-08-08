@@ -286,13 +286,13 @@ type pluginProgressService struct {
 // Send send message to sonobuoy worker service.
 // TODO(mtulio): re-use keepalive HTTP connections.
 func (s *pluginProgressService) Send() {
-	marshalled, err := json.Marshal(s)
+	marshaled, err := json.Marshal(s)
 	if err != nil {
 		log.WithError(err).Error("unable to marshall")
 		return
 	}
 
-	req, err := http.NewRequest("POST", s.url, bytes.NewBuffer(marshalled))
+	req, err := http.NewRequest("POST", s.url, bytes.NewBuffer(marshaled))
 	if err != nil {
 		log.WithError(err).Error("error creating request")
 		return
