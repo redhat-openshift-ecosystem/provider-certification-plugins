@@ -1,4 +1,6 @@
 # Result files
 *.tar.gz
+# tools/VERSION is ignored/fixed as it is built manually
+artifacts-collector/VERSION
 openshift-tests-provider-cert/VERSION
 must-gather-monitoring/VERSION

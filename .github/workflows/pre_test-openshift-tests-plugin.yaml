@@ -1,0 +1,95 @@
+---
+# test-openshift-tests-plugin is a chain of jobs that must be called
+# by other workflows to ensure that plugin openshift-tests is tested.
+name: plugin-ocp-tests
+
+on:
+  workflow_call: {}
+
+env:
+  GO_VERSION: 1.22
+  STATIC_CHECK_VERSION: 2023.1.7
+
+jobs:
+  go-staticcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: openshift-tests-plugin/go.mod
+          cache-dependency-path: |
+             openshift-tests-plugin/go.sum
+
+      - name: Run static code analysis
+        uses: dominikh/staticcheck-action@v1.3.1
+        with:
+          version: "${{ env.STATIC_CHECK_VERSION }}"
+          install-go: false
+          working-directory: openshift-tests-plugin
+
+  go-vet:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: openshift-tests-plugin/go.mod
+          cache-dependency-path: |
+             openshift-tests-plugin/go.sum
+
+      - name: Run go vet
+        working-directory: openshift-tests-plugin
+        run: |
+          go vet ./...
+
+  unit:
+    name: go-test
+    runs-on: ubuntu-latest
+    needs:
+      - go-staticcheck
+      - go-vet
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: openshift-tests-plugin/go.mod
+          cache-dependency-path: |
+             openshift-tests-plugin/go.sum
+
+      - name: Run unit tests
+        working-directory: openshift-tests-plugin
+        run: |
+          go test ./...
+
+  build-binary:
+    runs-on: ubuntu-latest
+    needs: [unit]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: openshift-tests-plugin/go.mod
+          cache-dependency-path: |
+             openshift-tests-plugin/go.sum
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y make git -y
+
+      - name: Build Binary (OS=linux/amd64)
+        env:
+          OS_ARCH: linux/amd64
+        working-directory: openshift-tests-plugin
+        run: |
+          make build
+
+      - name: Archive artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: openshift-tests-plugin
+          path: openshift-tests-plugin/openshift-tests-plugin
