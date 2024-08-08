@@ -3,9 +3,9 @@
 # Multi-layer images for dependencies.
 ARG BUILD_VERSION=latest
 ARG PLUGIN_REPO=quay.io/opct/plugin-openshift-tests
-FROM ${PLUGIN_REPO}:${BUILD_VERSION} as plugin
+FROM ${PLUGIN_REPO}:${BUILD_VERSION} AS plugin
 
-FROM quay.io/opct/tools:v0.4.0 as tools
+FROM quay.io/opct/tools:v0.4.0 AS tools
 
 # Main image
 FROM quay.io/fedora/fedora-minimal:40

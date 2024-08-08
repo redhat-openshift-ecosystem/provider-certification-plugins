@@ -1,7 +1,7 @@
 #
 ## Base image
 #
-FROM quay.io/fedora/fedora-minimal:40 as base
+FROM quay.io/fedora/fedora-minimal:40 AS base
 RUN microdnf clean all
 
 #
