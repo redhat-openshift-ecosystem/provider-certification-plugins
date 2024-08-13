@@ -59,7 +59,7 @@ OPT_GATHER_QUERY_RANGE+=( [node-disk-saturation]='( instance_device:node_disk_io
 
 # Receive a valid string and return as URL Encoded
 function url_encode {
-    echo -n "$@" | curl -Gso /dev/null -w '%{url_effective}' --data-urlencode @- "" | cut -c 3-
+    printf %s "$@" | jq -sRr @uri
 }
 
 # Remove special chars from a string and return it
@@ -89,7 +89,6 @@ function prom_get_api {
 }
 
 function prom_get_expression_query {
-
     local api_expression="${1}"; shift
     local metric_name="${1}"; shift
     local query_param="${1}"; shift
@@ -140,11 +139,8 @@ function get_query {
 # Env var: GATHER_PROM_QUERIES_RANGE
 #
 function get_query_range {
-
     if [[ -f /must-gather/monitoring/env ]]; then
-        set -x
         echo "[get_query_range] Loading configuration /must-gather/monitoring/env"
-        set +x
     fi
     if [[ ${#OPT_GATHER_QUERY_RANGE[*]} -le 0 ]]; then
         echo_info "No queries was found to collect from env OPT_GATHER_QUERY_RANGE"
@@ -153,12 +149,11 @@ function get_query_range {
     mkdir -p "${MG_METRICS_PATH}"
 
     echo_info "Collecting queries range..."
-
     for name in ${!OPT_GATHER_QUERY_RANGE[*]}; do
+        echo "Scraping metric alias: ${name}"
         query=${OPT_GATHER_QUERY_RANGE[$name]}
         prom_get_expression_query "query_range" "${name}" "${query}" || true
     done
-    set +x
 }
 
 #

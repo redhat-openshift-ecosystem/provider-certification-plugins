@@ -17,6 +17,7 @@ RUN echo "fastestmirror=true" >> /etc/dnf/dnf.conf \
     && microdnf clean all
 
 COPY --from=tools /usr/bin/oc /usr/bin/oc
+COPY --from=tools /usr/bin/jq /usr/bin/jq
 
 # Copy all collection scripts to /usr/bin
 COPY collection-scripts/* /usr/bin/
@@ -26,4 +27,4 @@ COPY runner_plugin /usr/bin/
 
 RUN chmod u+x /usr/bin/gather* /usr/bin/runner_plugin
 
-ENTRYPOINT ["/usr/bin/gather"]
+CMD ["/usr/bin/gather"]
