@@ -7,7 +7,7 @@
 set -o pipefail
 set -o nounset
 
-declare -gxr SERVICE_NAME="plugin"
+declare -gxr SERVICE_NAME="collector"
 
 # shellcheck disable=SC1091
 source "$(dirname "$0")"/global_env.sh
@@ -44,9 +44,6 @@ os_log_info "[login] Login to OpenShift cluster [${KUBE_API_INT}]"
 ${UTIL_OC_BIN} login "${KUBE_API_INT}" \
     --token="$(cat "${SA_TOKEN_PATH}")" \
     --certificate-authority="${SA_CA_PATH}" || true;
-
-os_log_info "starting utilities extractor..."
-#start_utils_extractor
 
 #
 # Replace wait-plugin for progress reporter
