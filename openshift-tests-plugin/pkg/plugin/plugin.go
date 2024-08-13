@@ -51,7 +51,7 @@ const (
 	// WaitThresholdLimit defines the limit to wait for done file. Default 4h.
 	WaitThresholdLimit = 14400
 
-	KubeApiServerInternal = "https://172.30.0.1:443"
+	KubeApiServerInternal = "https://kubernetes.default.svc:443"
 	KubeApiServerSACertCA = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 	KubeApiServerSAToken  = "/var/run/secrets/kubernetes.io/serviceaccount/token"
 
