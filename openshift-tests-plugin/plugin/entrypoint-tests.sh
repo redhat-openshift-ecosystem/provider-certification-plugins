@@ -13,7 +13,7 @@ set -o errexit
 
 # shellcheck disable=SC2034
 declare -gr KUBECONFIG=/tmp/shared/kubeconfig;
-declare -gr KUBE_API_URL="https://172.30.0.1:443"
+declare -gr KUBE_API_URL="https://kubernetes.default.svc:443"
 declare -gr SA_TOKEN_PATH="/var/run/secrets/kubernetes.io/serviceaccount/token"
 declare -gr SA_CA_PATH="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 declare -gr CTRL_DONE_PLUGIN="/tmp/sonobuoy/results/done"
