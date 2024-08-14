@@ -50,43 +50,9 @@ collect_must_gather() {
     os_log_info "[executor][PluginID#${PLUGIN_ID}] must-gather collector done."
 }
 
-# Collect e2e Conformance tests from a given suite, it will save the list into a file.
-collect_tests_conformance() {
-    local suite
-    local ofile
-    suite=$1; shift
-    ofile=$1; shift
-    os_log_info "[executor][PluginID#${PLUGIN_ID}] Collecting e2e list> ${suite}"
-
-    # TODO: receive the test list from step, instead of requiring the openshift-tests dependency in collector.
-    # TODO: it's desired to collect all openshift-tests metadata.
-    truncate -s 0 "${ofile}"
-    CNT_T=$(${UTIL_OTESTS_BIN} run "${suite}" --dry-run -o "${ofile}" | wc -l)
-    CNT_C=$(wc -l "${ofile}" | awk '{print$1}')
-
-    os_log_info "[executor][PluginID#${PLUGIN_ID}] e2e count ${suite} openshift-tests> ${CNT_T}"
-    os_log_info "[executor][PluginID#${PLUGIN_ID}] e2e count ${suite} collected> ${CNT_C}"
-}
-
-collect_tests_upgrade() {
-    suite="${OPENSHIFT_TESTS_SUITE_UPGRADE}"
-    ofile="./artifacts_e2e-tests_openshift-upgrade.txt"
-    truncate -s 0 ${ofile}
-    if [[ "${RUN_MODE:-''}" == "${PLUGIN_RUN_MODE_UPGRADE}" ]]; then
-        # TODO: receive the test list from step, instead of requiring the openshift-tests dependency in collector.
-        # TODO: it's desired to collect all openshift-tests metadata.
-        ${UTIL_OTESTS_BIN} run-upgrade "${suite}" --to-image "${UPGRADE_RELEASES:-}" --dry-run || true > ${ofile}
-        CNT_T=$(${UTIL_OTESTS_BIN} run-upgrade "${suite}" --to-image "${UPGRADE_RELEASES:-}" --dry-run || true | wc -l)
-        os_log_info "[executor][PluginID#${PLUGIN_ID}] e2e count ${suite} openshift-tests> ${CNT_T}"
-    fi
-    CNT_C=$(wc -l ${ofile} | awk '{print$1}')
-    os_log_info "[executor][PluginID#${PLUGIN_ID}] e2e count ${suite} collected> ${CNT_C}"
-}
-
 # collect_performance_etcdfio run the recommended method to measure the disk information
 # for etcd deployments. It will run into two nodes for each role (master and worker).
 collect_performance_etcdfio() {
-
     os_log_info "[executor][PluginID#${PLUGIN_ID}] Starting Artifacts Collector - Performance - etcdfio"
     local image
     local msg_prefix
@@ -200,19 +166,6 @@ run_plugin_collector() {
     # Experimental: Collect metrics
     send_test_progress "status=running=collecting metrics";
     collect_metrics || true
-
-    # DEPRECATING: as it is streamed by the openshift-tests-plugin, tests container.
-    # Collecting e2e list for Kubernetes Conformance
-    #send_test_progress "status=running=collecting e2e=${OPENSHIFT_TESTS_SUITE_KUBE_CONFORMANCE}";
-    #collect_tests_conformance "${OPENSHIFT_TESTS_SUITE_KUBE_CONFORMANCE}" "./artifacts_e2e-tests_kubernetes-conformance.txt"  || true
-
-    # Collecting e2e list for OpenShift Conformance
-    #send_test_progress "status=running=collecting e2e=${OPENSHIFT_TESTS_SUITE_OPENSHIFT_CONFORMANCE}";
-    #collect_tests_conformance "${OPENSHIFT_TESTS_SUITE_OPENSHIFT_CONFORMANCE}" "./artifacts_e2e-tests_openshift-conformance.txt"  || true
-
-    # Collecting e2e list for OpenShift Upgrade (when mode=upgrade)
-    #send_test_progress "status=running=collecting e2e=upgrade";
-    #collect_tests_upgrade || true
 
     # Creating Result file used to publish to sonobuoy. (last step)
     send_test_progress "status=running=saving artifacts";
