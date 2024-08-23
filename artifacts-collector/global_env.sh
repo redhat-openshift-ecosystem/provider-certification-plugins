@@ -27,3 +27,10 @@ declare -gx MIRROR_IMAGE_REPOSITORY
 
 # Utilities
 declare -grx UTIL_OC_BIN="/usr/bin/oc"
+
+# Kube Burner
+KUBE_BURNER_DEFAULT_COMMANDS="node-density node-density-cni cluster-density-v2"
+declare -gx KUBE_BURNER_COMMANDS="${KUBE_BURNER_COMMANDS:-${KUBE_BURNER_DEFAULT_COMMANDS}}"
+declare -gx KUBE_BURNER_RESULTS_DIR="/tmp/kube-burner"
+KUBE_BURNER_DEFAULT_VERSION="1.6.2"
+declare -gx KUBE_BURNER_VERSION="${KUBE_BURNER_VERSION:-${KUBE_BURNER_DEFAULT_VERSION}}"
