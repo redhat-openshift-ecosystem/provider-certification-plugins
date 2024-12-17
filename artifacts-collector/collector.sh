@@ -7,6 +7,7 @@
 set -o pipefail
 set -o nounset
 
+declare -gr MUST_GATHER_DIR=./must-gather-opct
 declare -gr TOTAL_TEST_COUNT=10
 declare -gx TOTAL_TEST_RUN=0
 
@@ -27,25 +28,38 @@ send_test_progress() {
         --current "${TOTAL_TEST_RUN}";
 }
 
+# Clean sensitive data from must-gather.
+# Sensitive data is by default cleaned by must-gather,
+# the steps here must ensure edge scenariois not added
+# in must-gather workflow.
+clean_must_gather() {
+    # clean registry credentials
+    sed -i 's/\(internalRegistryPullSecret:\s*\).*/\1"<sensitive>"/' \
+        ${MUST_GATHER_DIR}/*/cluster-scoped-resources/machineconfiguration.openshift.io/controllerconfigs/machine-config-controller.yaml >/dev/null
+}
+
 # Collect must-gather and pre-process any data* from it, then create a tarball file.
 collect_must_gather() {
     os_log_info "[executor][PluginID#${PLUGIN_ID}] Collecting must-gather"
-    ${UTIL_OC_BIN} adm must-gather --dest-dir=must-gather-opct
+    ${UTIL_OC_BIN} adm must-gather --dest-dir=${MUST_GATHER_DIR}
 
     # TODO: Pre-process data from must-gather to avoid client-side extra steps.
     # Examples of data to be processed:
     # > insights rules
+
+    # Clean sensitive data
+    clean_must_gather
 
     # extracting msg from etcd logs: request latency apply took too long (attl)
     os_log_info "[executor][PluginID#${PLUGIN_ID}] Collecting etcd log filters"
 
     # generate camgi report
     os_log_info "[executor][PluginID#${PLUGIN_ID}] Generating camgi report"
-    camgi must-gather-opct/ > artifacts_must-gather_camgi.html || true
+    camgi ${MUST_GATHER_DIR}/ > artifacts_must-gather_camgi.html || true
 
     # Create the tarball file artifacts_must-gather.tar.xz
     os_log_info "[executor][PluginID#${PLUGIN_ID}] Packing must-gather"
-    tar cfJ artifacts_must-gather.tar.xz must-gather-opct*
+    tar cfJ artifacts_must-gather.tar.xz ${MUST_GATHER_DIR}*
 
     os_log_info "[executor][PluginID#${PLUGIN_ID}] must-gather collector done."
 }
