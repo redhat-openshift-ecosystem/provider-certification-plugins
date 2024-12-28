@@ -14,7 +14,7 @@ on:
       - main
       - release-*
     tags:
-      - 'v*.*.*'
+      - v*
 
 jobs:
   # Pre jobs: Linter
