@@ -44,6 +44,25 @@ EOF
     echo "${OPENSHIFT_TESTS_EXTRA_ARGS}" > /tmp/shared/platform-args
 }
 
+
+
+function setup_provider_gcp() {
+    os_log_info "[executor] setting provider configuration for [${PLATFORM_TYPE}]"
+
+    PROJECT="$(oc get -o jsonpath='{.status.platformStatus.gcp.projectID}' infrastructure cluster)"
+    REGION="$(oc get -o jsonpath='{.status.platformStatus.gcp.region}' infrastructure cluster)"
+    export TEST_PROVIDER="{\"type\":\"gce\",\"region\":\"${REGION}\",\"multizone\": true,\"multimaster\":true,\"projectid\":\"${PROJECT}\"}"
+
+    OPENSHIFT_TESTS_EXTRA_ARGS+="--provider ${TEST_PROVIDER}"
+
+    export GOOGLE_APPLICATION_CREDENTIALS="${GCP_SHARED_CREDENTIALS_FILE}"
+    # In k8s 1.24 this is required to run GCP PD tests. See: https://github.com/kubernetes/kubernetes/pull/109541
+    export ENABLE_STORAGE_GCE_PD_DRIVER="yes"
+    export KUBE_SSH_USER=core
+
+    echo "${OPENSHIFT_TESTS_EXTRA_ARGS}" > /tmp/shared/platform-args
+}
+
 function setup_provider_aws() {
     os_log_info "[executor] setting provider configuration for [${PLATFORM_TYPE}]"
 
@@ -103,6 +122,7 @@ os_log_info "[executor] platform type=[${PLATFORM_TYPE}]"
 case $PLATFORM_TYPE in
     azure)   setup_provider_azure ;;
     aws)     setup_provider_aws ;;
+    gcp) setup_provider_gcp ;;
     vsphere) setup_provider_vsphere ;;
     none|external) echo "INFO: platform type [${PLATFORM_TYPE}] does not require credentials for tests." ;;
     *) echo "WARN: provider setup is ignored or not supported for platform type=[${PLATFORM_TYPE}]" ;;
