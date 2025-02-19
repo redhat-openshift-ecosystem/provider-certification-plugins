@@ -1,5 +1,7 @@
 # OPCT Plugins
 
-Plugins used by [OPCT project](https://github.com/redhat-openshift-ecosystem/provider-certification-tool) to validate OpenShift/OKD installations.
+Plugins used by [OPCT project](https://github.com/redhat-openshift-ecosystem/opct) to validate OpenShift/OKD installations.
 
-To get started, please check the [User Documentation](https://redhat-openshift-ecosystem.github.io/provider-certification-tool/user/) of [OPCT project](https://github.com/redhat-openshift-ecosystem/provider-certification-tool).
+Plugins are steps used by OPCT, backed by Sonobuoy, to create a workflow.
+
+To get started, please check the [User Documentation](https://redhat-openshift-ecosystem.github.io/opct/user/) of [OPCT project](https://github.com/redhat-openshift-ecosystem/opct).
