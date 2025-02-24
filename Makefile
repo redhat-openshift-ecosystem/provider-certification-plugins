@@ -65,7 +65,8 @@ images:
 .PHONY: test-lint
 test-lint:
 	@echo "Running linting tools"
-	# Download https://github.com/golangci/golangci-lint/releases/tag/v1.59.1
+	# Download https://github.com/golangci/golangci-lint/releases/tag/v1.64.5
+	# wget -O golangci-lint.tgz https://github.com/golangci/golangci-lint/releases/download/v1.64.5/golangci-lint-1.64.5-linux-amd64.tar.gz; tar xfvz golangci-lint.tgz
 	cd openshift-tests-plugin && golangci-lint run --timeout=10m
 	# shellcheck: hack/shellcheck.sh
 	shellcheck ./build.sh ./openshift-tests-plugin/plugin/*.sh ./must-gather-monitoring/runner_plugin  ./must-gather-monitoring/collection-scripts/* hack/*.sh
