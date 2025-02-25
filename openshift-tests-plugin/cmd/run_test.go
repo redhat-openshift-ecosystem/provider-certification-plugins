@@ -71,7 +71,7 @@ func TestStartRun(t *testing.T) {
 	cases := []*testCase{
 		{
 			name:          "valid input, offline, finish with error, missing JUnit /tmp/shared/junit/junit_e2e_fake.xml",
-			expectedError: `error running dependency waiter: error getting Sonobuoy Aggregator API info: sonobuoy client not initialized`,
+			expectedError: `error running dependency waiter: error retrieving aggregator status from blocker plugin [openshift-kube-conformance]: sonobuoy client not initialized`,
 			opt:           &OptionsRun{Name: plugin.PluginName20},
 			run: func(t *testing.T, tc *testCase) {
 				tdc := tdata.NewTestReader()
@@ -103,7 +103,7 @@ func TestStartRun(t *testing.T) {
 		{
 			name:          "valid input, offline, finish with error, missing test list /tmp/shared/suite.list",
 			opt:           &OptionsRun{Name: plugin.PluginName20},
-			expectedError: `error running dependency waiter: error getting Sonobuoy Aggregator API info: sonobuoy client not initialized`,
+			expectedError: `error running dependency waiter: error retrieving aggregator status from blocker plugin [openshift-kube-conformance]: sonobuoy client not initialized`,
 			run: func(t *testing.T, tc *testCase) {
 				tdc := tdata.NewTestReader()
 				defer tdc.CleanUp()

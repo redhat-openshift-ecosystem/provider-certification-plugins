@@ -23,15 +23,16 @@ COMMAND=${1}; shift
 BUILD_IMG=${1}; shift
 PLATFORMS=${1:-linux/amd64,linux/arm64};
 
-########################
-# Version vars
-########################
-# # shellcheck disable=SC1091
-# source "$(dirname "$0")/build.env"
+#########
+# Version
+#########
 
-# Current Versions
 export VERSION="${VERSION:-devel}"
 export IMAGE_EXPIRE_TIME="${EXPIRE:-12h}"
+
+export JQ_VERSION=1.7.1
+export CAMGI_VERSION=0.10.0
+export OCP_VERSION=4.18
 
 export TOOLS_VERSION=${TOOLS_VERSION:-${VERSION}}
 export TOOLS_REPO=${TOOLS_REPO:-quay.io/opct/tools}
@@ -77,18 +78,17 @@ function build_tools() {
         BUILD_ARCH="$TARGET_OS-$TARGET_ARCH"
 
         jq_bin="jq-${BUILD_ARCH}"
-        jq_version=1.7
-        jq_url="https://github.com/jqlang/jq/releases/download/jq-${jq_version}/${jq_bin}"
+        jq_url="https://github.com/jqlang/jq/releases/download/jq-${JQ_VERSION}/${jq_bin}"
 
         # yq_bin="yq_${TARGET_OS}_${TARGET_ARCH}"
         # yq_url="https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/${yq_bin}"
 
         # TODO: build CAMGI in other supported arches.
         # https://issues.redhat.com/browse/OPCT-275
-        camgi_archive="camgi-0.9.0-linux-x86_64.tar"
-        camgi_url="https://github.com/elmiko/camgi.rs/releases/download/v0.9.0/${camgi_archive}"
+        camgi_archive="camgi-${CAMGI_VERSION}-linux-x86_64.tar"
+        camgi_url="https://github.com/elmiko/camgi.rs/releases/download/v${CAMGI_VERSION}/${camgi_archive}"
 
-        ocp_version="stable-4.16"
+        ocp_version="stable-${OCP_VERSION}"
         oc_archive="openshift-client-linux.tar.gz"
         oc_url="https://mirror.openshift.com/pub/openshift-v4/${TARGET_ARCH}/clients/ocp/${ocp_version}/${oc_archive}"
 

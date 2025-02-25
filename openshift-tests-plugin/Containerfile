@@ -1,13 +1,13 @@
 #
 ## Base image
 #
-FROM quay.io/fedora/fedora-minimal:40 AS base
+FROM quay.io/fedora/fedora-minimal:41 AS base
 RUN microdnf clean all
 
 #
 # Go Builder image: openshift-tests-plugin CLI
 #
-FROM docker.io/golang:1.22-alpine AS gobuilder
+FROM docker.io/golang:1.23-alpine AS gobuilder
 ARG PROJ=github.com/redhat-openshift-ecosystem/provider-certification-plugins/openshift-tests-plugin
 ARG BUILD_VERSION
 RUN apk add --no-cache --update make git binutils

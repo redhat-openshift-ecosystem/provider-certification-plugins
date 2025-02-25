@@ -661,7 +661,7 @@ func (p *Plugin) RunDependencyWaiter() error {
 		// scrap Sonobuoy API
 		_, pStatusBlocker, err := p.GetPluginsBlocker()
 		if err != nil {
-			errMsg := fmt.Sprintf("error getting Sonobuoy Aggregator API info: %v", err)
+			errMsg := fmt.Sprintf("error getting aggregator API statuses: %v", err)
 			if backoffCount < len(backoffSeconds) {
 				time.Sleep(time.Duration(backoffSeconds[backoffCount]) * time.Second)
 				backoffCount++
@@ -669,7 +669,7 @@ func (p *Plugin) RunDependencyWaiter() error {
 				continue
 			}
 			log.Errorf("timeout waiting for blocker plugin[%s].", pluginBlocker)
-			return fmt.Errorf(errMsg)
+			return fmt.Errorf("error retrieving aggregator status from blocker plugin [%s]: %v", pluginBlocker, err)
 		}
 
 		pod, _ := GetPluginPod(p.clientKube, p.Namespace, pluginBlockerPodName)
