@@ -2,9 +2,9 @@
 #
 ## Base image for must-gather-monitoring plugin
 #
-FROM quay.io/opct/tools:v0.4.0 AS tools
+FROM quay.io/opct/tools:v0.5.0 AS tools
 
-FROM quay.io/fedora/fedora-minimal:40 AS base
+FROM quay.io/fedora/fedora-minimal:41 AS base
 ARG QUAY_EXPIRATION=never
 LABEL io.k8s.display-name="OPCT Must-Gather Monitoring" \
       io.k8s.description="Collect Prometheus raw metrics from OpenShift/OCP Clusters." \

@@ -5,10 +5,10 @@ ARG BUILD_VERSION=latest
 ARG PLUGIN_REPO=quay.io/opct/plugin-openshift-tests
 FROM ${PLUGIN_REPO}:${BUILD_VERSION} AS plugin
 
-FROM quay.io/opct/tools:v0.4.0 AS tools
+FROM quay.io/opct/tools:v0.5.0 AS tools
 
 # Main image
-FROM quay.io/fedora/fedora-minimal:40
+FROM quay.io/fedora/fedora-minimal:41
 ARG QUAY_EXPIRATION=never
 LABEL io.k8s.display-name="OPCT Clients" \
         io.k8s.description="OPCT Clients is the base image for most of OPCT plugins." \

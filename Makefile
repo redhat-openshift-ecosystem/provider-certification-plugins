@@ -29,7 +29,7 @@ build-tools: build
 
 .PHONY: build-tools-release
 build-tools-release: WHAT = tools
-build-tools-release: EXPIRES = never
+build-tools-release: EXPIRE = never
 build-tools-release: VERSION = $(shell cat tools/VERSION)
 build-tools-release: build
 

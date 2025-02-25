@@ -1,7 +1,12 @@
 #
+# Tools image is used to handle the utilities used in the plugins, such as
+# oc, jq, camgi.
+#
+
+#
 ## Base image
 #
-FROM quay.io/fedora/fedora-minimal:40 as base
+FROM quay.io/fedora/fedora-minimal:41 as base
 RUN echo "fastestmirror=true" >> /etc/dnf/dnf.conf && \
     microdnf install -y curl grep tar xz gzip && \
     microdnf clean all
@@ -36,8 +41,8 @@ ARG TARGETARCH
 ARG TARGETPLATFORM
 ARG TARGETOS
 LABEL io.k8s.display-name="OPCT Tools" \
-      io.k8s.description="OPCT Tools is the base image for most of OPCT plugins." \
-      io.openshift.tags="openshift,tests,e2e,partner,conformance,tools" \
+      io.k8s.description="Tools is the intermediary image handling utilities used by OPCT plugins." \
+      io.openshift.tags="opct,openshift,tests,e2e,provider,conformance,tools" \
       quay.expires-after=${QUAY_EXPIRATION} \
       architecture=$TARGETARCH \
       platform=$TARGETPLATFORM \
@@ -49,5 +54,4 @@ COPY --from=clients /clients/oc /usr/bin/oc
 COPY --from=clients /clients/jq /usr/bin/jq
 COPY --from=clients /clients/camgi /usr/bin/camgi
 
-COPY ./VERSION .
 RUN ln -svf /usr/bin/oc /usr/bin/kubectl
