@@ -1,9 +1,15 @@
 # See the OWNERS docs: https://git.k8s.io/community/contributors/guide/owners.md
 
 reviewers:
-  - mtulio
-  - rvanderp3
+- mtulio
+- rvanderp3
+- vr4manta
+- faermanj
+- jcpowermac
 
 approvers:
-  - mtulio
-  - rvanderp3
+- mtulio
+- rvanderp3
+- vr4manta
+- faermanj
+- jcpowermac
