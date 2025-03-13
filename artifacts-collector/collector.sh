@@ -43,9 +43,10 @@ collect_must_gather() {
     os_log_info "[executor][PluginID#${PLUGIN_ID}] Collecting must-gather"
     ${UTIL_OC_BIN} adm must-gather --dest-dir=${MUST_GATHER_DIR}
 
-    # TODO: Pre-process data from must-gather to avoid client-side extra steps.
-    # Examples of data to be processed:
-    # > insights rules
+    os_log_info "[executor][PluginID#${PLUGIN_ID}] Inspecting Namespace opct"
+    ${UTIL_OC_BIN} adm inspect namespace/opct --dest-dir=${MUST_GATHER_DIR}/inspect-opct
+
+    #> Pre-process data from must-gather to avoid client-side extra steps.
 
     # Clean sensitive data
     clean_must_gather
@@ -57,6 +58,10 @@ collect_must_gather() {
     os_log_info "[executor][PluginID#${PLUGIN_ID}] Generating camgi report"
     camgi ${MUST_GATHER_DIR}/ > artifacts_must-gather_camgi.html || true
 
+    # TODO: Examples of additional data to be processed:
+    # > insights rules
+
+    #> Pack must-gather data
     # Create the tarball file artifacts_must-gather.tar.xz
     os_log_info "[executor][PluginID#${PLUGIN_ID}] Packing must-gather"
     tar cfJ artifacts_must-gather.tar.xz ${MUST_GATHER_DIR}*
