@@ -13,6 +13,7 @@ set -o errexit
 
 # shellcheck disable=SC2034
 declare -gr KUBECONFIG=/tmp/shared/kubeconfig;
+declare -gr SHARED_DIR="/tmp/shared"
 declare -gr KUBE_API_URL="https://kubernetes.default.svc:443"
 declare -gr SA_TOKEN_PATH="/var/run/secrets/kubernetes.io/serviceaccount/token"
 declare -gr SA_CA_PATH="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
