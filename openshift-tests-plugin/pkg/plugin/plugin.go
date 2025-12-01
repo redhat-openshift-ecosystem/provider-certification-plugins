@@ -710,6 +710,14 @@ func (p *Plugin) RunDependencyWaiter() error {
 
 		if pStatusBlocker.Status == "complete" || pStatusBlocker.Status == "failed" || podPhase == "Completed" {
 			log.Infof("Plugin[%s] with status[%s] is in unblocker condition!", pluginBlocker, pStatusBlocker.Status)
+
+			// Check if the blocker plugin failed and propagate failure to dependent plugins
+			// Exception: artifacts collector (99-openshift-artifacts-collector) should always run
+			if pStatusBlocker.Status == "failed" && p.ID() != PluginId99 {
+				log.Errorf("Blocker plugin[%s] failed. Propagating failure to dependent plugin[%s]", pluginBlocker, p.Name())
+				return fmt.Errorf("blocker plugin %s failed, stopping execution of dependent plugin %s", pluginBlocker, p.Name())
+			}
+
 			break
 		}
 

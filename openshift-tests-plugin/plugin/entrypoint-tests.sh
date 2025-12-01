@@ -56,9 +56,24 @@ elif [[ "${PLUGIN_NAME:-}" == "openshift-cluster-upgrade" ]] && [[ "${RUN_MODE:-
         --to-image "${UPGRADE_RELEASES-}" \
         --dry-run -o ${CTRL_SUITE_LIST}
 elif [[ "${PLUGIN_NAME:-}" != "openshift-cluster-upgrade" ]]; then
-    echo "Gathering suite list for plugin ${PLUGIN_NAME:-} (stdin is redirected to ${CTRL_SUITE_LIST}.log)"
-    # shellcheck disable=SC2086
-    ${CMD_OTESTS} ${OT_RUN_COMMAND:-run} ${SUITE_NAME:-${DEFAULT_SUITE_NAME-}} --dry-run -o ${CTRL_SUITE_LIST} >${CTRL_SUITE_LIST}.log
+    # Check if we have extracted k8s conformance tests from OTE for kubernetes/conformance suite
+    K8S_CONFORMANCE_LIST="/tmp/shared/k8s-conformance-tests.list"
+    if [[ "${PLUGIN_NAME:-}" == "openshift-kube-conformance" ]] && [[ -f "${K8S_CONFORMANCE_LIST}" ]]; then
+        TEST_COUNT=$(wc -l < "${K8S_CONFORMANCE_LIST}")
+        if [[ $TEST_COUNT -gt 0 ]]; then
+            echo "Using extracted Kubernetes conformance tests from OTE (${TEST_COUNT} tests)"
+            cp "${K8S_CONFORMANCE_LIST}" "${CTRL_SUITE_LIST}"
+            echo "Tests extracted from k8s-tests-ext binary" > ${CTRL_SUITE_LIST}.log
+        else
+            echo "Warning: Extracted test list is empty, falling back to default suite"
+            # shellcheck disable=SC2086
+            ${CMD_OTESTS} ${OT_RUN_COMMAND:-run} ${SUITE_NAME:-${DEFAULT_SUITE_NAME-}} --dry-run -o ${CTRL_SUITE_LIST} >${CTRL_SUITE_LIST}.log
+        fi
+    else
+        echo "Gathering suite list for plugin ${PLUGIN_NAME:-} (stdin is redirected to ${CTRL_SUITE_LIST}.log)"
+        # shellcheck disable=SC2086
+        ${CMD_OTESTS} ${OT_RUN_COMMAND:-run} ${SUITE_NAME:-${DEFAULT_SUITE_NAME-}} --dry-run -o ${CTRL_SUITE_LIST} >${CTRL_SUITE_LIST}.log
+    fi
 else
     echo "Skipping suite list for plugin ${PLUGIN_NAME:-}"
     touch ${CTRL_SUITE_LIST}
