@@ -133,7 +133,13 @@ func NewPlugin(name string) (*Plugin, error) {
 		p.Timeout = 3 * time.Hour
 	case PluginName10, PluginAlias10:
 		p.id = PluginId10
-		p.SuiteName = PluginSuite10
+		// Use DEFAULT_SUITE_NAME from environment if set, otherwise use the constant
+		// This allows OPCT to control the suite name based on cluster version
+		if envSuiteName := os.Getenv("DEFAULT_SUITE_NAME"); envSuiteName != "" {
+			p.SuiteName = envSuiteName
+		} else {
+			p.SuiteName = PluginSuite10
+		}
 		p.BlockerPlugins = []*Plugin{{name: PluginName05}}
 		p.OTRunner = NewOpenShiftRunCommand("run", p.SuiteName)
 		p.Timeout = 2 * time.Hour
