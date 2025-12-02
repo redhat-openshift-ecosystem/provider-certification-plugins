@@ -44,6 +44,12 @@ trap handle_error ERR
     --token="$(cat "${SA_TOKEN_PATH}")" \
     --certificate-authority="${SA_CA_PATH}";
 
+# Extracting the suite list for each plugin (--dry-run).
+# - openshift-tests-replay: skip
+# - openshift-cluster-upgrade: gather suite list for upgrade plugin
+# - openshift-kube-conformance: check if we have extracted k8s conformance tests from OTE (later 4.20 releases).
+#   If yes, use the extracted tests, otherwise use the default suite.
+# - other plugins: gather suite list for plugin
 if [[ "${PLUGIN_NAME:-}" == "openshift-tests-replay" ]];
 then
     echo "Skipping suite list for plugin ${PLUGIN_NAME:-}"
@@ -55,8 +61,10 @@ elif [[ "${PLUGIN_NAME:-}" == "openshift-cluster-upgrade" ]] && [[ "${RUN_MODE:-
     ${CMD_OTESTS} ${OT_RUN_COMMAND:-run} ${SUITE_NAME:-${DEFAULT_SUITE_NAME-}} \
         --to-image "${UPGRADE_RELEASES-}" \
         --dry-run -o ${CTRL_SUITE_LIST}
+
 elif [[ "${PLUGIN_NAME:-}" != "openshift-cluster-upgrade" ]]; then
-    # Check if we have extracted k8s conformance tests from OTE for kubernetes/conformance suite
+    # Check if we have extracted k8s conformance tests from OTE for kubernetes/conformance suite.
+    # The test list extraction is done in the init container of the plugin. Check the plugin manifest for more details.
     K8S_CONFORMANCE_LIST="/tmp/shared/k8s-conformance-tests.list"
     if [[ "${PLUGIN_NAME:-}" == "openshift-kube-conformance" ]] && [[ -f "${K8S_CONFORMANCE_LIST}" ]]; then
         TEST_COUNT=$(wc -l < "${K8S_CONFORMANCE_LIST}")
@@ -108,7 +116,7 @@ echo -e "\n\n\t>> Copying e2e artifacts to collector plugin..."
     oc cp -c plugin "${CTRL_SUITE_LIST}" opct/"${COLLECTOR_POD}":/tmp/sonobuoy/results/"${suite_file}" || true
 
     echo -e ">> Preparing e2e metatada..."
-    # must prefix with artifacts_
+    # must set the filename prefix artifacts_
     e2e_artifact_name="artifacts_e2e-metadata-${PLUGIN_NAME:-}.tar.gz"
     e2e_artifact="/tmp/${e2e_artifact_name}"
     tar cfzv "${e2e_artifact}"  /tmp/shared/junit/* || true

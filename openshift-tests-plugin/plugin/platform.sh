@@ -21,7 +21,6 @@ os_log_info() {
 }
 export -f os_log_info
 
-
 function setup_provider_azure() {
     os_log_info "[executor] setting provider configuration for [${PLATFORM_TYPE}]"
 
@@ -43,8 +42,6 @@ function setup_provider_azure() {
 EOF
     echo "${OPENSHIFT_TESTS_EXTRA_ARGS}" > /tmp/shared/platform-args
 }
-
-
 
 function setup_provider_gcp() {
     os_log_info "[executor] setting provider configuration for [${PLATFORM_TYPE}]"
