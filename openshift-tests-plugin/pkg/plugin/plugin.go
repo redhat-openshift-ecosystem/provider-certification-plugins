@@ -134,6 +134,9 @@ func NewPlugin(name string) (*Plugin, error) {
 	case PluginName10, PluginAlias10:
 		p.id = PluginId10
 		p.SuiteName = PluginSuite10
+		if suiteName := p.getSuiteName(PluginId10); suiteName != "" {
+			p.SuiteName = suiteName
+		}
 		p.BlockerPlugins = []*Plugin{{name: PluginName05}}
 		p.OTRunner = NewOpenShiftRunCommand("run", p.SuiteName)
 		p.Timeout = 2 * time.Hour
@@ -191,6 +194,20 @@ func (p *Plugin) PluginFullNameByName(name string) string {
 		id = PluginId80
 	}
 	return fmt.Sprintf("%s-%s", id, name)
+}
+
+// getSuiteName returns the suite name for the plugin.
+func (p *Plugin) getSuiteName(id string) string {
+	switch id {
+	case PluginId10:
+		// Try to get from DEFAULT_SUITE_NAME, otherwise set const
+		suiteName := os.Getenv("DEFAULT_SUITE_NAME")
+		if suiteName == "" {
+			return PluginSuite10
+		}
+		return suiteName
+	}
+	return ""
 }
 
 // Initialize resolve all dependencies before running the plugin.

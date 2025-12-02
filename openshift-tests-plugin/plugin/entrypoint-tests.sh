@@ -63,6 +63,8 @@ elif [[ "${PLUGIN_NAME:-}" == "openshift-cluster-upgrade" ]] && [[ "${RUN_MODE:-
         --dry-run -o ${CTRL_SUITE_LIST}
 
 elif [[ "${PLUGIN_NAME:-}" != "openshift-cluster-upgrade" ]]; then
+    # For 10-openshift-kube-conformance plugin, we want to check if we have extracted k8s conformance tests from OTE,
+    # so that we can workaround the 4.20+ issue that suite kubernetes/conformance was removed.
     # Check if we have extracted k8s conformance tests from OTE for kubernetes/conformance suite.
     # The test list extraction is done in the init container of the plugin. Check the plugin manifest for more details.
     K8S_CONFORMANCE_LIST="/tmp/shared/k8s-conformance-tests.list"
