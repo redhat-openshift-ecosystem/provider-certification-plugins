@@ -134,6 +134,9 @@ func NewPlugin(name string) (*Plugin, error) {
 	case PluginName10, PluginAlias10:
 		p.id = PluginId10
 		p.SuiteName = PluginSuite10
+		if suiteName := p.getSuiteName(PluginId10); suiteName != "" {
+			p.SuiteName = suiteName
+		}
 		p.BlockerPlugins = []*Plugin{{name: PluginName05}}
 		p.OTRunner = NewOpenShiftRunCommand("run", p.SuiteName)
 		p.Timeout = 2 * time.Hour
@@ -191,6 +194,20 @@ func (p *Plugin) PluginFullNameByName(name string) string {
 		id = PluginId80
 	}
 	return fmt.Sprintf("%s-%s", id, name)
+}
+
+// getSuiteName returns the suite name for the plugin.
+func (p *Plugin) getSuiteName(id string) string {
+	switch id {
+	case PluginId10:
+		// Try to get from DEFAULT_SUITE_NAME, otherwise set const
+		suiteName := os.Getenv("DEFAULT_SUITE_NAME")
+		if suiteName == "" {
+			return PluginSuite10
+		}
+		return suiteName
+	}
+	return ""
 }
 
 // Initialize resolve all dependencies before running the plugin.
@@ -476,11 +493,13 @@ func (p *Plugin) Run() error {
 	threshold := 0
 	backoffSeconds := []int{1, 2, 4, 8}
 	for {
+		// Exit the execution once the tests container/process has finished.
 		if _, err := os.Stat(OpenShiftTestsDoneFile); err == nil {
 			log.Info("Run: Detected done.")
 			p.DoneControl = true
 			break
 		} else if errors.Is(err, os.ErrNotExist) {
+			// Keep waiting for the done file to be created (execution completed).
 			sec := backoffSeconds[threshold%len(backoffSeconds)]
 			log.Debugf("backoff waiting %d seconds for done file %s", sec, OpenShiftTestsDoneFile)
 			time.Sleep(time.Duration(sec) * time.Second)
@@ -511,6 +530,8 @@ func (p *Plugin) Done() {
 }
 
 // WatchForDone watches for the runtime (sonobuoy) done file.
+// Done file signalize sonobuoy that the execution of plugin is done,
+// and the plugin can start collecting the results and sending to the aggregator server.
 func (p *Plugin) WatchForDone() {
 	defer p.Done()
 
@@ -521,8 +542,10 @@ func (p *Plugin) WatchForDone() {
 	log.Infof("Done file has been created at path %s\n", ResultsDoneFile)
 }
 
-// RunReportProgress start the file/fifo scanner to report the progress, reading the
-// data from the fifo, parsing it and sending to the aggregator server.
+// RunReportProgress starts the file/fifo scanner to update status and progress.
+// The scanner reads the data from the pipe file, parses it and updates the progress.
+// The pipe file is created as output of the openshift-tests run command in the
+// tests container/process.
 func (p *Plugin) RunReportProgress() {
 	go func() {
 		log.Info("Starting progress report reader...")
@@ -623,6 +646,7 @@ func (p *Plugin) RunReportProgressUpgrade() {
 
 // RunDependencyWaiter runs the blocker plugin controller to ensure plugin/step
 // runs only after the previous plugin has been finished.
+// The waiter ensures the DAG (Directed Acyclic Graph) of the workflows is respected.
 func (p *Plugin) RunDependencyWaiter() error {
 	if len(p.BlockerPlugins) == 0 {
 		return nil
@@ -710,6 +734,14 @@ func (p *Plugin) RunDependencyWaiter() error {
 
 		if pStatusBlocker.Status == "complete" || pStatusBlocker.Status == "failed" || podPhase == "Completed" {
 			log.Infof("Plugin[%s] with status[%s] is in unblocker condition!", pluginBlocker, pStatusBlocker.Status)
+
+			// Check if the blocker plugin failed and propagate failure to dependent plugins
+			// Exception: artifacts collector (99-openshift-artifacts-collector) should always run
+			if pStatusBlocker.Status == "failed" && p.ID() != PluginId99 {
+				log.Errorf("Blocker plugin[%s] failed. Propagating failure to dependent plugin[%s]", pluginBlocker, p.Name())
+				return fmt.Errorf("blocker plugin %s failed, stopping execution of dependent plugin %s", pluginBlocker, p.Name())
+			}
+
 			break
 		}
 

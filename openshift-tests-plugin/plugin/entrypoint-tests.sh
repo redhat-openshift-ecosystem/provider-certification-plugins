@@ -44,6 +44,12 @@ trap handle_error ERR
     --token="$(cat "${SA_TOKEN_PATH}")" \
     --certificate-authority="${SA_CA_PATH}";
 
+# Extracting the suite list for each plugin (--dry-run).
+# - openshift-tests-replay: skip
+# - openshift-cluster-upgrade: gather suite list for upgrade plugin
+# - openshift-kube-conformance: check if we have extracted k8s conformance tests from OTE (later 4.20 releases).
+#   If yes, use the extracted tests, otherwise use the default suite.
+# - other plugins: gather suite list for plugin
 if [[ "${PLUGIN_NAME:-}" == "openshift-tests-replay" ]];
 then
     echo "Skipping suite list for plugin ${PLUGIN_NAME:-}"
@@ -55,10 +61,29 @@ elif [[ "${PLUGIN_NAME:-}" == "openshift-cluster-upgrade" ]] && [[ "${RUN_MODE:-
     ${CMD_OTESTS} ${OT_RUN_COMMAND:-run} ${SUITE_NAME:-${DEFAULT_SUITE_NAME-}} \
         --to-image "${UPGRADE_RELEASES-}" \
         --dry-run -o ${CTRL_SUITE_LIST}
+
 elif [[ "${PLUGIN_NAME:-}" != "openshift-cluster-upgrade" ]]; then
-    echo "Gathering suite list for plugin ${PLUGIN_NAME:-} (stdin is redirected to ${CTRL_SUITE_LIST}.log)"
-    # shellcheck disable=SC2086
-    ${CMD_OTESTS} ${OT_RUN_COMMAND:-run} ${SUITE_NAME:-${DEFAULT_SUITE_NAME-}} --dry-run -o ${CTRL_SUITE_LIST} >${CTRL_SUITE_LIST}.log
+    # For 10-openshift-kube-conformance plugin, we want to check if we have extracted k8s conformance tests from OTE,
+    # so that we can workaround the 4.20+ issue that suite kubernetes/conformance was removed.
+    # Check if we have extracted k8s conformance tests from OTE for kubernetes/conformance suite.
+    # The test list extraction is done in the init container of the plugin. Check the plugin manifest for more details.
+    K8S_CONFORMANCE_LIST="/tmp/shared/k8s-conformance-tests.list"
+    if [[ "${PLUGIN_NAME:-}" == "openshift-kube-conformance" ]] && [[ -f "${K8S_CONFORMANCE_LIST}" ]]; then
+        TEST_COUNT=$(wc -l < "${K8S_CONFORMANCE_LIST}")
+        if [[ $TEST_COUNT -gt 0 ]]; then
+            echo "Using extracted Kubernetes conformance tests from OTE (${TEST_COUNT} tests)"
+            cp "${K8S_CONFORMANCE_LIST}" "${CTRL_SUITE_LIST}"
+            echo "Tests extracted from k8s-tests-ext binary" > ${CTRL_SUITE_LIST}.log
+        else
+            echo "Warning: Extracted test list is empty, falling back to default suite"
+            # shellcheck disable=SC2086
+            ${CMD_OTESTS} ${OT_RUN_COMMAND:-run} ${SUITE_NAME:-${DEFAULT_SUITE_NAME-}} --dry-run -o ${CTRL_SUITE_LIST} >${CTRL_SUITE_LIST}.log
+        fi
+    else
+        echo "Gathering suite list for plugin ${PLUGIN_NAME:-} (stdin is redirected to ${CTRL_SUITE_LIST}.log)"
+        # shellcheck disable=SC2086
+        ${CMD_OTESTS} ${OT_RUN_COMMAND:-run} ${SUITE_NAME:-${DEFAULT_SUITE_NAME-}} --dry-run -o ${CTRL_SUITE_LIST} >${CTRL_SUITE_LIST}.log
+    fi
 else
     echo "Skipping suite list for plugin ${PLUGIN_NAME:-}"
     touch ${CTRL_SUITE_LIST}
@@ -93,7 +118,7 @@ echo -e "\n\n\t>> Copying e2e artifacts to collector plugin..."
     oc cp -c plugin "${CTRL_SUITE_LIST}" opct/"${COLLECTOR_POD}":/tmp/sonobuoy/results/"${suite_file}" || true
 
     echo -e ">> Preparing e2e metatada..."
-    # must prefix with artifacts_
+    # must set the filename prefix artifacts_
     e2e_artifact_name="artifacts_e2e-metadata-${PLUGIN_NAME:-}.tar.gz"
     e2e_artifact="/tmp/${e2e_artifact_name}"
     tar cfzv "${e2e_artifact}"  /tmp/shared/junit/* || true
