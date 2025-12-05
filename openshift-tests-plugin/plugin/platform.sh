@@ -12,6 +12,7 @@ declare -gx OPENSHIFT_TESTS_EXTRA_ARGS
 # shellcheck disable=SC2034
 declare -gr UTIL_OC_BIN=/usr/bin/oc
 declare -gr SERVICE_NAME="platform"
+declare -grx SHARED_DIR="/tmp/shared"
 
 
 os_log_info() {
