@@ -284,6 +284,20 @@ func (p *Plugin) Initialize() error {
 	}
 	log.Infof("Total test count: %d", len(p.SuiteTests))
 
+	// For kube-conformance plugin (10), use the extracted conformance test list
+	// to run only conformance tests via --file flag. The list is extracted by the
+	// init container using 'openshift-tests run all --dry-run | grep [Conformance]'.
+	// When using --file, the suite name must be cleared so openshift-tests runs
+	// only the tests in the file without a suite adding extra tests.
+	if p.id == PluginId10 {
+		k8sConformanceList := "/tmp/shared/k8s-conformance-tests.list"
+		if info, err := os.Stat(k8sConformanceList); err == nil && info.Size() > 0 {
+			log.Infof("Setting run file for plugin %s using extracted conformance list %s", p.name, k8sConformanceList)
+			p.OTRunner.File = k8sConformanceList
+			p.OTRunner.SuiteName = ""
+		}
+	}
+
 	if err := p.InitalizeDevelMode(); err != nil {
 		log.Errorf("error setting up devel mode: %v", err)
 	}
