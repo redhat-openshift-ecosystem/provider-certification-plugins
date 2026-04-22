@@ -63,17 +63,16 @@ elif [[ "${PLUGIN_NAME:-}" == "openshift-cluster-upgrade" ]] && [[ "${RUN_MODE:-
         --dry-run -o ${CTRL_SUITE_LIST}
 
 elif [[ "${PLUGIN_NAME:-}" != "openshift-cluster-upgrade" ]]; then
-    # For 10-openshift-kube-conformance plugin, we want to check if we have extracted k8s conformance tests from OTE,
-    # so that we can workaround the 4.20+ issue that suite kubernetes/conformance was removed.
-    # Check if we have extracted k8s conformance tests from OTE for kubernetes/conformance suite.
-    # The test list extraction is done in the init container of the plugin. Check the plugin manifest for more details.
+    # For 10-openshift-kube-conformance plugin, check if the init container extracted
+    # the conformance test list. If so, use it as the suite list for both progress
+    # tracking and test execution (via -f flag).
     K8S_CONFORMANCE_LIST="/tmp/shared/k8s-conformance-tests.list"
     if [[ "${PLUGIN_NAME:-}" == "openshift-kube-conformance" ]] && [[ -f "${K8S_CONFORMANCE_LIST}" ]]; then
         TEST_COUNT=$(wc -l < "${K8S_CONFORMANCE_LIST}")
         if [[ $TEST_COUNT -gt 0 ]]; then
-            echo "Using extracted Kubernetes conformance tests from OTE (${TEST_COUNT} tests)"
+            echo "Using extracted Kubernetes conformance tests (${TEST_COUNT} tests)"
             cp "${K8S_CONFORMANCE_LIST}" "${CTRL_SUITE_LIST}"
-            echo "Tests extracted from k8s-tests-ext binary" > ${CTRL_SUITE_LIST}.log
+            echo "Tests extracted from openshift-tests binary" > ${CTRL_SUITE_LIST}.log
         else
             echo "Warning: Extracted test list is empty, falling back to default suite"
             # shellcheck disable=SC2086
