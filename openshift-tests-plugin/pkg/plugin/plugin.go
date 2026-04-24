@@ -297,7 +297,7 @@ func (p *Plugin) Initialize() error {
 			if info, err := os.Stat(k8sConformanceList); err == nil && info.Size() > 0 {
 				log.Infof("Setting run file for plugin %s using extracted conformance list %s", p.name, k8sConformanceList)
 				p.OTRunner.File = k8sConformanceList
-				p.OTRunner.SuiteName = ""
+				p.OTRunner.SuiteName = "all"
 			}
 		}
 	}
