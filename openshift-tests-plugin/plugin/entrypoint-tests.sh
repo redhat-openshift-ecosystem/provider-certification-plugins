@@ -83,8 +83,9 @@ elif [[ "${PLUGIN_NAME:-}" != "openshift-cluster-upgrade" ]]; then
 </testsuite>
 JUNITEOF
         # Wait for FIFO to be created by plugin, then write failed result
-        for _i in $(seq 1 30); do
+        for attempt in $(seq 1 30); do
             if [[ -p /tmp/shared/fifo ]]; then
+                echo "FIFO ready (attempt ${attempt}), writing error result..."
                 echo "failed: (0s) $(date -u +%Y-%m-%dT%H:%M:%S) \"[opct] kube-conformance init container error: ${INIT_ERR}\"" > /tmp/shared/fifo
                 break
             fi
