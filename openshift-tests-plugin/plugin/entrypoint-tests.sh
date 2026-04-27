@@ -63,6 +63,41 @@ elif [[ "${PLUGIN_NAME:-}" == "openshift-cluster-upgrade" ]] && [[ "${RUN_MODE:-
         --dry-run -o ${CTRL_SUITE_LIST}
 
 elif [[ "${PLUGIN_NAME:-}" != "openshift-cluster-upgrade" ]]; then
+    # Check if the init container reported an error
+    INIT_ERROR_FILE="/tmp/shared/init-error.log"
+    if [[ "${PLUGIN_NAME:-}" == "openshift-kube-conformance" ]] && [[ -f "${INIT_ERROR_FILE}" ]]; then
+        INIT_ERR=$(cat "${INIT_ERROR_FILE}")
+        echo "ERROR: Init container failed to extract conformance tests:"
+        echo "${INIT_ERR}"
+        # Write error as suite list entry so plugin reports it
+        echo "\"[opct] init-error: ${INIT_ERR}\"" > ${CTRL_SUITE_LIST}
+        touch ${CTRL_SUITE_LIST}.done
+        # Create a JUnit XML so the plugin can process results without crashing
+        mkdir -p /tmp/shared/junit
+        cat > /tmp/shared/junit/junit_e2e_init-error.xml <<JUNITEOF
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="openshift-kube-conformance" tests="1" failures="1" errors="0" time="0">
+  <testcase name="[opct] kube-conformance init container" time="0">
+    <failure message="Init container failed to extract conformance tests">${INIT_ERR}</failure>
+  </testcase>
+</testsuite>
+JUNITEOF
+        # Wait for FIFO to be created by plugin, then write failed result
+        for i in $(seq 1 30); do
+            if [[ -p /tmp/shared/fifo ]]; then
+                echo "failed: (0s) $(date -u +%Y-%m-%dT%H:%M:%S) \"[opct] kube-conformance init container error: ${INIT_ERR}\"" > /tmp/shared/fifo
+                break
+            fi
+            sleep 1
+        done
+        touch ${CTRL_DONE_TESTS}
+        # Wait for plugin done
+        while true; do
+            if [[ -f ${CTRL_DONE_PLUGIN} ]]; then exit 0; fi
+            sleep 10
+        done
+    fi
+
     # For 10-openshift-kube-conformance plugin, check if the init container extracted
     # the conformance test list. If so, use it as the suite list for both progress
     # tracking and test execution (via -f flag).
