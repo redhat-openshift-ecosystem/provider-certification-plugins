@@ -63,6 +63,63 @@ elif [[ "${PLUGIN_NAME:-}" == "openshift-cluster-upgrade" ]] && [[ "${RUN_MODE:-
         --dry-run -o ${CTRL_SUITE_LIST}
 
 elif [[ "${PLUGIN_NAME:-}" != "openshift-cluster-upgrade" ]]; then
+    # Check if the init container reported an error
+    INIT_ERROR_FILE="/tmp/shared/init-error.log"
+    if [[ "${PLUGIN_NAME:-}" == "openshift-kube-conformance" ]] && [[ -f "${INIT_ERROR_FILE}" ]]; then
+        INIT_ERR=$(<"${INIT_ERROR_FILE}")
+        # Normalize to single line for suite list and FIFO consumers
+        INIT_ERR_LINE=${INIT_ERR//$'\n'/ }
+        echo "ERROR: Init container failed to extract conformance tests:"
+        echo "${INIT_ERR}"
+        # Escape XML special characters in error message
+        INIT_ERR_XML=$(echo "${INIT_ERR}" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g; s/"/\&quot;/g')
+        # Write error as suite list entry so plugin reports it
+        printf '"[opct] init-error: %s"\n' "${INIT_ERR_LINE}" > "${CTRL_SUITE_LIST}"
+        touch ${CTRL_SUITE_LIST}.done
+        # Create a JUnit XML so the plugin can process results without crashing
+        mkdir -p /tmp/shared/junit
+        cat > /tmp/shared/junit/junit_e2e_init-error.xml <<JUNITEOF
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="openshift-kube-conformance" tests="1" failures="1" errors="0" time="0">
+  <testcase name="[opct] kube-conformance init container" time="0">
+    <failure message="Init container failed to extract conformance tests">${INIT_ERR_XML}</failure>
+  </testcase>
+</testsuite>
+JUNITEOF
+        # Wait for FIFO to be created by plugin, then write failed result
+        for attempt in $(seq 1 30); do
+            if [[ -p /tmp/shared/fifo ]]; then
+                echo "FIFO ready (attempt ${attempt}), writing error result..."
+                fifo_msg="failed: (0s) $(date -u +%Y-%m-%dT%H:%M:%S) \"[opct] kube-conformance init container error: ${INIT_ERR_LINE}\""
+                echo "${fifo_msg}" > /tmp/shared/fifo-msg.txt
+                if timeout 5s sh -c "cat /tmp/shared/fifo-msg.txt > /tmp/shared/fifo"; then
+                    echo "FIFO write completed."
+                else
+                    echo "Warning: timed out writing init error to FIFO; continuing with JUnit-only failure reporting."
+                fi
+                break
+            fi
+            sleep 1
+        done
+        touch ${CTRL_DONE_TESTS}
+        # Wait for plugin done with timeout (max 30 minutes)
+        max_wait=180
+        wait_count=0
+        while [[ ${wait_count} -lt ${max_wait} ]]; do
+            if [[ -f ${CTRL_DONE_PLUGIN} ]]; then
+                echo "Plugin done detected, exiting."
+                exit 0
+            fi
+            wait_count=$((wait_count + 1))
+            if (( wait_count % 6 == 0 )); then
+                echo "Waiting for plugin done [${CTRL_DONE_PLUGIN}] (${wait_count}/${max_wait})..."
+            fi
+            sleep 10
+        done
+        echo "Timeout waiting for plugin done after $((max_wait * 10))s, exiting."
+        exit 1
+    fi
+
     # For 10-openshift-kube-conformance plugin, check if the init container extracted
     # the conformance test list. If so, use it as the suite list for both progress
     # tracking and test execution (via -f flag).
