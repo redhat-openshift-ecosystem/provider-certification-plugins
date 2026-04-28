@@ -69,6 +69,8 @@ elif [[ "${PLUGIN_NAME:-}" != "openshift-cluster-upgrade" ]]; then
         INIT_ERR=$(cat "${INIT_ERROR_FILE}")
         echo "ERROR: Init container failed to extract conformance tests:"
         echo "${INIT_ERR}"
+        # Escape XML special characters in error message
+        INIT_ERR_XML=$(echo "${INIT_ERR}" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g; s/"/\&quot;/g')
         # Write error as suite list entry so plugin reports it
         echo "\"[opct] init-error: ${INIT_ERR}\"" > ${CTRL_SUITE_LIST}
         touch ${CTRL_SUITE_LIST}.done
@@ -78,7 +80,7 @@ elif [[ "${PLUGIN_NAME:-}" != "openshift-cluster-upgrade" ]]; then
 <?xml version="1.0" encoding="UTF-8"?>
 <testsuite name="openshift-kube-conformance" tests="1" failures="1" errors="0" time="0">
   <testcase name="[opct] kube-conformance init container" time="0">
-    <failure message="Init container failed to extract conformance tests">${INIT_ERR}</failure>
+    <failure message="Init container failed to extract conformance tests">${INIT_ERR_XML}</failure>
   </testcase>
 </testsuite>
 JUNITEOF
