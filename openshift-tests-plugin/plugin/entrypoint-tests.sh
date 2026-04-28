@@ -92,11 +92,22 @@ JUNITEOF
             sleep 1
         done
         touch ${CTRL_DONE_TESTS}
-        # Wait for plugin done
-        while true; do
-            if [[ -f ${CTRL_DONE_PLUGIN} ]]; then exit 0; fi
+        # Wait for plugin done with timeout (max 30 minutes)
+        max_wait=180
+        wait_count=0
+        while [[ ${wait_count} -lt ${max_wait} ]]; do
+            if [[ -f ${CTRL_DONE_PLUGIN} ]]; then
+                echo "Plugin done detected, exiting."
+                exit 0
+            fi
+            wait_count=$((wait_count + 1))
+            if (( wait_count % 6 == 0 )); then
+                echo "Waiting for plugin done [${CTRL_DONE_PLUGIN}] (${wait_count}/${max_wait})..."
+            fi
             sleep 10
         done
+        echo "Timeout waiting for plugin done after $((max_wait * 10))s, exiting."
+        exit 1
     fi
 
     # For 10-openshift-kube-conformance plugin, check if the init container extracted
