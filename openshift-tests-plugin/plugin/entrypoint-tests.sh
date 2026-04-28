@@ -86,7 +86,12 @@ JUNITEOF
         for attempt in $(seq 1 30); do
             if [[ -p /tmp/shared/fifo ]]; then
                 echo "FIFO ready (attempt ${attempt}), writing error result..."
-                echo "failed: (0s) $(date -u +%Y-%m-%dT%H:%M:%S) \"[opct] kube-conformance init container error: ${INIT_ERR}\"" > /tmp/shared/fifo
+                fifo_msg="failed: (0s) $(date -u +%Y-%m-%dT%H:%M:%S) \"[opct] kube-conformance init container error: ${INIT_ERR}\""
+                if timeout 5s bash -c 'printf "%s\n" "$1" > /tmp/shared/fifo' _ "${fifo_msg}"; then
+                    echo "FIFO write completed."
+                else
+                    echo "Warning: timed out writing init error to FIFO; continuing with JUnit-only failure reporting."
+                fi
                 break
             fi
             sleep 1
