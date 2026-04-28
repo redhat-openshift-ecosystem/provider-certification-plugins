@@ -66,13 +66,15 @@ elif [[ "${PLUGIN_NAME:-}" != "openshift-cluster-upgrade" ]]; then
     # Check if the init container reported an error
     INIT_ERROR_FILE="/tmp/shared/init-error.log"
     if [[ "${PLUGIN_NAME:-}" == "openshift-kube-conformance" ]] && [[ -f "${INIT_ERROR_FILE}" ]]; then
-        INIT_ERR=$(cat "${INIT_ERROR_FILE}")
+        INIT_ERR=$(<"${INIT_ERROR_FILE}")
+        # Normalize to single line for suite list and FIFO consumers
+        INIT_ERR_LINE=${INIT_ERR//$'\n'/ }
         echo "ERROR: Init container failed to extract conformance tests:"
         echo "${INIT_ERR}"
         # Escape XML special characters in error message
         INIT_ERR_XML=$(echo "${INIT_ERR}" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g; s/"/\&quot;/g')
         # Write error as suite list entry so plugin reports it
-        echo "\"[opct] init-error: ${INIT_ERR}\"" > ${CTRL_SUITE_LIST}
+        printf '"[opct] init-error: %s"\n' "${INIT_ERR_LINE}" > "${CTRL_SUITE_LIST}"
         touch ${CTRL_SUITE_LIST}.done
         # Create a JUnit XML so the plugin can process results without crashing
         mkdir -p /tmp/shared/junit
@@ -88,7 +90,7 @@ JUNITEOF
         for attempt in $(seq 1 30); do
             if [[ -p /tmp/shared/fifo ]]; then
                 echo "FIFO ready (attempt ${attempt}), writing error result..."
-                fifo_msg="failed: (0s) $(date -u +%Y-%m-%dT%H:%M:%S) \"[opct] kube-conformance init container error: ${INIT_ERR}\""
+                fifo_msg="failed: (0s) $(date -u +%Y-%m-%dT%H:%M:%S) \"[opct] kube-conformance init container error: ${INIT_ERR_LINE}\""
                 echo "${fifo_msg}" > /tmp/shared/fifo-msg.txt
                 if timeout 5s sh -c "cat /tmp/shared/fifo-msg.txt > /tmp/shared/fifo"; then
                     echo "FIFO write completed."
