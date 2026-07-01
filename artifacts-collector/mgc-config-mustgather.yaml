@@ -6,6 +6,12 @@ config:
     - type: Regex
       target: FileContents
       regex: "eyJ[A-Za-z0-9_-]{10,}\\.eyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]+"
+    - type: Regex
+      target: FileContents
+      regex: "Authorization:\\s+\\w+\\s+[A-Za-z0-9+/=_-]{20,}"
+    - type: Regex
+      target: FileContents
+      regex: "(?i)(secret|httpSecret):\\s+[A-Za-z0-9+/=_-]{20,}"
   omit:
     - type: Kubernetes
       kubernetesResource:
@@ -13,4 +19,8 @@ config:
     - type: Kubernetes
       kubernetesResource:
         kind: MachineConfig
+        apiVersion: machineconfiguration.openshift.io/v1
+    - type: Kubernetes
+      kubernetesResource:
+        kind: ControllerConfig
         apiVersion: machineconfiguration.openshift.io/v1
