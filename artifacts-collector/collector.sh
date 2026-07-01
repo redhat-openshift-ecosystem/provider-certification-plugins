@@ -33,9 +33,34 @@ send_test_progress() {
 # the steps here must ensure edge scenariois not added
 # in must-gather workflow.
 clean_must_gather() {
-    # clean registry credentials
-    sed -i 's/\(internalRegistryPullSecret:\s*\).*/\1"<sensitive>"/' \
-        ${MUST_GATHER_DIR}/*/cluster-scoped-resources/machineconfiguration.openshift.io/controllerconfigs/machine-config-controller.yaml >/dev/null
+    os_log_info "[executor][PluginID#${PLUGIN_ID}] Cleaning must-gather with must-gather-clean"
+    local mg_clean_dir="${MUST_GATHER_DIR}-clean"
+    must-gather-clean -c /plugin/mgc-config-mustgather.yaml \
+        -i "${MUST_GATHER_DIR}" \
+        -o "${mg_clean_dir}" || {
+        os_log_info "[executor][PluginID#${PLUGIN_ID}] must-gather-clean failed, falling back to sed"
+        sed -i 's/\(internalRegistryPullSecret:\s*\).*/\1"<sensitive>"/' \
+            ${MUST_GATHER_DIR}/*/cluster-scoped-resources/machineconfiguration.openshift.io/controllerconfigs/machine-config-controller.yaml >/dev/null 2>&1
+        return
+    }
+    rm -rf "${MUST_GATHER_DIR}"
+    mv "${mg_clean_dir}" "${MUST_GATHER_DIR}"
+}
+
+clean_e2e_metadata() {
+    os_log_info "[executor][PluginID#${PLUGIN_ID}] Cleaning e2e metadata archives"
+    for archive in "${RESULTS_DIR}"/artifacts_e2e-metadata-*.tar.gz; do
+        [ -f "${archive}" ] || continue
+        os_log_info "[executor][PluginID#${PLUGIN_ID}] Cleaning ${archive##*/}"
+        local tmpdir
+        tmpdir=$(mktemp -d)
+        local cleandir="${tmpdir}-clean"
+        tar xzf "${archive}" -C "${tmpdir}" || { rm -rf "${tmpdir}"; continue; }
+        must-gather-clean -c /plugin/mgc-config-e2e.yaml \
+            -i "${tmpdir}" -o "${cleandir}" || { rm -rf "${tmpdir}" "${cleandir}"; continue; }
+        tar czf "${archive}" -C "${cleandir}" .
+        rm -rf "${tmpdir}" "${cleandir}"
+    done
 }
 
 # Collect must-gather and pre-process any data* from it, then create a tarball file.
@@ -263,6 +288,10 @@ run_plugin_collector() {
         send_test_progress "status=running=kube-burner";
         collect_kube_burner || true
     fi
+
+    # Clean sensitive data from e2e metadata archives
+    send_test_progress "status=running=cleaning sensitive data";
+    clean_e2e_metadata || true
 
     # Create result file used to publish to sonobuoy aggregator. (must be the last step)
     send_test_progress "status=running=saving artifacts";

@@ -1,0 +1,8 @@
+config:
+  obfuscate:
+    - type: Regex
+      target: FileContents
+      regex: "sha256~[A-Za-z0-9_-]+"
+    - type: Regex
+      target: FileContents
+      regex: "eyJ[A-Za-z0-9_-]{10,}\\.eyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]+"
