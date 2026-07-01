@@ -43,8 +43,9 @@ clean_must_gather() {
             ${MUST_GATHER_DIR}/*/cluster-scoped-resources/machineconfiguration.openshift.io/controllerconfigs/machine-config-controller.yaml >/dev/null 2>&1
         return
     }
-    rm -rf "${MUST_GATHER_DIR}"
-    mv "${mg_clean_dir}" "${MUST_GATHER_DIR}"
+    mv "${MUST_GATHER_DIR}" "${MUST_GATHER_DIR}-orig" && \
+        mv "${mg_clean_dir}" "${MUST_GATHER_DIR}" && \
+        rm -rf "${MUST_GATHER_DIR}-orig"
 }
 
 clean_e2e_metadata() {
@@ -55,10 +56,11 @@ clean_e2e_metadata() {
         local tmpdir
         tmpdir=$(mktemp -d)
         local cleandir="${tmpdir}-clean"
+        local tmparchive="${archive}.tmp"
         tar xzf "${archive}" -C "${tmpdir}" || { rm -rf "${tmpdir}"; continue; }
         must-gather-clean -c /plugin/mgc-config-e2e.yaml \
             -i "${tmpdir}" -o "${cleandir}" || { rm -rf "${tmpdir}" "${cleandir}"; continue; }
-        tar czf "${archive}" -C "${cleandir}" .
+        tar czf "${tmparchive}" -C "${cleandir}" . && mv "${tmparchive}" "${archive}" || rm -f "${tmparchive}"
         rm -rf "${tmpdir}" "${cleandir}"
     done
 }
