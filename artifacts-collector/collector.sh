@@ -194,14 +194,14 @@ collect_metrics() {
     must-gather-clean -c /plugin/mgc-config-mustgather.yaml \
         -i "${metrics_src_dir}" -o "${metrics_clean_dir}" \
         -v4 >./artifacts_log-mgc-must-gather-metrics.log 2>&1 && {
-        cp -v must-gather-metrics/timestamp must-gather-metrics/event-filter.html "${metrics_clean_dir}/monitoring/" 2>/dev/null || true
+        cp -v must-gather-metrics/timestamp must-gather-metrics/event-filter.html "${metrics_clean_dir}/monitoring/" || true
         mv "${metrics_src_dir}" "${metrics_src_dir%/}-orig"
         mv "${metrics_clean_dir}" "${metrics_src_dir}"
         rm -rf "${metrics_src_dir%/}-orig"
     }
 
     os_log_info "${msg_prefix} Packing must-gather-metrics..."
-    cp -v must-gather-metrics/timestamp must-gather-metrics/event-filter.html must-gather-metrics/*/monitoring/ 2>/dev/null || true
+    cp -v must-gather-metrics/timestamp must-gather-metrics/event-filter.html must-gather-metrics/*/monitoring/ || true
     tar cfJ artifacts_must-gather-metrics.tar.xz -C must-gather-metrics/*/ monitoring/
 
     os_log_info "${msg_prefix} finished!"
