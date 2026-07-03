@@ -37,7 +37,8 @@ clean_must_gather() {
     local mg_clean_dir="${MUST_GATHER_DIR}-clean"
     must-gather-clean -c /plugin/mgc-config-mustgather.yaml \
         -i "${MUST_GATHER_DIR}" \
-        -o "${mg_clean_dir}" || {
+        -o "${mg_clean_dir}" \
+        -v4 >./artifacts_log-mgc-must-gather.log 2>&1 || {
         os_log_info "[executor][PluginID#${PLUGIN_ID}] must-gather-clean failed, falling back to sed"
         sed -i 's/\(internalRegistryPullSecret:\s*\).*/\1"<sensitive>"/' \
             ${MUST_GATHER_DIR}/*/cluster-scoped-resources/machineconfiguration.openshift.io/controllerconfigs/machine-config-controller.yaml >/dev/null 2>&1
@@ -59,7 +60,8 @@ clean_e2e_metadata() {
         local tmparchive="${archive}.tmp"
         tar xzf "${archive}" -C "${tmpdir}" || { rm -rf "${tmpdir}"; continue; }
         must-gather-clean -c /plugin/mgc-config-e2e.yaml \
-            -i "${tmpdir}" -o "${cleandir}" || { rm -rf "${tmpdir}" "${cleandir}"; continue; }
+            -i "${tmpdir}" -o "${cleandir}" \
+            -v4 >>./artifacts_log-mgc-e2e-metadata.log 2>&1 || { rm -rf "${tmpdir}" "${cleandir}"; continue; }
         tar czf "${tmparchive}" -C "${cleandir}" . && mv "${tmparchive}" "${archive}" || rm -f "${tmparchive}"
         rm -rf "${tmpdir}" "${cleandir}"
     done
@@ -185,8 +187,21 @@ collect_metrics() {
         return
     }
 
+    os_log_info "${msg_prefix} Cleaning must-gather-metrics with must-gather-clean"
+    local metrics_src_dir
+    metrics_src_dir=$(ls -d must-gather-metrics/*/ | head -1)
+    local metrics_clean_dir="${metrics_src_dir%/}-clean"
+    must-gather-clean -c /plugin/mgc-config-mustgather.yaml \
+        -i "${metrics_src_dir}" -o "${metrics_clean_dir}" \
+        -v4 >./artifacts_log-mgc-must-gather-metrics.log 2>&1 && {
+        cp -v must-gather-metrics/timestamp must-gather-metrics/event-filter.html "${metrics_clean_dir}/monitoring/" 2>/dev/null || true
+        mv "${metrics_src_dir}" "${metrics_src_dir%/}-orig"
+        mv "${metrics_clean_dir}" "${metrics_src_dir}"
+        rm -rf "${metrics_src_dir%/}-orig"
+    }
+
     os_log_info "${msg_prefix} Packing must-gather-metrics..."
-    cp -v must-gather-metrics/timestamp must-gather-metrics/event-filter.html must-gather-metrics/*/monitoring/
+    cp -v must-gather-metrics/timestamp must-gather-metrics/event-filter.html must-gather-metrics/*/monitoring/ 2>/dev/null || true
     tar cfJ artifacts_must-gather-metrics.tar.xz -C must-gather-metrics/*/ monitoring/
 
     os_log_info "${msg_prefix} finished!"
