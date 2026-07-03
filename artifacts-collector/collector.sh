@@ -191,14 +191,23 @@ collect_metrics() {
     local metrics_src_dir
     metrics_src_dir=$(ls -d must-gather-metrics/*/ | head -1)
     local metrics_clean_dir="${metrics_src_dir%/}-clean"
-    must-gather-clean -c /plugin/mgc-config-mustgather.yaml \
+    if must-gather-clean -c /plugin/mgc-config-mustgather.yaml \
         -i "${metrics_src_dir}" -o "${metrics_clean_dir}" \
-        -v4 >./artifacts_log-mgc-must-gather-metrics.log 2>&1 && {
+        -v4 >./artifacts_log-mgc-must-gather-metrics.log 2>&1; then
         cp -v must-gather-metrics/timestamp must-gather-metrics/event-filter.html "${metrics_clean_dir}/monitoring/" || true
-        mv "${metrics_src_dir}" "${metrics_src_dir%/}-orig"
-        mv "${metrics_clean_dir}" "${metrics_src_dir}"
-        rm -rf "${metrics_src_dir%/}-orig"
-    }
+        if mv "${metrics_src_dir}" "${metrics_src_dir%/}-orig" && \
+           mv "${metrics_clean_dir}" "${metrics_src_dir}"; then
+            rm -rf "${metrics_src_dir%/}-orig"
+        else
+            os_log_info "${msg_prefix} WARNING: swap failed, restoring original"
+            [ -d "${metrics_src_dir%/}-orig" ] && mv "${metrics_src_dir%/}-orig" "${metrics_src_dir}"
+            rm -rf "${metrics_clean_dir}"
+        fi
+    else
+        os_log_info "${msg_prefix} WARNING: must-gather-clean failed for metrics, skipping metrics packing"
+        rm -rf "${metrics_clean_dir}"
+        return
+    fi
 
     os_log_info "${msg_prefix} Packing must-gather-metrics..."
     cp -v must-gather-metrics/timestamp must-gather-metrics/event-filter.html must-gather-metrics/*/monitoring/ || true
