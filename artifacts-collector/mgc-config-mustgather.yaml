@@ -15,9 +15,6 @@ config:
   omit:
     - type: Kubernetes
       kubernetesResource:
-        kind: "Secret"
-    - type: Kubernetes
-      kubernetesResource:
         kind: MachineConfig
         apiVersion: machineconfiguration.openshift.io/v1
     - type: Kubernetes
