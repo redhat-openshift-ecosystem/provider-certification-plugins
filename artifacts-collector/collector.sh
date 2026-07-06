@@ -33,15 +33,17 @@ send_test_progress() {
 # the steps here must ensure edge scenariois not added
 # in must-gather workflow.
 clean_must_gather() {
+    # always clean internalRegistryPullSecret first (safety net before MGC)
+    sed -i 's/\(internalRegistryPullSecret:\s*\).*/\1"<sensitive>"/' \
+        ${MUST_GATHER_DIR}/*/cluster-scoped-resources/machineconfiguration.openshift.io/controllerconfigs/machine-config-controller.yaml >/dev/null 2>&1
+
     os_log_info "[executor][PluginID#${PLUGIN_ID}] Cleaning must-gather with must-gather-clean"
     local mg_clean_dir="${MUST_GATHER_DIR}-clean"
     must-gather-clean -c /plugin/mgc-config-mustgather.yaml \
         -i "${MUST_GATHER_DIR}" \
         -o "${mg_clean_dir}" \
         -v4 >./artifacts_log-mgc-must-gather.log 2>&1 || {
-        os_log_info "[executor][PluginID#${PLUGIN_ID}] must-gather-clean failed, falling back to sed"
-        sed -i 's/\(internalRegistryPullSecret:\s*\).*/\1"<sensitive>"/' \
-            ${MUST_GATHER_DIR}/*/cluster-scoped-resources/machineconfiguration.openshift.io/controllerconfigs/machine-config-controller.yaml >/dev/null 2>&1
+        os_log_info "[executor][PluginID#${PLUGIN_ID}] must-gather-clean failed, sed already applied"
         return
     }
     mv "${MUST_GATHER_DIR}" "${MUST_GATHER_DIR}-orig" && \
