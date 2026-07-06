@@ -9,11 +9,12 @@ FROM quay.io/opct/tools:v0.5.0 AS tools
 
 FROM quay.io/fedora/fedora-minimal:41 AS mgc
 ARG MGC_VERSION=0.0.5
+ARG TARGETARCH=amd64
 RUN microdnf install -y tar gzip curl && \
     set -euo pipefail && \
-    curl -sSLf -o /tmp/mgc.tar.gz https://github.com/openshift/must-gather-clean/releases/download/v${MGC_VERSION}/must-gather-clean-linux-amd64.tar.gz && \
+    curl -sSLf -o /tmp/mgc.tar.gz https://github.com/openshift/must-gather-clean/releases/download/v${MGC_VERSION}/must-gather-clean-linux-${TARGETARCH}.tar.gz && \
     curl -sSLf -o /tmp/mgc.sha256 https://github.com/openshift/must-gather-clean/releases/download/v${MGC_VERSION}/SHA256_SUM && \
-    echo "$(grep must-gather-clean-linux-amd64.tar.gz /tmp/mgc.sha256 | awk '{print $1}')  /tmp/mgc.tar.gz" | sha256sum --check --strict - && \
+    echo "$(grep must-gather-clean-linux-${TARGETARCH}.tar.gz /tmp/mgc.sha256 | awk '{print $1}')  /tmp/mgc.tar.gz" | sha256sum --check --strict - && \
     tar xz -C /usr/local/bin -f /tmp/mgc.tar.gz must-gather-clean
 
 # Main image
