@@ -201,7 +201,7 @@ collect_metrics() {
            mv "${metrics_clean_dir}" "${metrics_src_dir}"; then
             rm -rf "${metrics_src_dir%/}-orig"
         else
-            os_log_info "${msg_prefix} WARNING: swap failed, restoring original"
+            os_log_info "${msg_prefix} WARNING: moving files failed, restoring original"
             [ -d "${metrics_src_dir%/}-orig" ] && mv "${metrics_src_dir%/}-orig" "${metrics_src_dir}"
             rm -rf "${metrics_clean_dir}"
         fi
