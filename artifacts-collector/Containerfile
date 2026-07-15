@@ -7,6 +7,15 @@ FROM ${PLUGIN_REPO}:${BUILD_VERSION} AS plugin
 
 FROM quay.io/opct/tools:v0.5.0 AS tools
 
+FROM quay.io/fedora/fedora-minimal:41 AS mco-sanitize
+ARG TARGETARCH=amd64
+RUN microdnf install -y curl && \
+    set -euo pipefail && \
+    MCO_ARCH=$([ "${TARGETARCH}" = "amd64" ] && echo "x86_64" || echo "${TARGETARCH}") && \
+    curl -sSLf -o /usr/local/bin/mco-sanitize \
+        "https://openshift-mirror-list.ci-systems.workers.dev/pub/ci/${MCO_ARCH}/mco-sanitize/mco-sanitize" && \
+    chmod +x /usr/local/bin/mco-sanitize
+
 FROM quay.io/fedora/fedora-minimal:41 AS mgc
 ARG MGC_VERSION=0.0.5
 ARG TARGETARCH=amd64
@@ -36,6 +45,7 @@ COPY --from=tools /usr/bin/oc /usr/bin/oc
 COPY --from=tools /usr/bin/jq /usr/bin/jq
 COPY --from=tools /usr/bin/camgi /usr/bin/camgi
 COPY --from=mgc /usr/local/bin/must-gather-clean /usr/bin/must-gather-clean
+COPY --from=mco-sanitize /usr/local/bin/mco-sanitize /usr/bin/mco-sanitize
 
 # plugin openshift-tests must be built first (dependency)
 COPY --from=plugin /usr/bin/openshift-tests-plugin /usr/bin/openshift-tests-plugin

@@ -37,6 +37,14 @@ clean_must_gather() {
     sed -i 's/\(internalRegistryPullSecret:\s*\).*/\1"<sensitive>"/' \
         ${MUST_GATHER_DIR}/*/cluster-scoped-resources/machineconfiguration.openshift.io/controllerconfigs/machine-config-controller.yaml >/dev/null 2>&1
 
+    # sanitize MCO resources (machineconfigs contain pull secrets and JWTs in ignition config)
+    os_log_info "[executor][PluginID#${PLUGIN_ID}] Running mco-sanitize on must-gather"
+    if ! mco-sanitize --input="${MUST_GATHER_DIR}"; then
+        os_log_info "[executor][PluginID#${PLUGIN_ID}] mco-sanitize failed, falling back to manual redaction"
+        find "${MUST_GATHER_DIR}" -type f -path '*/cluster-scoped-resources/machineconfiguration.openshift.io/*' \
+            -exec sh -c 'echo "REDACTED" > "$1" && mv "$1" "$1.redacted"' _ {} \;
+    fi
+
     os_log_info "[executor][PluginID#${PLUGIN_ID}] Cleaning must-gather with must-gather-clean"
     local mg_clean_dir="${MUST_GATHER_DIR}-clean"
     must-gather-clean -c /plugin/mgc-config-mustgather.yaml \
