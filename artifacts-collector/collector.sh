@@ -41,7 +41,7 @@ clean_must_gather() {
     os_log_info "[executor][PluginID#${PLUGIN_ID}] Running mco-sanitize on must-gather"
     if ! mco-sanitize --input="${MUST_GATHER_DIR}"; then
         os_log_info "[executor][PluginID#${PLUGIN_ID}] mco-sanitize failed, falling back to manual redaction"
-        find "${MUST_GATHER_DIR}" -type f -path '*/cluster-scoped-resources/machineconfiguration.openshift.io/*' \
+        find "${MUST_GATHER_DIR}" -type f -path '*/cluster-scoped-resources/machineconfiguration.openshift.io/*' ! -name '*.redacted' \
             -exec sh -c 'echo "REDACTED" > "$1" && mv "$1" "$1.redacted"' _ {} \;
     fi
 
