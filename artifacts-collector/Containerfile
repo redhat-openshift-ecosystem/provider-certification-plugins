@@ -36,6 +36,7 @@ COPY --from=tools /usr/bin/oc /usr/bin/oc
 COPY --from=tools /usr/bin/jq /usr/bin/jq
 COPY --from=tools /usr/bin/camgi /usr/bin/camgi
 COPY --from=mgc /usr/local/bin/must-gather-clean /usr/bin/must-gather-clean
+COPY --from=tools /usr/bin/mco-sanitize /usr/bin/mco-sanitize
 
 # plugin openshift-tests must be built first (dependency)
 COPY --from=plugin /usr/bin/openshift-tests-plugin /usr/bin/openshift-tests-plugin
