@@ -6,7 +6,7 @@
 #
 ## Base image
 #
-FROM quay.io/fedora/fedora-minimal:41 as base
+FROM quay.io/fedora/fedora-minimal:42 as base
 RUN echo "fastestmirror=true" >> /etc/dnf/dnf.conf && \
     microdnf install -y curl grep tar xz gzip && \
     microdnf clean all
@@ -54,9 +54,13 @@ COPY --from=clients /clients/oc /usr/bin/oc
 COPY --from=clients /clients/jq /usr/bin/jq
 COPY --from=clients /clients/camgi /usr/bin/camgi
 
-RUN MCO_ARCH=$(case "${TARGETARCH}" in amd64) echo "x86_64";; arm64) echo "aarch64";; *) echo "${TARGETARCH}";; esac) && \
-    curl -sSLf -o /usr/bin/mco-sanitize \
-        "https://openshift-mirror-list.ci-systems.workers.dev/pub/ci/${MCO_ARCH}/mco-sanitize/mco-sanitize" && \
-    chmod +x /usr/bin/mco-sanitize
+RUN MCO_ARCH=$(case "${TARGETARCH}" in amd64) echo "x86_64";; *) echo "";; esac) && \
+    if [ -n "${MCO_ARCH}" ]; then \
+        curl -sSLf -o /usr/bin/mco-sanitize \
+            "https://openshift-mirror-list.ci-systems.workers.dev/pub/ci/${MCO_ARCH}/mco-sanitize/mco-sanitize" && \
+        chmod +x /usr/bin/mco-sanitize; \
+    else \
+        echo "mco-sanitize not available for ${TARGETARCH}, skipping"; \
+    fi
 
 RUN ln -svf /usr/bin/oc /usr/bin/kubectl
