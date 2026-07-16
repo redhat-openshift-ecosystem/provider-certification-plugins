@@ -6,7 +6,7 @@
 #
 ## Base image
 #
-FROM quay.io/fedora/fedora-minimal:41 as base
+FROM quay.io/fedora/fedora-minimal:42 as base
 RUN echo "fastestmirror=true" >> /etc/dnf/dnf.conf && \
     microdnf install -y curl grep tar xz gzip && \
     microdnf clean all

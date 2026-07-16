@@ -5,7 +5,7 @@ ARG BUILD_VERSION=latest
 ARG PLUGIN_REPO=quay.io/opct/plugin-openshift-tests
 FROM ${PLUGIN_REPO}:${BUILD_VERSION} AS plugin
 
-FROM quay.io/opct/tools:v0.5.0 AS tools
+FROM quay.io/opct/tools:v0.6.0 AS tools
 
 FROM quay.io/fedora/fedora-minimal:41 AS mgc
 ARG MGC_VERSION=0.0.5
