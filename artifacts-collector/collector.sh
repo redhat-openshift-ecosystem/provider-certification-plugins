@@ -38,9 +38,15 @@ clean_must_gather() {
         ${MUST_GATHER_DIR}/*/cluster-scoped-resources/machineconfiguration.openshift.io/controllerconfigs/machine-config-controller.yaml >/dev/null 2>&1
 
     # sanitize MCO resources (machineconfigs contain pull secrets and JWTs in ignition config)
-    os_log_info "[executor][PluginID#${PLUGIN_ID}] Running mco-sanitize on must-gather"
-    if ! mco-sanitize --input="${MUST_GATHER_DIR}"; then
-        os_log_info "[executor][PluginID#${PLUGIN_ID}] mco-sanitize failed, falling back to manual redaction"
+    if command -v mco-sanitize &>/dev/null; then
+        os_log_info "[executor][PluginID#${PLUGIN_ID}] Running mco-sanitize on must-gather"
+        if ! mco-sanitize --input="${MUST_GATHER_DIR}"; then
+            os_log_info "[executor][PluginID#${PLUGIN_ID}] mco-sanitize failed, falling back to manual redaction"
+            find "${MUST_GATHER_DIR}" -type f -path '*/cluster-scoped-resources/machineconfiguration.openshift.io/*' ! -name '*.redacted' \
+                -exec sh -c 'echo "REDACTED" > "$1" && mv "$1" "$1.redacted"' _ {} \;
+        fi
+    else
+        os_log_info "[executor][PluginID#${PLUGIN_ID}] mco-sanitize not available, falling back to manual redaction"
         find "${MUST_GATHER_DIR}" -type f -path '*/cluster-scoped-resources/machineconfiguration.openshift.io/*' ! -name '*.redacted' \
             -exec sh -c 'echo "REDACTED" > "$1" && mv "$1" "$1.redacted"' _ {} \;
     fi
