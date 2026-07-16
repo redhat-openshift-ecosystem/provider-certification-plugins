@@ -7,7 +7,7 @@ FROM ${PLUGIN_REPO}:${BUILD_VERSION} AS plugin
 
 FROM quay.io/opct/tools:v0.6.0 AS tools
 
-FROM quay.io/fedora/fedora-minimal:41 AS mgc
+FROM quay.io/fedora/fedora-minimal:42 AS mgc
 ARG MGC_VERSION=0.0.5
 ARG TARGETARCH=amd64
 RUN microdnf install -y tar gzip curl && \
@@ -18,7 +18,7 @@ RUN microdnf install -y tar gzip curl && \
     tar xz -C /usr/local/bin -f /tmp/mgc.tar.gz must-gather-clean
 
 # Main image
-FROM quay.io/fedora/fedora-minimal:41
+FROM quay.io/fedora/fedora-minimal:42
 ARG QUAY_EXPIRATION=never
 LABEL io.k8s.display-name="OPCT Clients" \
         io.k8s.description="OPCT Clients is the base image for most of OPCT plugins." \
