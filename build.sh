@@ -92,6 +92,9 @@ function build_tools() {
         oc_archive="openshift-client-linux.tar.gz"
         oc_url="https://mirror.openshift.com/pub/openshift-v4/${TARGET_ARCH}/clients/ocp/${ocp_version}/${oc_archive}"
 
+        mco_arch=$([ "${TARGET_ARCH}" = "amd64" ] && echo "x86_64" || echo "${TARGET_ARCH}")
+        mco_sanitize_url="https://openshift-mirror-list.ci-systems.workers.dev/pub/ci/${mco_arch}/mco-sanitize/mco-sanitize"
+
         podman build --platform "${platform}" \
             --manifest "${manifest}" \
             -f "${build_root}"/Containerfile \
@@ -101,6 +104,7 @@ function build_tools() {
             --build-arg=CAMGI_TAR="${camgi_archive}" \
             --build-arg=OC_TAR="${oc_archive}" \
             --build-arg=OC_URL="${oc_url}" \
+            --build-arg=MCO_SANITIZE_URL="${mco_sanitize_url}" \
             --build-arg=QUAY_EXPIRATION="${IMAGE_EXPIRE_TIME}" \
             --build-arg=TARGETPLATFORM="${platform}" \
             --build-arg=TARGETARCH="${TARGET_ARCH}" \
