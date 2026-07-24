@@ -33,9 +33,54 @@ send_test_progress() {
 # the steps here must ensure edge scenariois not added
 # in must-gather workflow.
 clean_must_gather() {
-    # clean registry credentials
+    # always clean internalRegistryPullSecret first (safety net before MGC)
     sed -i 's/\(internalRegistryPullSecret:\s*\).*/\1"<sensitive>"/' \
-        ${MUST_GATHER_DIR}/*/cluster-scoped-resources/machineconfiguration.openshift.io/controllerconfigs/machine-config-controller.yaml >/dev/null
+        ${MUST_GATHER_DIR}/*/cluster-scoped-resources/machineconfiguration.openshift.io/controllerconfigs/machine-config-controller.yaml >/dev/null 2>&1
+
+    # sanitize MCO resources (machineconfigs contain pull secrets and JWTs in ignition config)
+    if command -v mco-sanitize &>/dev/null; then
+        os_log_info "[executor][PluginID#${PLUGIN_ID}] Running mco-sanitize on must-gather"
+        if ! mco-sanitize --input="${MUST_GATHER_DIR}"; then
+            os_log_info "[executor][PluginID#${PLUGIN_ID}] mco-sanitize failed, falling back to manual redaction"
+            find "${MUST_GATHER_DIR}" -type f -path '*/cluster-scoped-resources/machineconfiguration.openshift.io/*' ! -name '*.redacted' \
+                -exec sh -c 'echo "REDACTED" > "$1" && mv "$1" "$1.redacted"' _ {} \;
+        fi
+    else
+        os_log_info "[executor][PluginID#${PLUGIN_ID}] mco-sanitize not available, falling back to manual redaction"
+        find "${MUST_GATHER_DIR}" -type f -path '*/cluster-scoped-resources/machineconfiguration.openshift.io/*' ! -name '*.redacted' \
+            -exec sh -c 'echo "REDACTED" > "$1" && mv "$1" "$1.redacted"' _ {} \;
+    fi
+
+    os_log_info "[executor][PluginID#${PLUGIN_ID}] Cleaning must-gather with must-gather-clean"
+    local mg_clean_dir="${MUST_GATHER_DIR}-clean"
+    must-gather-clean -c /plugin/mgc-config-mustgather.yaml \
+        -i "${MUST_GATHER_DIR}" \
+        -o "${mg_clean_dir}" \
+        -v4 >./artifacts_log-mgc-must-gather.log 2>&1 || {
+        os_log_info "[executor][PluginID#${PLUGIN_ID}] must-gather-clean failed, sed already applied"
+        return
+    }
+    mv "${MUST_GATHER_DIR}" "${MUST_GATHER_DIR}-orig" && \
+        mv "${mg_clean_dir}" "${MUST_GATHER_DIR}" && \
+        rm -rf "${MUST_GATHER_DIR}-orig"
+}
+
+clean_e2e_metadata() {
+    os_log_info "[executor][PluginID#${PLUGIN_ID}] Cleaning e2e metadata archives"
+    for archive in "${RESULTS_DIR}"/artifacts_e2e-metadata-*.tar.gz; do
+        [ -f "${archive}" ] || continue
+        os_log_info "[executor][PluginID#${PLUGIN_ID}] Cleaning ${archive##*/}"
+        local tmpdir
+        tmpdir=$(mktemp -d)
+        local cleandir="${tmpdir}-clean"
+        local tmparchive="${archive}.tmp"
+        tar xzf "${archive}" -C "${tmpdir}" || { rm -rf "${tmpdir}"; continue; }
+        must-gather-clean -c /plugin/mgc-config-e2e.yaml \
+            -i "${tmpdir}" -o "${cleandir}" \
+            -v4 >>./artifacts_log-mgc-e2e-metadata.log 2>&1 || { rm -rf "${tmpdir}" "${cleandir}"; continue; }
+        tar czf "${tmparchive}" -C "${cleandir}" . && mv "${tmparchive}" "${archive}" || rm -f "${tmparchive}"
+        rm -rf "${tmpdir}" "${cleandir}"
+    done
 }
 
 # Collect must-gather and pre-process any data* from it, then create a tarball file.
@@ -158,8 +203,30 @@ collect_metrics() {
         return
     }
 
+    os_log_info "${msg_prefix} Cleaning must-gather-metrics with must-gather-clean"
+    local metrics_src_dir
+    metrics_src_dir=$(ls -d must-gather-metrics/*/ | head -1)
+    local metrics_clean_dir="${metrics_src_dir%/}-clean"
+    if must-gather-clean -c /plugin/mgc-config-mustgather.yaml \
+        -i "${metrics_src_dir}" -o "${metrics_clean_dir}" \
+        -v4 >./artifacts_log-mgc-must-gather-metrics.log 2>&1; then
+        cp -v must-gather-metrics/timestamp must-gather-metrics/event-filter.html "${metrics_clean_dir}/monitoring/" || true
+        if mv "${metrics_src_dir}" "${metrics_src_dir%/}-orig" && \
+           mv "${metrics_clean_dir}" "${metrics_src_dir}"; then
+            rm -rf "${metrics_src_dir%/}-orig"
+        else
+            os_log_info "${msg_prefix} WARNING: moving files failed, restoring original"
+            [ -d "${metrics_src_dir%/}-orig" ] && mv "${metrics_src_dir%/}-orig" "${metrics_src_dir}"
+            rm -rf "${metrics_clean_dir}"
+        fi
+    else
+        os_log_info "${msg_prefix} WARNING: must-gather-clean failed for metrics, skipping metrics packing"
+        rm -rf "${metrics_clean_dir}"
+        return
+    fi
+
     os_log_info "${msg_prefix} Packing must-gather-metrics..."
-    cp -v must-gather-metrics/timestamp must-gather-metrics/event-filter.html must-gather-metrics/*/monitoring/
+    cp -v must-gather-metrics/timestamp must-gather-metrics/event-filter.html must-gather-metrics/*/monitoring/ || true
     tar cfJ artifacts_must-gather-metrics.tar.xz -C must-gather-metrics/*/ monitoring/
 
     os_log_info "${msg_prefix} finished!"
@@ -263,6 +330,10 @@ run_plugin_collector() {
         send_test_progress "status=running=kube-burner";
         collect_kube_burner || true
     fi
+
+    # Clean sensitive data from e2e metadata archives
+    send_test_progress "status=running=cleaning sensitive data";
+    clean_e2e_metadata || true
 
     # Create result file used to publish to sonobuoy aggregator. (must be the last step)
     send_test_progress "status=running=saving artifacts";

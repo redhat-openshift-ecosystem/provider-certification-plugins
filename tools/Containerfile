@@ -6,7 +6,7 @@
 #
 ## Base image
 #
-FROM quay.io/fedora/fedora-minimal:41 as base
+FROM quay.io/fedora/fedora-minimal:42 as base
 RUN echo "fastestmirror=true" >> /etc/dnf/dnf.conf && \
     microdnf install -y curl grep tar xz gzip && \
     microdnf clean all
@@ -53,5 +53,9 @@ ARG SONOBUOY_VERSION=TBD
 COPY --from=clients /clients/oc /usr/bin/oc
 COPY --from=clients /clients/jq /usr/bin/jq
 COPY --from=clients /clients/camgi /usr/bin/camgi
+
+ARG MCO_SANITIZE_URL=TBD
+ADD ${MCO_SANITIZE_URL} /usr/bin/mco-sanitize
+RUN chmod +x /usr/bin/mco-sanitize
 
 RUN ln -svf /usr/bin/oc /usr/bin/kubectl

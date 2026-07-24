@@ -5,10 +5,20 @@ ARG BUILD_VERSION=latest
 ARG PLUGIN_REPO=quay.io/opct/plugin-openshift-tests
 FROM ${PLUGIN_REPO}:${BUILD_VERSION} AS plugin
 
-FROM quay.io/opct/tools:v0.5.0 AS tools
+FROM quay.io/opct/tools:v0.6.0 AS tools
+
+FROM quay.io/fedora/fedora-minimal:42 AS mgc
+ARG MGC_VERSION=0.0.5
+ARG TARGETARCH=amd64
+RUN microdnf install -y tar gzip curl && \
+    set -euo pipefail && \
+    curl -sSLf -o /tmp/mgc.tar.gz https://github.com/openshift/must-gather-clean/releases/download/v${MGC_VERSION}/must-gather-clean-linux-${TARGETARCH}.tar.gz && \
+    curl -sSLf -o /tmp/mgc.sha256 https://github.com/openshift/must-gather-clean/releases/download/v${MGC_VERSION}/SHA256_SUM && \
+    echo "$(grep must-gather-clean-linux-${TARGETARCH}.tar.gz /tmp/mgc.sha256 | awk '{print $1}')  /tmp/mgc.tar.gz" | sha256sum --check --strict - && \
+    tar xz -C /usr/local/bin -f /tmp/mgc.tar.gz must-gather-clean
 
 # Main image
-FROM quay.io/fedora/fedora-minimal:41
+FROM quay.io/fedora/fedora-minimal:42
 ARG QUAY_EXPIRATION=never
 LABEL io.k8s.display-name="OPCT Clients" \
         io.k8s.description="OPCT Clients is the base image for most of OPCT plugins." \
@@ -25,12 +35,16 @@ RUN echo "fastestmirror=true" >> /etc/dnf/dnf.conf \
 COPY --from=tools /usr/bin/oc /usr/bin/oc
 COPY --from=tools /usr/bin/jq /usr/bin/jq
 COPY --from=tools /usr/bin/camgi /usr/bin/camgi
+COPY --from=mgc /usr/local/bin/must-gather-clean /usr/bin/must-gather-clean
+COPY --from=tools /usr/bin/mco-sanitize /usr/bin/mco-sanitize
 
 # plugin openshift-tests must be built first (dependency)
 COPY --from=plugin /usr/bin/openshift-tests-plugin /usr/bin/openshift-tests-plugin
 
 COPY ./*.sh ./
 COPY ./collector.sh ./
+COPY ./mgc-config-mustgather.yaml /plugin/
+COPY ./mgc-config-e2e.yaml /plugin/
 
 RUN ln -svf /usr/bin/oc /usr/bin/kubectl
 
