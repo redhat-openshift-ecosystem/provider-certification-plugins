@@ -44,6 +44,20 @@ trap handle_error ERR
     --token="$(cat "${SA_TOKEN_PATH}")" \
     --certificate-authority="${SA_CA_PATH}";
 
+# OPCT-457: Embed CA data inline in kubeconfig to match
+# CI/ci-operator behavior. oc login stores the CA as a file
+# reference, but CI produces kubeconfigs with inline
+# certificate-authority-data. Embedding ensures consistent
+# test environments regardless of runner.
+CLUSTER_NAME=$(/usr/bin/oc config view --minify -o jsonpath='{.clusters[0].name}')
+if [[ -z "${CLUSTER_NAME}" ]]; then
+  echo "ERROR: Failed to retrieve cluster name from kubeconfig" >&2
+  exit 1
+fi
+/usr/bin/oc config set-cluster "${CLUSTER_NAME}" \
+    --certificate-authority="${SA_CA_PATH}" \
+    --embed-certs=true
+
 # Extracting the suite list for each plugin (--dry-run).
 # - openshift-tests-replay: skip
 # - openshift-cluster-upgrade: gather suite list for upgrade plugin
