@@ -54,6 +54,13 @@ func NewCmdWaitUpdater() *cobra.Command {
 
 // Check the API and watch for done file.
 func StartWaitUpdater(opts *OptionsWaitUpdate) error {
+	// When --blocker is empty (e.g. upgrade mode), skip the dependency
+	// waiter entirely — there is no plugin to wait for.
+	if opts.BlockerPlugin == "" {
+		log.Infof("No blocker plugin specified, skipping dependency waiter for %s", opts.PluginName)
+		return nil
+	}
+
 	pl, err := plugin.NewPlugin(opts.PluginName)
 	if err != nil {
 		return fmt.Errorf("unable to create plugin %s: %w", opts.PluginName, err)

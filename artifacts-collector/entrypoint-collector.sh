@@ -51,6 +51,10 @@ ${UTIL_OC_BIN} login "${KUBE_API_INT}" \
 PROGRESS=( ["completed"]=0 ["total"]=${CERT_TEST_COUNT} ["failures"]="" ["msg"]="starting..." )
 watch_dependency_done() {
     os_log_info "[watch_dependency] Starting dependency check..."
+    if [[ -z "${PLUGIN_BLOCKED_BY}" ]]; then
+        os_log_info "[watch_dependency] No blocker plugins configured, skipping"
+        return
+    fi
     for blocker_plugin_name in "${PLUGIN_BLOCKED_BY[@]}"; do
         os_log_info "waiting for plugin [${blocker_plugin_name}]"
 
