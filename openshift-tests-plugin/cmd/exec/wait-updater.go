@@ -54,8 +54,6 @@ func NewCmdWaitUpdater() *cobra.Command {
 
 // Check the API and watch for done file.
 func StartWaitUpdater(opts *OptionsWaitUpdate) error {
-	// When --blocker is empty (e.g. upgrade mode), skip the dependency
-	// waiter entirely — there is no plugin to wait for.
 	if opts.BlockerPlugin == "" {
 		log.Infof("No blocker plugin specified, skipping dependency waiter for %s", opts.PluginName)
 		return nil
@@ -66,6 +64,14 @@ func StartWaitUpdater(opts *OptionsWaitUpdate) error {
 		return fmt.Errorf("unable to create plugin %s: %w", opts.PluginName, err)
 	}
 	defer pl.Done()
+
+	// Override hardcoded BlockerPlugins with the --blocker flag value,
+	// so the OPCT CLI template controls which plugin to wait for.
+	blocker, err := plugin.NewPlugin(opts.BlockerPlugin)
+	if err != nil {
+		return fmt.Errorf("unable to create blocker plugin %s: %w", opts.BlockerPlugin, err)
+	}
+	pl.BlockerPlugins = []*plugin.Plugin{blocker}
 
 	if err = pl.Initialize(); err != nil {
 		return fmt.Errorf("unable to initialize plugin %s: %w", opts.PluginName, err)
