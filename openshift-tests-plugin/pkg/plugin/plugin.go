@@ -186,12 +186,22 @@ func (p *Plugin) PluginFullNameByName(name string) string {
 	switch name {
 	case PluginName05:
 		id = PluginId05
+	case PluginAlias05:
+		return PluginAlias05
 	case PluginName10:
 		id = PluginId10
+	case PluginAlias10:
+		return PluginAlias10
 	case PluginName20:
 		id = PluginId20
+	case PluginAlias20:
+		return PluginAlias20
 	case PluginName80:
 		id = PluginId80
+	case PluginAlias80:
+		return PluginAlias80
+	case PluginAlias99:
+		return PluginAlias99
 	}
 	return fmt.Sprintf("%s-%s", id, name)
 }
