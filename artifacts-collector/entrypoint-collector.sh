@@ -45,12 +45,28 @@ ${UTIL_OC_BIN} login "${KUBE_API_INT}" \
     --token="$(cat "${SA_TOKEN_PATH}")" \
     --certificate-authority="${SA_CA_PATH}" || true;
 
+# OPCT-457: Embed CA data inline in kubeconfig to match
+# CI/ci-operator behavior. oc login stores the CA as a file
+# reference, but CI produces kubeconfigs with inline
+# certificate-authority-data. Embedding ensures consistent
+# test environments regardless of runner.
+CLUSTER_NAME=$(${UTIL_OC_BIN} config view --minify -o jsonpath='{.clusters[0].name}') || true
+if [[ -n "${CLUSTER_NAME}" ]]; then
+  ${UTIL_OC_BIN} config set-cluster "${CLUSTER_NAME}" \
+      --certificate-authority="${SA_CA_PATH}" \
+      --embed-certs=true || true
+fi
+
 #
 # Replace wait-plugin for progress reporter
 #
 PROGRESS=( ["completed"]=0 ["total"]=${CERT_TEST_COUNT} ["failures"]="" ["msg"]="starting..." )
 watch_dependency_done() {
     os_log_info "[watch_dependency] Starting dependency check..."
+    if [[ -z "${PLUGIN_BLOCKED_BY}" ]]; then
+        os_log_info "[watch_dependency] No blocker plugins configured, skipping"
+        return
+    fi
     for blocker_plugin_name in "${PLUGIN_BLOCKED_BY[@]}"; do
         os_log_info "waiting for plugin [${blocker_plugin_name}]"
 
