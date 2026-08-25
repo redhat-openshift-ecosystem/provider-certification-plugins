@@ -186,12 +186,22 @@ func (p *Plugin) PluginFullNameByName(name string) string {
 	switch name {
 	case PluginName05:
 		id = PluginId05
+	case PluginAlias05:
+		return PluginAlias05
 	case PluginName10:
 		id = PluginId10
+	case PluginAlias10:
+		return PluginAlias10
 	case PluginName20:
 		id = PluginId20
+	case PluginAlias20:
+		return PluginAlias20
 	case PluginName80:
 		id = PluginId80
+	case PluginAlias80:
+		return PluginAlias80
+	case PluginAlias99:
+		return PluginAlias99
 	}
 	return fmt.Sprintf("%s-%s", id, name)
 }
@@ -283,25 +293,6 @@ func (p *Plugin) Initialize() error {
 		log.Errorf("unable to load suite list from %s: %v", OpenShiftTestsSuiteList, err)
 	}
 	log.Infof("Total test count: %d", len(p.SuiteTests))
-
-	// For kube-conformance plugin (10) on OCP 4.20+, use the extracted conformance
-	// test list to run only conformance tests via --file flag. On 4.20+ the suite
-	// kubernetes/conformance was removed from openshift-tests, requiring extraction
-	// On 4.20+, conformance tests are extracted from k8s-tests-ext and run via --file.
-	// The suite name is preserved from DEFAULT_SUITE_NAME (kubernetes/conformance/parallel)
-	// so openshift-tests filters tests consistently with the suite definition.
-	// On pre-4.20, DEFAULT_SUITE_NAME is "kubernetes/conformance" which works directly.
-	if p.id == PluginId10 {
-		suiteName := os.Getenv("DEFAULT_SUITE_NAME")
-		if suiteName != "" && suiteName != "kubernetes/conformance" {
-			k8sConformanceList := "/tmp/shared/k8s-conformance-tests.list"
-			if info, err := os.Stat(k8sConformanceList); err == nil && info.Size() > 0 {
-				log.Infof("Setting run file for plugin %s using extracted conformance list %s", p.name, k8sConformanceList)
-				p.OTRunner.File = k8sConformanceList
-				p.OTRunner.SuiteName = suiteName
-			}
-		}
-	}
 
 	if err := p.InitalizeDevelMode(); err != nil {
 		log.Errorf("error setting up devel mode: %v", err)
