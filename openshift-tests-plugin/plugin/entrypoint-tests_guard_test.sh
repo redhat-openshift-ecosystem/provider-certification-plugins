@@ -294,17 +294,17 @@ for mode in "" "upgrade" "normal"; do
 done
 
 #############################################################################
-# Test: Guard runs before oc login (position check)
+# Test: Guard runs after oc login but before test execution (position check)
 #############################################################################
-run_test "guard_before_login: guard appears before oc login in entrypoint"
+run_test "guard_after_login: guard appears after oc login in entrypoint"
 ENTRYPOINT="${SCRIPT_DIR}/entrypoint-tests.sh"
 guard_line=$(grep -n 'opct_workflow_skip_plugin' "${ENTRYPOINT}" | head -1 | cut -d: -f1)
 login_line=$(grep -n 'oc login' "${ENTRYPOINT}" | head -1 | cut -d: -f1)
 TESTS_RUN=$((TESTS_RUN + 1))
-if [[ -n "${guard_line}" ]] && [[ -n "${login_line}" ]] && [[ "${guard_line}" -lt "${login_line}" ]]; then
-    test_pass "guard function defined before oc login (line ${guard_line} < ${login_line})"
+if [[ -n "${guard_line}" ]] && [[ -n "${login_line}" ]] && [[ "${guard_line}" -gt "${login_line}" ]]; then
+    test_pass "guard runs after oc login (line ${guard_line} > ${login_line})"
 else
-    test_fail "guard must appear before oc login" "guard=${guard_line:-missing} login=${login_line:-missing}"
+    test_fail "guard must appear after oc login (reads configmap)" "guard=${guard_line:-missing} login=${login_line:-missing}"
 fi
 
 #############################################################################

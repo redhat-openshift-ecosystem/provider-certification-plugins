@@ -40,23 +40,33 @@ function handle_error() {
 }
 trap handle_error ERR
 
+/usr/bin/oc login "${KUBE_API_URL}" \
+    --token="$(cat "${SA_TOKEN_PATH}")" \
+    --certificate-authority="${SA_CA_PATH}";
+
 # OPCT-432: Workflow entrypoint guard (defense-in-depth).
 # Detect whether this plugin is inactive for the current workflow and skip
-# cleanly before any cluster interaction. This guards against inactive
-# manifests being loaded despite CLI-level filtering.
+# cleanly before test execution. This guards against inactive manifests
+# being loaded despite CLI-level filtering.
+#
+# RUN_MODE is only set in the plugin container env; the tests container
+# reads it from the plugins-config configmap after oc login.
 #
 # Matrix:
 #   Plugin 05 (upgrade):              run in upgrade, skip in default/disconnected
 #   Plugin 10 (kube-conformance):     run in default/disconnected, skip in upgrade
 #   Plugin 20 (conformance-validated): run in default/disconnected, skip in upgrade
 #   Replay (80), Collector (99):      always active (no guard)
-#
-# Uses existing env vars: PLUGIN_NAME, RUN_MODE (set by Sonobuoy manifests).
+if [[ -z "${RUN_MODE:-}" ]]; then
+    RUN_MODE=$(oc get configmap plugins-config -n opct -o jsonpath='{.data.run-mode}' 2>/dev/null) || RUN_MODE=""
+    export RUN_MODE
+    echo "OPCT-432: RUN_MODE resolved from configmap: '${RUN_MODE:-unset}'"
+fi
+
 opct_workflow_skip_plugin() {
     local reason="$1"
     echo "OPCT-432: Skipping plugin ${PLUGIN_NAME:-unknown} - ${reason}"
 
-    # Write a JUnit skip result so Sonobuoy reports a clean skip (not failure).
     local junit_dir="/tmp/shared/junit"
     mkdir -p "${junit_dir}"
     cat > "${junit_dir}/junit_e2e_workflow_skip.xml" <<SKIPEOF
@@ -68,14 +78,10 @@ opct_workflow_skip_plugin() {
 </testsuite>
 SKIPEOF
 
-    # Signal empty suite list so the plugin container does not block.
     touch "${CTRL_SUITE_LIST}"
     touch "${CTRL_SUITE_LIST}.done"
-
-    # Signal test container completion.
     touch "${CTRL_DONE_TESTS}"
 
-    # Wait for plugin done (Sonobuoy worker) with timeout (max 30 minutes).
     local max_wait=180
     local wait_count=0
     while [[ ${wait_count} -lt ${max_wait} ]]; do
@@ -105,10 +111,6 @@ if [[ "${RUN_MODE:-}" == "upgrade" ]]; then
         opct_workflow_skip_plugin "conformance plugin inactive in upgrade workflow (RUN_MODE=upgrade)"
     fi
 fi
-
-/usr/bin/oc login "${KUBE_API_URL}" \
-    --token="$(cat "${SA_TOKEN_PATH}")" \
-    --certificate-authority="${SA_CA_PATH}";
 
 # OPCT-457: Embed CA data inline in kubeconfig to match
 # CI/ci-operator behavior. oc login stores the CA as a file
