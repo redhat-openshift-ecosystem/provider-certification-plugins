@@ -114,7 +114,8 @@ echo "GUARD_RESULT=active"
 exit 0
 HARNESS_EOF
     # Replace placeholder with actual tmpdir
-    sed -i "s|__TMPDIR__|${tmpdir}|g" "${tmpdir}/guard_harness.sh"
+    sed "s|__TMPDIR__|${tmpdir}|g" "${tmpdir}/guard_harness.sh" > "${tmpdir}/guard_harness.tmp"
+    mv "${tmpdir}/guard_harness.tmp" "${tmpdir}/guard_harness.sh"
     chmod +x "${tmpdir}/guard_harness.sh"
 }
 
