@@ -43,6 +43,10 @@ setup_test_env() {
     # Mirror the paths used by entrypoint-tests.sh
     mkdir -p "${tmpdir}/shared/junit"
     mkdir -p "${tmpdir}/sonobuoy/results"
+    # The guard blocks until the plugin container signals done. Pre-create that
+    # signal so skip paths return; the test covering the blocking behaviour
+    # removes it.
+    touch "${tmpdir}/sonobuoy/results/done"
     echo "${tmpdir}"
 }
 
@@ -84,8 +88,19 @@ SKIPEOF
     touch "${CTRL_SUITE_LIST}.done"
     touch "${CTRL_DONE_TESTS}"
 
-    echo "OPCT-432: Skip signals written, exiting tests container."
-    exit 0
+    # Mirrors entrypoint-tests.sh: block until the plugin container signals
+    # done, with no timeout. Tests that expect the guard to return pre-create
+    # ${CTRL_DONE_PLUGIN}; the test asserting the blocking behaviour runs this
+    # harness under an external `timeout`.
+    msg="OPCT-432: skipped, waiting for plugin done [${CTRL_DONE_PLUGIN}]. Read the container 'plugin' logs for more information."
+    while true; do
+        if [[ -f ${CTRL_DONE_PLUGIN} ]]; then
+            echo "OPCT-432: Plugin done detected after skip, exiting."
+            exit 0
+        fi
+        echo "$(date) ${msg}"
+        sleep 1
+    done
 }
 
 # Evaluate guards (same logic as entrypoint-tests.sh)
@@ -310,31 +325,53 @@ fi
 # /tmp/sonobuoy/results/done is not reachable from the tests container. A
 # guard that waited for it timed out and exited 1, failing the pod.
 #############################################################################
-run_test "skip_does_not_wait: guard exits 0 immediately, plugin done absent"
+run_test "skip_blocks_until_plugin_done: guard keeps the tests container alive"
 tmpdir=$(setup_test_env)
 create_guard_harness "${tmpdir}"
-# Plugin done file intentionally absent: blocker plugin still running.
-start_ts=$(date +%s)
+# Blocker plugin still running: the plugin container has not signalled done.
+rm -f "${tmpdir}/sonobuoy/results/done"
+PLUGIN_NAME="openshift-cluster-upgrade" RUN_MODE="" bash "${tmpdir}/guard_harness.sh" >/dev/null 2>&1 &
+guard_pid=$!
+sleep 4
+TESTS_RUN=$((TESTS_RUN + 1))
+if kill -0 "${guard_pid}" 2>/dev/null; then
+    test_pass "guard blocks while plugin done is absent"
+else
+    test_fail "guard must not exit while plugin done is absent" "process exited within 4s"
+fi
+kill "${guard_pid}" 2>/dev/null || true
+wait "${guard_pid}" 2>/dev/null || true
+# Exiting early drops the pod to ContainersNotReady, which the dependency
+# waiter of the next plugin treats as an unblock condition after ~50s.
+TESTS_RUN=$((TESTS_RUN + 1))
+if ! grep -q 'exit 1' <(sed -n '/^opct_workflow_skip_plugin()/,/^}/p' "${SCRIPT_DIR}/entrypoint-tests.sh"); then
+    test_pass "guard has no exit-1 path"
+else
+    test_fail "guard must not fail the pod" "found 'exit 1' in opct_workflow_skip_plugin"
+fi
+TESTS_RUN=$((TESTS_RUN + 1))
+if ! grep -q 'max_wait' <(sed -n '/^opct_workflow_skip_plugin()/,/^}/p' "${SCRIPT_DIR}/entrypoint-tests.sh"); then
+    test_pass "guard wait loop has no timeout"
+else
+    test_fail "guard wait must not time out" "found 'max_wait' in opct_workflow_skip_plugin"
+fi
+teardown_test_env "${tmpdir}"
+
+#############################################################################
+# Test: guard returns once the plugin container signals done
+#############################################################################
+run_test "skip_returns_on_plugin_done: guard exits 0 when plugin done appears"
+tmpdir=$(setup_test_env)
+create_guard_harness "${tmpdir}"
+set +o errexit
 output=$(PLUGIN_NAME="openshift-cluster-upgrade" RUN_MODE="" bash "${tmpdir}/guard_harness.sh" 2>&1)
 exit_code=$?
-elapsed=$(( $(date +%s) - start_ts ))
+set -o errexit
 TESTS_RUN=$((TESTS_RUN + 1))
-if [[ ${exit_code} -eq 0 ]]; then
-    test_pass "skip exits 0 when plugin done is absent"
+if [[ ${exit_code} -eq 0 ]] && echo "${output}" | grep -q "Plugin done detected after skip"; then
+    test_pass "guard exits 0 after plugin done"
 else
-    test_fail "skip must exit 0 when plugin done is absent" "exit=${exit_code} output: ${output}"
-fi
-TESTS_RUN=$((TESTS_RUN + 1))
-if [[ ${elapsed} -lt 10 ]]; then
-    test_pass "skip returns immediately (${elapsed}s, no wait loop)"
-else
-    test_fail "skip must not block waiting for plugin done" "elapsed=${elapsed}s"
-fi
-TESTS_RUN=$((TESTS_RUN + 1))
-if ! grep -q 'Timeout waiting for plugin done after skip' "${SCRIPT_DIR}/entrypoint-tests.sh"; then
-    test_pass "entrypoint has no skip timeout/exit-1 path"
-else
-    test_fail "entrypoint still fails the pod on skip timeout" "found timeout branch in opct_workflow_skip_plugin"
+    test_fail "guard should exit 0 after plugin done" "exit=${exit_code} output: ${output}"
 fi
 teardown_test_env "${tmpdir}"
 

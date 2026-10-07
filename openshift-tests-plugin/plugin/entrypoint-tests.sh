@@ -92,13 +92,29 @@ SKIPEOF
     touch "${CTRL_SUITE_LIST}.done"
     touch "${CTRL_DONE_TESTS}"
 
-    # Do not wait for ${CTRL_DONE_PLUGIN} here. The plugin container stays blocked
-    # in its dependency waiter until the blocker plugin completes - in upgrade
-    # workflows that is plugin 05, which runs for hours - so the done signal is
-    # not reachable on the timescale of this container. Exit cleanly and let the
-    # plugin container drive the remaining lifecycle.
-    echo "OPCT-432: Skip signals written, exiting tests container."
-    exit 0
+    # Block until the plugin container signals done, with no timeout.
+    #
+    # This container must stay alive for as long as the plugin container does.
+    # Exiting here - with any status - drops the pod's Ready condition to
+    # ContainersNotReady, which GetPodStatusString reports as "NotReady". The
+    # dependency waiter of the next plugin in the blocker chain treats that as
+    # an unblock condition after ~50s and proceeds, which cascades down the
+    # chain and starts the artifacts collector while the upgrade is still
+    # running.
+    #
+    # The plugin container reaches its own skip only after its dependency
+    # waiter returns, so in upgrade workflows this wait lasts for the duration
+    # of plugin 05. That is intentional: it preserves plugin ordering. The
+    # plugin container owns the timeout (6h in the dependency waiter).
+    msg="OPCT-432: skipped, waiting for plugin done [${CTRL_DONE_PLUGIN}]. Read the container 'plugin' logs for more information."
+    while true; do
+        if [[ -f ${CTRL_DONE_PLUGIN} ]]; then
+            echo "OPCT-432: Plugin done detected after skip, exiting."
+            exit 0
+        fi
+        echo "$(date) ${msg}"
+        sleep 10
+    done
 }
 
 # Guard: plugin 05 (upgrade) is inactive in non-upgrade workflows.
