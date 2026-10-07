@@ -92,21 +92,13 @@ SKIPEOF
     touch "${CTRL_SUITE_LIST}.done"
     touch "${CTRL_DONE_TESTS}"
 
-    local max_wait=180
-    local wait_count=0
-    while [[ ${wait_count} -lt ${max_wait} ]]; do
-        if [[ -f ${CTRL_DONE_PLUGIN} ]]; then
-            echo "OPCT-432: Plugin done detected after skip, exiting."
-            exit 0
-        fi
-        wait_count=$((wait_count + 1))
-        if (( wait_count % 6 == 0 )); then
-            echo "OPCT-432: Waiting for plugin done after skip [${CTRL_DONE_PLUGIN}] (${wait_count}/${max_wait})..."
-        fi
-        sleep 10
-    done
-    echo "OPCT-432: Timeout waiting for plugin done after skip ($((max_wait * 10))s), exiting."
-    exit 1
+    # Do not wait for ${CTRL_DONE_PLUGIN} here. The plugin container stays blocked
+    # in its dependency waiter until the blocker plugin completes - in upgrade
+    # workflows that is plugin 05, which runs for hours - so the done signal is
+    # not reachable on the timescale of this container. Exit cleanly and let the
+    # plugin container drive the remaining lifecycle.
+    echo "OPCT-432: Skip signals written, exiting tests container."
+    exit 0
 }
 
 # Guard: plugin 05 (upgrade) is inactive in non-upgrade workflows.

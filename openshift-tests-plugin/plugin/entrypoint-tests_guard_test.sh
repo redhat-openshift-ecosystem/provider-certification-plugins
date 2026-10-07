@@ -84,12 +84,7 @@ SKIPEOF
     touch "${CTRL_SUITE_LIST}.done"
     touch "${CTRL_DONE_TESTS}"
 
-    # For testing: don't actually wait, just check/signal
-    if [[ -f ${CTRL_DONE_PLUGIN} ]]; then
-        echo "OPCT-432: Plugin done detected after skip, exiting."
-        exit 0
-    fi
-    # In test mode, exit cleanly after signaling
+    echo "OPCT-432: Skip signals written, exiting tests container."
     exit 0
 }
 
@@ -308,23 +303,38 @@ else
 fi
 
 #############################################################################
-# Test: CTRL_DONE_PLUGIN already present (pre-existing done file)
+# Test: skip exits 0 without waiting for the plugin done file.
+#
+# The plugin container blocks in its dependency waiter until the blocker
+# plugin completes (plugin 05 in upgrade workflows, which runs for hours), so
+# /tmp/sonobuoy/results/done is not reachable from the tests container. A
+# guard that waited for it timed out and exited 1, failing the pod.
 #############################################################################
-run_test "ctrl_done_already_present: skip exits immediately when plugin done exists"
+run_test "skip_does_not_wait: guard exits 0 immediately, plugin done absent"
 tmpdir=$(setup_test_env)
 create_guard_harness "${tmpdir}"
-# Pre-create the plugin done file
-touch "${tmpdir}/sonobuoy/results/done"
-output=$(PLUGIN_NAME="openshift-cluster-upgrade" RUN_MODE="" bash "${tmpdir}/guard_harness.sh" 2>&1) || true
-if echo "${output}" | grep -q "Plugin done detected after skip"; then
-    test_pass "immediate exit when CTRL_DONE_PLUGIN pre-exists"
+# Plugin done file intentionally absent: blocker plugin still running.
+start_ts=$(date +%s)
+output=$(PLUGIN_NAME="openshift-cluster-upgrade" RUN_MODE="" bash "${tmpdir}/guard_harness.sh" 2>&1)
+exit_code=$?
+elapsed=$(( $(date +%s) - start_ts ))
+TESTS_RUN=$((TESTS_RUN + 1))
+if [[ ${exit_code} -eq 0 ]]; then
+    test_pass "skip exits 0 when plugin done is absent"
 else
-    # The harness exits 0 on skip regardless; check skip happened
-    if echo "${output}" | grep -q "OPCT-432: Skipping"; then
-        test_pass "skip triggered with pre-existing done file"
-    else
-        test_fail "should skip with pre-existing done file" "output: ${output}"
-    fi
+    test_fail "skip must exit 0 when plugin done is absent" "exit=${exit_code} output: ${output}"
+fi
+TESTS_RUN=$((TESTS_RUN + 1))
+if [[ ${elapsed} -lt 10 ]]; then
+    test_pass "skip returns immediately (${elapsed}s, no wait loop)"
+else
+    test_fail "skip must not block waiting for plugin done" "elapsed=${elapsed}s"
+fi
+TESTS_RUN=$((TESTS_RUN + 1))
+if ! grep -q 'Timeout waiting for plugin done after skip' "${SCRIPT_DIR}/entrypoint-tests.sh"; then
+    test_pass "entrypoint has no skip timeout/exit-1 path"
+else
+    test_fail "entrypoint still fails the pod on skip timeout" "found timeout branch in opct_workflow_skip_plugin"
 fi
 teardown_test_env "${tmpdir}"
 
