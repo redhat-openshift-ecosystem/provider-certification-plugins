@@ -63,6 +63,16 @@ if [[ -z "${RUN_MODE:-}" ]]; then
     echo "OPCT-432: RUN_MODE resolved from configmap: '${RUN_MODE:-unset}'"
 fi
 
+# UPGRADE_RELEASES is likewise absent from the tests container env. Resolving
+# RUN_MODE above activates the upgrade suite-list branch below, which passes
+# --to-image "${UPGRADE_RELEASES}"; resolve it from the same configmap so that
+# branch receives the target release instead of an empty string.
+if [[ -z "${UPGRADE_RELEASES:-}" ]]; then
+    UPGRADE_RELEASES=$(oc get configmap plugins-config -n opct -o jsonpath='{.data.upgrade-target-images}' 2>/dev/null) || UPGRADE_RELEASES=""
+    export UPGRADE_RELEASES
+    echo "OPCT-432: UPGRADE_RELEASES resolved from configmap: '${UPGRADE_RELEASES:-unset}'"
+fi
+
 opct_workflow_skip_plugin() {
     local reason="$1"
     echo "OPCT-432: Skipping plugin ${PLUGIN_NAME:-unknown} - ${reason}"
