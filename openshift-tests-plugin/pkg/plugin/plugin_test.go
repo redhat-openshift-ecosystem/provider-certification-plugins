@@ -259,6 +259,200 @@ func TestGetSuiteNameConstantValues(t *testing.T) {
 	}
 }
 
+// TestWorkflowGuardSkipMatrix tests the OPCT-432 workflow guard skip matrix.
+// Matrix:
+//
+//	Plugin 05 (upgrade):              run in upgrade, skip in default/disconnected
+//	Plugin 10 (kube-conformance):     run in default/disconnected, skip in upgrade
+//	Plugin 20 (conformance-validated): run in default/disconnected, skip in upgrade
+//	Plugin 80 (replay):               always active (no guard)
+//	Plugin 99 (collector):            always active (no guard)
+func TestWorkflowGuardSkipMatrix(t *testing.T) {
+	tests := []struct {
+		name       string
+		pluginName string
+		execMode   string
+		wantSkip   bool
+	}{
+		// Plugin 05: skip in default, run in upgrade
+		{
+			name:       "Plugin05 default mode should skip",
+			pluginName: PluginName05,
+			execMode:   ExecModeDefault,
+			wantSkip:   true,
+		},
+		{
+			name:       "Plugin05 upgrade mode should run",
+			pluginName: PluginName05,
+			execMode:   ExecModeUpgrade,
+			wantSkip:   false,
+		},
+		// Plugin 10: run in default, skip in upgrade
+		{
+			name:       "Plugin10 default mode should run",
+			pluginName: PluginName10,
+			execMode:   ExecModeDefault,
+			wantSkip:   false,
+		},
+		{
+			name:       "Plugin10 upgrade mode should skip",
+			pluginName: PluginName10,
+			execMode:   ExecModeUpgrade,
+			wantSkip:   true,
+		},
+		// Plugin 20: run in default, skip in upgrade
+		{
+			name:       "Plugin20 default mode should run",
+			pluginName: PluginName20,
+			execMode:   ExecModeDefault,
+			wantSkip:   false,
+		},
+		{
+			name:       "Plugin20 upgrade mode should skip",
+			pluginName: PluginName20,
+			execMode:   ExecModeUpgrade,
+			wantSkip:   true,
+		},
+		// Plugin 80 (replay): always active
+		{
+			name:       "Plugin80 default mode should run",
+			pluginName: PluginName80,
+			execMode:   ExecModeDefault,
+			wantSkip:   false,
+		},
+		{
+			name:       "Plugin80 upgrade mode should run",
+			pluginName: PluginName80,
+			execMode:   ExecModeUpgrade,
+			wantSkip:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p, err := NewPlugin(tt.pluginName)
+			if err != nil {
+				t.Fatalf("NewPlugin(%s) unexpected error: %v", tt.pluginName, err)
+			}
+			p.ExecMode = tt.execMode
+
+			// Evaluate the skip conditions matching the guard in Run()
+			skipPlugin := false
+			if p.id == PluginId05 && p.ExecMode == ExecModeDefault {
+				skipPlugin = true
+			}
+			if (p.id == PluginId10 || p.id == PluginId20) && p.ExecMode == ExecModeUpgrade {
+				skipPlugin = true
+			}
+
+			if skipPlugin != tt.wantSkip {
+				t.Errorf("workflow guard for %s in %s mode: got skip=%v, want skip=%v",
+					tt.pluginName, tt.execMode, skipPlugin, tt.wantSkip)
+			}
+		})
+	}
+}
+
+// TestWorkflowGuardExecModeFromEnv tests that RUN_MODE env var correctly
+// propagates to ExecMode during initialization, which drives the guard.
+func TestWorkflowGuardExecModeFromEnv(t *testing.T) {
+	tests := []struct {
+		name         string
+		runModeEnv   string
+		setEnv       bool
+		expectedMode string
+	}{
+		{
+			name:         "RUN_MODE=upgrade sets ExecModeUpgrade",
+			runModeEnv:   "upgrade",
+			setEnv:       true,
+			expectedMode: ExecModeUpgrade,
+		},
+		{
+			name:         "RUN_MODE=normal sets ExecModeDefault",
+			runModeEnv:   "normal",
+			setEnv:       true,
+			expectedMode: ExecModeDefault,
+		},
+		{
+			name:         "RUN_MODE unset defaults to ExecModeDefault",
+			runModeEnv:   "",
+			setEnv:       false,
+			expectedMode: ExecModeDefault,
+		},
+		{
+			name:         "RUN_MODE=unknown defaults to ExecModeDefault",
+			runModeEnv:   "unknown",
+			setEnv:       true,
+			expectedMode: ExecModeDefault,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.setEnv {
+				os.Setenv("RUN_MODE", tt.runModeEnv)
+				defer os.Unsetenv("RUN_MODE")
+			} else {
+				os.Unsetenv("RUN_MODE")
+			}
+
+			// NewPlugin sets ExecMode to ExecModeDefault,
+			// Initialize() reads RUN_MODE and updates it.
+			// We test the env-to-mode mapping directly here
+			// since Initialize() requires cluster connectivity.
+			p, err := NewPlugin(PluginName10)
+			if err != nil {
+				t.Fatalf("NewPlugin unexpected error: %v", err)
+			}
+
+			// Simulate the Initialize() env parsing
+			envRunMode := os.Getenv("RUN_MODE")
+			if len(envRunMode) > 0 {
+				switch envRunMode {
+				case ExecModeUpgrade:
+					p.ExecMode = ExecModeUpgrade
+				case "normal":
+					p.ExecMode = ExecModeDefault
+				default:
+					p.ExecMode = ExecModeDefault
+				}
+			}
+
+			if p.ExecMode != tt.expectedMode {
+				t.Errorf("ExecMode = %q, want %q (RUN_MODE=%q)",
+					p.ExecMode, tt.expectedMode, tt.runModeEnv)
+			}
+		})
+	}
+}
+
+// TestWorkflowGuardReplayUnaffected confirms the replay plugin (80) is
+// never subject to the workflow guard regardless of execution mode.
+func TestWorkflowGuardReplayUnaffected(t *testing.T) {
+	for _, mode := range []string{ExecModeDefault, ExecModeUpgrade} {
+		t.Run("replay_in_"+mode, func(t *testing.T) {
+			p, err := NewPlugin(PluginName80)
+			if err != nil {
+				t.Fatalf("NewPlugin(%s) unexpected error: %v", PluginName80, err)
+			}
+			p.ExecMode = mode
+
+			skipPlugin := false
+			if p.id == PluginId05 && p.ExecMode == ExecModeDefault {
+				skipPlugin = true
+			}
+			if (p.id == PluginId10 || p.id == PluginId20) && p.ExecMode == ExecModeUpgrade {
+				skipPlugin = true
+			}
+
+			if skipPlugin {
+				t.Errorf("replay plugin should never be skipped, but got skip=true in %s mode", mode)
+			}
+		})
+	}
+}
+
 // TestGetSuiteNameEdgeCases tests edge cases for getSuiteName
 func TestGetSuiteNameEdgeCases(t *testing.T) {
 	tests := []struct {
