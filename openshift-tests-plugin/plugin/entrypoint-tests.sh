@@ -44,6 +44,92 @@ trap handle_error ERR
     --token="$(cat "${SA_TOKEN_PATH}")" \
     --certificate-authority="${SA_CA_PATH}";
 
+# OPCT-432: Workflow entrypoint guard (defense-in-depth).
+# Detect whether this plugin is inactive for the current workflow and skip
+# cleanly before test execution. This guards against inactive manifests
+# being loaded despite CLI-level filtering.
+#
+# RUN_MODE is only set in the plugin container env; the tests container
+# reads it from the plugins-config configmap after oc login.
+#
+# Matrix:
+#   Plugin 05 (upgrade):              run in upgrade, skip in default/disconnected
+#   Plugin 10 (kube-conformance):     run in default/disconnected, skip in upgrade
+#   Plugin 20 (conformance-validated): run in default/disconnected, skip in upgrade
+#   Replay (80), Collector (99):      always active (no guard)
+if [[ -z "${RUN_MODE:-}" ]]; then
+    RUN_MODE=$(oc get configmap plugins-config -n opct -o jsonpath='{.data.run-mode}' 2>/dev/null) || RUN_MODE=""
+    export RUN_MODE
+    echo "OPCT-432: RUN_MODE resolved from configmap: '${RUN_MODE:-unset}'"
+fi
+
+# UPGRADE_RELEASES is likewise absent from the tests container env. Resolving
+# RUN_MODE above activates the upgrade suite-list branch below, which passes
+# --to-image "${UPGRADE_RELEASES}"; resolve it from the same configmap so that
+# branch receives the target release instead of an empty string.
+if [[ -z "${UPGRADE_RELEASES:-}" ]]; then
+    UPGRADE_RELEASES=$(oc get configmap plugins-config -n opct -o jsonpath='{.data.upgrade-target-images}' 2>/dev/null) || UPGRADE_RELEASES=""
+    export UPGRADE_RELEASES
+    echo "OPCT-432: UPGRADE_RELEASES resolved from configmap: '${UPGRADE_RELEASES:-unset}'"
+fi
+
+opct_workflow_skip_plugin() {
+    local reason="$1"
+    echo "OPCT-432: Skipping plugin ${PLUGIN_NAME:-unknown} - ${reason}"
+
+    local junit_dir="/tmp/shared/junit"
+    mkdir -p "${junit_dir}"
+    cat > "${junit_dir}/junit_e2e_workflow_skip.xml" <<SKIPEOF
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="opct" tests="1" failures="0" time="0.0">
+  <testcase name="[opct] workflow guard: ${PLUGIN_NAME:-unknown}" time="0.0">
+    <skipped message="${reason}"/>
+  </testcase>
+</testsuite>
+SKIPEOF
+
+    touch "${CTRL_SUITE_LIST}"
+    touch "${CTRL_SUITE_LIST}.done"
+    touch "${CTRL_DONE_TESTS}"
+
+    # Block until the plugin container signals done, with no timeout.
+    #
+    # This container must stay alive for as long as the plugin container does.
+    # Exiting here - with any status - drops the pod's Ready condition to
+    # ContainersNotReady, which GetPodStatusString reports as "NotReady". The
+    # dependency waiter of the next plugin in the blocker chain treats that as
+    # an unblock condition after ~50s and proceeds, which cascades down the
+    # chain and starts the artifacts collector while the upgrade is still
+    # running.
+    #
+    # The plugin container reaches its own skip only after its dependency
+    # waiter returns, so in upgrade workflows this wait lasts for the duration
+    # of plugin 05. That is intentional: it preserves plugin ordering. The
+    # plugin container owns the timeout (6h in the dependency waiter).
+    msg="OPCT-432: skipped, waiting for plugin done [${CTRL_DONE_PLUGIN}]. Read the container 'plugin' logs for more information."
+    while true; do
+        if [[ -f ${CTRL_DONE_PLUGIN} ]]; then
+            echo "OPCT-432: Plugin done detected after skip, exiting."
+            exit 0
+        fi
+        echo "$(date) ${msg}"
+        sleep 10
+    done
+}
+
+# Guard: plugin 05 (upgrade) is inactive in non-upgrade workflows.
+if [[ "${PLUGIN_NAME:-}" == "openshift-cluster-upgrade" ]] && [[ "${RUN_MODE:-}" != "upgrade" ]]; then
+    opct_workflow_skip_plugin "upgrade plugin inactive in non-upgrade workflow (RUN_MODE=${RUN_MODE:-unset})"
+fi
+
+# Guard: plugins 10/20 (conformance) are inactive in upgrade workflows.
+if [[ "${RUN_MODE:-}" == "upgrade" ]]; then
+    if [[ "${PLUGIN_NAME:-}" == "openshift-kube-conformance" ]] || \
+       [[ "${PLUGIN_NAME:-}" == "openshift-conformance-validated" ]]; then
+        opct_workflow_skip_plugin "conformance plugin inactive in upgrade workflow (RUN_MODE=upgrade)"
+    fi
+fi
+
 # OPCT-457: Embed CA data inline in kubeconfig to match
 # CI/ci-operator behavior. oc login stores the CA as a file
 # reference, but CI produces kubeconfigs with inline

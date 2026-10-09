@@ -474,13 +474,35 @@ func (p *Plugin) Run() error {
 		}
 	}
 
-	// Skip the plugin execution when plugin is upgrade in 'default' mode (non-upgrade).
+	// OPCT-432: Workflow entrypoint guard (defense-in-depth).
+	// Skip plugin execution when the plugin is inactive for the current workflow.
+	//
+	// Matrix:
+	//   Plugin 05 (upgrade):              run in upgrade, skip in default/disconnected
+	//   Plugin 10 (kube-conformance):     run in default/disconnected, skip in upgrade
+	//   Plugin 20 (conformance-validated): run in default/disconnected, skip in upgrade
+	skipPlugin := false
+	skipReason := ""
+
+	// Plugin 05 is inactive in non-upgrade workflows (existing guard).
 	if p.id == PluginId05 && p.ExecMode == ExecModeDefault {
+		skipPlugin = true
+		skipReason = fmt.Sprintf("upgrade plugin inactive in non-upgrade workflow (ExecMode=%s)", p.ExecMode)
+	}
+
+	// Plugins 10/20 are inactive in upgrade workflows.
+	if (p.id == PluginId10 || p.id == PluginId20) && p.ExecMode == ExecModeUpgrade {
+		skipPlugin = true
+		skipReason = fmt.Sprintf("conformance plugin inactive in upgrade workflow (ExecMode=%s)", p.ExecMode)
+	}
+
+	if skipPlugin {
+		log.Infof("OPCT-432: Skipping plugin %s - %s", p.FullName(), skipReason)
 		junit := NewJUnitTestReport(&JUnitTestReport{
-			Filepath: "/tmp/shared/junit/junit_e2e_upgrade_skip.xml",
+			Filepath: fmt.Sprintf("/tmp/shared/junit/junit_e2e_%s_workflow_skip.xml", p.id),
 			Result:   "skipped",
-			Name:     "[opct] run suite in default execution mode",
-			Message:  "Skipping the plugin execution the execution mode 'default'",
+			Name:     fmt.Sprintf("[opct] workflow guard: %s", p.FullName()),
+			Message:  skipReason,
 		})
 		if err := junit.Write(); err != nil {
 			return fmt.Errorf("error writing custom junit: %w", err)
