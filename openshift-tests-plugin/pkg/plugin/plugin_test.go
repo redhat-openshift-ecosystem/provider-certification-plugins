@@ -336,14 +336,7 @@ func TestWorkflowGuardSkipMatrix(t *testing.T) {
 			}
 			p.ExecMode = tt.execMode
 
-			// Evaluate the skip conditions matching the guard in Run()
-			skipPlugin := false
-			if p.id == PluginId05 && p.ExecMode == ExecModeDefault {
-				skipPlugin = true
-			}
-			if (p.id == PluginId10 || p.id == PluginId20) && p.ExecMode == ExecModeUpgrade {
-				skipPlugin = true
-			}
+			skipPlugin := inactiveInWorkflowReason(p.id, p.ExecMode) != ""
 
 			if skipPlugin != tt.wantSkip {
 				t.Errorf("workflow guard for %s in %s mode: got skip=%v, want skip=%v",
@@ -515,5 +508,126 @@ func TestGetSuiteNameEdgeCases(t *testing.T) {
 				t.Errorf("getSuiteName(%s) = %q, want %q", tt.pluginID, result, tt.expectedSuite)
 			}
 		})
+	}
+}
+
+// TestPluginIDByName verifies plugin IDs resolve from both names and aliases,
+// since BlockerPlugins may be populated with either form.
+func TestPluginIDByName(t *testing.T) {
+	tests := []struct {
+		name   string
+		input  string
+		wantID string
+	}{
+		{name: "name 05", input: PluginName05, wantID: PluginId05},
+		{name: "alias 05", input: PluginAlias05, wantID: PluginId05},
+		{name: "name 10", input: PluginName10, wantID: PluginId10},
+		{name: "alias 10", input: PluginAlias10, wantID: PluginId10},
+		{name: "name 20", input: PluginName20, wantID: PluginId20},
+		{name: "alias 20", input: PluginAlias20, wantID: PluginId20},
+		{name: "name 80", input: PluginName80, wantID: PluginId80},
+		{name: "name 99", input: PluginName99, wantID: PluginId99},
+		{name: "unknown plugin", input: "not-a-plugin", wantID: ""},
+		{name: "empty", input: "", wantID: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := pluginIDByName(tt.input); got != tt.wantID {
+				t.Errorf("pluginIDByName(%q) = %q, want %q", tt.input, got, tt.wantID)
+			}
+		})
+	}
+}
+
+// TestDependencyWaiterSkipsInactiveBlocker covers OPCT-433: a plugin must not wait
+// for a blocker that is not part of the current workflow, otherwise it polls until
+// the 6h timeout. Plugin 10 blocked by plugin 05 in regular mode is the case that
+// blocks the CLI-side manifest skip (opct PR #253).
+func TestDependencyWaiterSkipsInactiveBlocker(t *testing.T) {
+	tests := []struct {
+		name       string
+		pluginName string
+		execMode   string
+		wantSkip   bool
+	}{
+		{
+			name:       "plugin10 in default mode must not wait for upgrade plugin 05",
+			pluginName: PluginName10,
+			execMode:   ExecModeDefault,
+			wantSkip:   true,
+		},
+		{
+			name:       "plugin10 in upgrade mode keeps waiting for plugin 05",
+			pluginName: PluginName10,
+			execMode:   ExecModeUpgrade,
+			wantSkip:   false,
+		},
+		{
+			name:       "plugin20 keeps waiting for plugin 10 in default mode",
+			pluginName: PluginName20,
+			execMode:   ExecModeDefault,
+			wantSkip:   false,
+		},
+		{
+			name:       "plugin20 in upgrade mode must not wait for inactive plugin 10",
+			pluginName: PluginName20,
+			execMode:   ExecModeUpgrade,
+			wantSkip:   true,
+		},
+		{
+			name:       "plugin80 keeps waiting for plugin 20 in default mode",
+			pluginName: PluginName80,
+			execMode:   ExecModeDefault,
+			wantSkip:   false,
+		},
+		{
+			name:       "plugin80 in upgrade mode must not wait for inactive plugin 20",
+			pluginName: PluginName80,
+			execMode:   ExecModeUpgrade,
+			wantSkip:   true,
+		},
+		{
+			name:       "plugin99 keeps waiting for always-active plugin 80",
+			pluginName: PluginName99,
+			execMode:   ExecModeUpgrade,
+			wantSkip:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p, err := NewPlugin(tt.pluginName)
+			if err != nil {
+				t.Fatalf("NewPlugin(%s) unexpected error: %v", tt.pluginName, err)
+			}
+			p.ExecMode = tt.execMode
+
+			if len(p.BlockerPlugins) == 0 {
+				t.Fatalf("plugin %s expected to have a blocker configured", tt.pluginName)
+			}
+			blocker := p.BlockerPlugins[0].name
+			gotSkip := inactiveInWorkflowReason(pluginIDByName(blocker), p.ExecMode) != ""
+
+			if gotSkip != tt.wantSkip {
+				t.Errorf("waiter guard for %s (blocker=%s) in %s mode: got skip=%v, want skip=%v",
+					tt.pluginName, blocker, tt.execMode, gotSkip, tt.wantSkip)
+			}
+		})
+	}
+}
+
+// TestDependencyWaiterNoBlockerReturnsNil guards the pre-existing early return used
+// by the --blocker="" escape hatch (OPCT-454), which must keep working.
+func TestDependencyWaiterNoBlockerReturnsNil(t *testing.T) {
+	p, err := NewPlugin(PluginName05)
+	if err != nil {
+		t.Fatalf("NewPlugin(%s) unexpected error: %v", PluginName05, err)
+	}
+	if len(p.BlockerPlugins) != 0 {
+		t.Fatalf("plugin %s expected to have no blocker, got %d", PluginName05, len(p.BlockerPlugins))
+	}
+	if err := p.RunDependencyWaiter(); err != nil {
+		t.Errorf("RunDependencyWaiter() with no blocker = %v, want nil", err)
 	}
 }

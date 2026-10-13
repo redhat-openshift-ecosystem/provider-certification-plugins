@@ -206,6 +206,46 @@ func (p *Plugin) PluginFullNameByName(name string) string {
 	return fmt.Sprintf("%s-%s", id, name)
 }
 
+// pluginIDByName returns the plugin ID for a plugin name or alias, or an empty
+// string when the name is not a known plugin.
+func pluginIDByName(name string) string {
+	switch name {
+	case PluginName05, PluginAlias05:
+		return PluginId05
+	case PluginName10, PluginAlias10:
+		return PluginId10
+	case PluginName20, PluginAlias20:
+		return PluginId20
+	case PluginName80, PluginAlias80:
+		return PluginId80
+	case PluginName99, PluginAlias99:
+		return PluginId99
+	}
+	return ""
+}
+
+// inactiveInWorkflowReason returns a non-empty reason when the plugin ID does not
+// participate in the given workflow execution mode, and an empty string otherwise.
+//
+// Matrix:
+//
+//	Plugin 05 (upgrade):               run in upgrade, skip in default/disconnected
+//	Plugin 10 (kube-conformance):      run in default/disconnected, skip in upgrade
+//	Plugin 20 (conformance-validated): run in default/disconnected, skip in upgrade
+func inactiveInWorkflowReason(id, execMode string) string {
+	switch id {
+	case PluginId05:
+		if execMode == ExecModeDefault {
+			return fmt.Sprintf("upgrade plugin inactive in non-upgrade workflow (ExecMode=%s)", execMode)
+		}
+	case PluginId10, PluginId20:
+		if execMode == ExecModeUpgrade {
+			return fmt.Sprintf("conformance plugin inactive in upgrade workflow (ExecMode=%s)", execMode)
+		}
+	}
+	return ""
+}
+
 // getSuiteName returns the suite name for the plugin.
 func (p *Plugin) getSuiteName(id string) string {
 	switch id {
@@ -476,27 +516,8 @@ func (p *Plugin) Run() error {
 
 	// OPCT-432: Workflow entrypoint guard (defense-in-depth).
 	// Skip plugin execution when the plugin is inactive for the current workflow.
-	//
-	// Matrix:
-	//   Plugin 05 (upgrade):              run in upgrade, skip in default/disconnected
-	//   Plugin 10 (kube-conformance):     run in default/disconnected, skip in upgrade
-	//   Plugin 20 (conformance-validated): run in default/disconnected, skip in upgrade
-	skipPlugin := false
-	skipReason := ""
-
-	// Plugin 05 is inactive in non-upgrade workflows (existing guard).
-	if p.id == PluginId05 && p.ExecMode == ExecModeDefault {
-		skipPlugin = true
-		skipReason = fmt.Sprintf("upgrade plugin inactive in non-upgrade workflow (ExecMode=%s)", p.ExecMode)
-	}
-
-	// Plugins 10/20 are inactive in upgrade workflows.
-	if (p.id == PluginId10 || p.id == PluginId20) && p.ExecMode == ExecModeUpgrade {
-		skipPlugin = true
-		skipReason = fmt.Sprintf("conformance plugin inactive in upgrade workflow (ExecMode=%s)", p.ExecMode)
-	}
-
-	if skipPlugin {
+	skipReason := inactiveInWorkflowReason(p.id, p.ExecMode)
+	if skipReason != "" {
 		log.Infof("OPCT-432: Skipping plugin %s - %s", p.FullName(), skipReason)
 		junit := NewJUnitTestReport(&JUnitTestReport{
 			Filepath: fmt.Sprintf("/tmp/shared/junit/junit_e2e_%s_workflow_skip.xml", p.id),
@@ -684,6 +705,15 @@ func (p *Plugin) RunDependencyWaiter() error {
 		return nil
 	}
 	pluginBlocker := p.BlockerPlugins[0].name
+
+	// OPCT-433: a blocker is only meaningful when it participates in the current
+	// workflow. The CLI does not load inactive plugin manifests, so waiting for one
+	// would poll until the 6h timeout and stall the whole run.
+	if reason := inactiveInWorkflowReason(pluginIDByName(pluginBlocker), p.ExecMode); reason != "" {
+		log.Infof("OPCT-433: Skipping dependency waiter for plugin[%s]: blocker[%s] %s", p.Name(), pluginBlocker, reason)
+		return nil
+	}
+
 	pluginBlockerPodName := p.PluginFullNameByName(pluginBlocker)
 
 	// TODO: move to context setting timeout in hours.
