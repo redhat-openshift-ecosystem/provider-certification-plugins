@@ -3,7 +3,7 @@ package exec
 import (
 	"os"
 
-	"github.com/redhat-openshift-ecosystem/provider-certification-plugins/openshift-tests-plugin/pkg/plugin"
+	"github.com/redhat-openshift-ecosystem/opct-plugins/openshift-tests-plugin/pkg/plugin"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )

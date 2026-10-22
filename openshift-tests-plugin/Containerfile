@@ -8,10 +8,10 @@ RUN microdnf clean all
 # Go Builder image: openshift-tests-plugin CLI
 #
 FROM docker.io/golang:1.23-alpine AS gobuilder
-ARG PROJ=github.com/redhat-openshift-ecosystem/provider-certification-plugins/openshift-tests-plugin
+ARG PROJ=github.com/redhat-openshift-ecosystem/opct-plugins/openshift-tests-plugin
 ARG BUILD_VERSION
 RUN apk add --no-cache --update make git binutils
-WORKDIR /go/src/github.com/redhat-openshift-ecosystem/provider-certification-plugins/openshift-tests-plugin
+WORKDIR /go/src/github.com/redhat-openshift-ecosystem/opct-plugins/openshift-tests-plugin
 RUN rm ./openshift-tests-plugin || true
 COPY main.go go.* .
 COPY ./pkg ./pkg

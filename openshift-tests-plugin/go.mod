@@ -1,4 +1,4 @@
-module github.com/redhat-openshift-ecosystem/provider-certification-plugins/openshift-tests-plugin
+module github.com/redhat-openshift-ecosystem/opct-plugins/openshift-tests-plugin
 
 go 1.23
 

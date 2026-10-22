@@ -3,7 +3,7 @@ package cmd
 import (
 	"fmt"
 
-	v "github.com/redhat-openshift-ecosystem/provider-certification-plugins/openshift-tests-plugin/pkg/version"
+	v "github.com/redhat-openshift-ecosystem/opct-plugins/openshift-tests-plugin/pkg/version"
 	"github.com/spf13/cobra"
 )
 
