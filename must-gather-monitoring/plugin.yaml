@@ -2,7 +2,7 @@ sonobuoy-config:
   driver: Job
   plugin-name: must-gather-monitoring
   result-format: raw
-  source_url: https://raw.githubusercontent.com/redhat-ecosystem/provider-certification-plugins/main/must-gather-monitoring/plugin.yaml
+  source_url: https://raw.githubusercontent.com/redhat-openshift-ecosystem/provider-certification-plugins/main/must-gather-monitoring/plugin.yaml
   description: A quickly way to collect Prometheus Metrics on OpenShift/OKD clusters.
 spec:
   name: plugin

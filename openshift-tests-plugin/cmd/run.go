@@ -5,8 +5,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/redhat-openshift-ecosystem/provider-certification-plugins/openshift-tests-plugin/pkg/plugin"
-	v "github.com/redhat-openshift-ecosystem/provider-certification-plugins/openshift-tests-plugin/pkg/version"
+	"github.com/redhat-openshift-ecosystem/opct-plugins/openshift-tests-plugin/pkg/plugin"
+	v "github.com/redhat-openshift-ecosystem/opct-plugins/openshift-tests-plugin/pkg/version"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/spf13/cobra"

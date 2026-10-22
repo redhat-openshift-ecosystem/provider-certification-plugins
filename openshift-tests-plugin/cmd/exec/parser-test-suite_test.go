@@ -3,7 +3,7 @@ package exec
 import (
 	"testing"
 
-	tdata "github.com/redhat-openshift-ecosystem/provider-certification-plugins/openshift-tests-plugin/test"
+	tdata "github.com/redhat-openshift-ecosystem/opct-plugins/openshift-tests-plugin/test"
 	"github.com/stretchr/testify/assert"
 )
 

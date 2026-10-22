@@ -5,8 +5,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/redhat-openshift-ecosystem/provider-certification-plugins/openshift-tests-plugin/pkg/plugin"
-	tdata "github.com/redhat-openshift-ecosystem/provider-certification-plugins/openshift-tests-plugin/test"
+	"github.com/redhat-openshift-ecosystem/opct-plugins/openshift-tests-plugin/pkg/plugin"
+	tdata "github.com/redhat-openshift-ecosystem/opct-plugins/openshift-tests-plugin/test"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )

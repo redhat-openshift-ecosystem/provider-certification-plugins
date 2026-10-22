@@ -9,7 +9,7 @@ package cmd
 import (
 	"os"
 
-	"github.com/redhat-openshift-ecosystem/provider-certification-plugins/openshift-tests-plugin/cmd/exec"
+	"github.com/redhat-openshift-ecosystem/opct-plugins/openshift-tests-plugin/cmd/exec"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"

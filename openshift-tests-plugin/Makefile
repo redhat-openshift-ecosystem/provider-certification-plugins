@@ -3,8 +3,8 @@ IMG ?=  quay.io/opct/openshift-tests-plugin
 VERSION = v0.0.0-devel
 COMMIT = $(shell git rev-parse --short HEAD)
 GO_BUILD_FLAGS ?= -ldflags "-s \
-	-X github.com/redhat-openshift-ecosystem/provider-certification-plugins/openshift-tests-plugin/pkg/version.version=$(VERSION) \
-	-X github.com/redhat-openshift-ecosystem/provider-certification-plugins/openshift-tests-plugin/pkg/version.commit=$(COMMIT) \
+	-X github.com/redhat-openshift-ecosystem/opct-plugins/openshift-tests-plugin/pkg/version.version=$(VERSION) \
+	-X github.com/redhat-openshift-ecosystem/opct-plugins/openshift-tests-plugin/pkg/version.commit=$(COMMIT) \
 	"
 GOOS ?= linux
 GOARCH ?= amd64
